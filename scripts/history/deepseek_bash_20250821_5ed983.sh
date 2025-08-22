@@ -1,1 +1,0 @@
-mkdir -p .github/workflows .github/ISSUE_TEMPLATE scripts examples docs configs

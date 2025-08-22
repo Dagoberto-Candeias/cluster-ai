@@ -1,1 +1,0 @@
-# No GitHub, crie um novo repositório chamado "cluster-ai"
