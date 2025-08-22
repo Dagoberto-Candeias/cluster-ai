@@ -43,10 +43,20 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 
 ## 🚀 Instalação Rápida
 
-### Instalação em Uma Máquina
+### Instalação Local (Recomendado para desenvolvimento)
+Se você já clonou o repositório:
+```bash
+# Executar diretamente o script local
+./install_cluster.sh
+
+# Ou usar o script principal diretamente
+./scripts/installation/main.sh
+```
+
+### Instalação via Download (Para usuários externos)
 ```bash
 # Download do script de instalação
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/install_cluster.sh -o install_cluster.sh
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/main.sh -o install_cluster.sh
 
 # Tornar executável
 chmod +x install_cluster.sh
@@ -62,6 +72,8 @@ chmod +x install_cluster.sh
 
 # Siga o menu interativo para definir o papel de cada máquina
 ```
+
+**💡 Nota**: O projeto agora inclui um script wrapper `install_cluster.sh` no diretório raiz para facilitar o acesso. Consulte [INSTALACAO_LOCAL.md](../INSTALACAO_LOCAL.md) para mais detalhes.
 
 ## 🏗️ Arquitetura do Sistema
 

@@ -85,7 +85,7 @@ command -v docker && echo "Docker: ✅" || echo "Docker: ❌"
 ### Instalação em Uma Máquina
 ```bash
 # Download do script principal
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/install_cluster.sh -o install_cluster.sh
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/main.sh -o install_cluster.sh
 
 # Permissões de execução
 chmod +x install_cluster.sh

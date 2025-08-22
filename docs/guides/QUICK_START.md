@@ -18,9 +18,17 @@ Comece a usar o Cluster AI em **5 minutos** com este guia rápido!
 ## 🚀 Passo a Passo Rápido
 
 ### 1. 📥 Download e Instalação
+
+**Opção A: Se você já clonou o repositório (Recomendado para desenvolvimento)**
+```bash
+# Executar script local
+./install_cluster.sh
+```
+
+**Opção B: Download do GitHub (para quem não clonou)**
 ```bash
 # Baixar script de instalação
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/install_cluster.sh -o install_cluster.sh
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/main.sh -o install_cluster.sh
 
 # Tornar executável
 chmod +x install_cluster.sh
