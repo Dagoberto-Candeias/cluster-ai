@@ -1,0 +1,26 @@
+# Cluster AI specific
+cluster_env/
+cluster_backups/
+cluster_docs/
+.cluster_role
+
+# Ollama
+.ollama/models/
+.ollama/tmp/
+
+# Docker
+open-webui/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

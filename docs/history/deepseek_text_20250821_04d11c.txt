@@ -1,0 +1,27 @@
+cluster-ai-project/
+├── .github/
+│   ├── workflows/
+│   │   └── ci.yml                 # GitHub Actions para CI/CD
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.md
+│       └── feature_request.md
+├── scripts/
+│   ├── install_cluster_ai.sh      # Script principal de instalação
+│   ├── deploy_cluster.sh          # Script de implantação em múltiplas máquinas
+│   ├── update_ollama_models.sh    # Atualização de modelos
+│   └── clean_ollama_cache.sh      # Limpeza de cache
+├── examples/
+│   ├── basic_usage.py             # Exemplos de uso básico
+│   ├── distributed_processing.py  # Processamento distribuído
+│   └── ollama_integration.py      # Integração com Ollama
+├── docs/
+│   ├── manual_completo.md         # Manual completo
+│   ├── quick_start.md             # Guia rápido
+│   └── troubleshooting.md         # Solução de problemas
+├── configs/
+│   ├── ollama_config.json         # Configurações de exemplo
+│   └── dask_config.yml            # Configurações do Dask
+├── .gitignore
+├── LICENSE
+├── README.md
+└── CHANGELOG.md

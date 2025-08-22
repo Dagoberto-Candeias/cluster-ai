@@ -1,0 +1,12 @@
+[Servidor Principal]
+  ├── Dask Scheduler (Coordenação)
+  ├── Ollama Server (Modelos de IA)
+  ├── OpenWebUI (Interface)
+  └── Dask Worker (Processamento)
+
+[Estaciones de Trabalho]
+  ├── Dask Worker (Processamento)
+  └── IDEs (Desenvolvimento)
+
+[Workers Dedicados]
+  └── Dask Worker (Processamento)

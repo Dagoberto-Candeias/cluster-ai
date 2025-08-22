@@ -1,0 +1,148 @@
+
+### 2. Script Principal de Instalação (`scripts/install_cluster.sh`)
+
+```bash
+#!/bin/bash
+set -e
+
+echo "=== Cluster AI Installation ==="
+echo "Repository: https://github.com/Dagoberto-Candeias/cluster-ai"
+echo "=============================================================="
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Configuration
+CLUSTER_AI_REPO="https://github.com/Dagoberto-Candeias/cluster-ai"
+SCRIPTS_URL="$CLUSTER_AI_REPO/raw/main/scripts"
+DOCS_URL="$CLUSTER_AI_REPO/raw/main/docs"
+
+# Log functions
+log() { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; }
+info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+
+# Check if running as root
+if [ "$EUID" -eq 0 ]; then
+    error "Please do not run this script as root"
+    exit 1
+fi
+
+# Detect distribution
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    OS=$ID
+    OS_VERSION=$VERSION_ID
+else
+    error "Cannot detect operating system"
+    exit 1
+fi
+
+log "Detected system: $OS $OS_VERSION"
+
+# Install dependencies based on OS
+install_dependencies() {
+    log "Installing system dependencies..."
+    
+    case $OS in
+        ubuntu|debian)
+            sudo apt update && sudo apt upgrade -y
+            sudo apt install -y curl git docker.io docker-compose-plugin \
+                python3-venv python3-pip python3-full \
+                msmtp msmtp-mta mailutils openmpi-bin libopenmpi-dev \
+                ca-certificates gnupg lsof openssh-server \
+                software-properties-common apt-transport-https net-tools
+            ;;
+        manjaro)
+            sudo pacman -Syu --noconfirm
+            sudo pacman -S --noconfirm curl git docker python python-pip python-virtualenv \
+                msmtp mailutils openmpi lsof openssh wget \
+                base-devel libx11 libxext libxrender libxtst freetype2 net-tools
+            ;;
+        centos|rhel|fedora)
+            sudo yum update -y
+            sudo yum install -y curl git docker python3 python3-pip python3-virtualenv \
+                msmtp mailutils openmpi-devel lsof openssh-server \
+                libX11-devel libXext-devel libXrender-devel libXtst-devel freetype-devel net-tools
+            ;;
+        *)
+            error "Unsupported operating system: $OS"
+            exit 1
+            ;;
+    esac
+}
+
+# Main installation function
+main_install() {
+    log "Starting Cluster AI installation..."
+    
+    # Create cluster scripts directory
+    mkdir -p ~/cluster_scripts
+    
+    # Download additional scripts
+    log "Downloading additional scripts..."
+    curl -fsSL "$SCRIPTS_URL/deploy_cluster.sh" -o ~/cluster_scripts/deploy_cluster.sh
+    curl -fsSL "$SCRIPTS_URL/update_ollama_models.sh" -o ~/cluster_scripts/update_ollama_models.sh
+    curl -fsSL "$SCRIPTS_URL/clean_ollama_cache.sh" -o ~/cluster_scripts/clean_ollama_cache.sh
+    chmod +x ~/cluster_scripts/*.sh
+    
+    # Download documentation
+    log "Downloading documentation..."
+    mkdir -p ~/cluster_docs
+    curl -fsSL "$DOCS_URL/quick_start.md" -o ~/cluster_docs/quick_start.md
+    curl -fsSL "$DOCS_URL/troubleshooting.md" -o ~/cluster_docs/troubleshooting.md
+    
+    # Install dependencies
+    install_dependencies
+    
+    # Setup Python environment
+    log "Setting up Python environment..."
+    python3 -m venv ~/cluster_env
+    source ~/cluster_env/bin/activate
+    pip install --upgrade pip
+    pip install "dask[complete]" distributed numpy pandas scipy mpi4py jupyterlab requests
+    deactivate
+    
+    # Setup SSH
+    log "Configuring SSH..."
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    if [ ! -f ~/.ssh/id_rsa ]; then
+        ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
+    fi
+    
+    log "Installation completed successfully!"
+    echo ""
+    echo "Next steps:"
+    echo "1. Configure your cluster roles: ~/cluster_scripts/deploy_cluster.sh"
+    echo "2. Read the quick start guide: ~/cluster_docs/quick_start.md"
+    echo "3. Join our community: $CLUSTER_AI_REPO"
+    echo ""
+    echo "For support, check the documentation or create an issue on GitHub."
+}
+
+# Show help
+show_help() {
+    echo "Cluster AI Installation Script"
+    echo "Usage: curl -fsSL $CLUSTER_AI_REPO/raw/main/scripts/install_cluster.sh | bash"
+    echo ""
+    echo "Options:"
+    echo "  --help    Show this help message"
+    echo ""
+    echo "This script will install all necessary components for Cluster AI."
+}
+
+# Parse arguments
+if [ "$1" = "--help" ]; then
+    show_help
+    exit 0
+fi
+
+# Run main installation
+main_install
