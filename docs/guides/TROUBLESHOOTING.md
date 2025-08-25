@@ -348,6 +348,89 @@ echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 # 4. Melhorar ventilação/refrigeração
 ```
 
+## 💻 Problemas do Sistema de Gerenciamento de Recursos
+
+### ❌ Swap Não Expande Automaticamente
+
+**Sintomas**: Uso alto de memória sem expansão do swap
+
+**Soluções**:
+```bash
+# 1. Verificar se o memory manager está ativo
+bash ~/scripts/utils/memory_manager.sh status
+
+# 2. Verificar permissões do diretório de swap
+ls -la ~/cluster_swap/
+chmod 755 ~/cluster_swap/
+
+# 3. Verificar espaço em disco disponível
+df -h /
+
+# 4. Reiniciar o memory manager
+bash ~/scripts/utils/memory_manager.sh stop
+bash ~/scripts/utils/memory_manager.sh start
+
+# 5. Executar expansão manual
+bash ~/scripts/utils/memory_manager.sh expand
+```
+
+### ❌ Resource Checker Reporta Erros
+
+**Soluções**:
+```bash
+# 1. Executar verificação com debug
+bash -x ~/scripts/utils/resource_checker.sh full
+
+# 2. Verificar dependências do sistema
+command -v free || sudo apt install procps
+command -v df || sudo apt install coreutils
+command -v nproc || sudo apt install coreutils
+
+# 3. Verificar interfaces de rede
+ip addr show
+
+# 4. Executar verificação simplificada
+bash ~/scripts/utils/resource_checker.sh quick
+```
+
+### ❌ Otimizador Não Ajusta Configurações
+
+**Soluções**:
+```bash
+# 1. Verificar se o otimizador detecta recursos corretamente
+bash ~/scripts/utils/resource_optimizer.sh debug
+
+# 2. Verificar arquivo de configuração
+cat ~/.cluster_optimization/config
+
+# 3. Forçar reotimização
+bash ~/scripts/utils/resource_optimizer.sh optimize --force
+
+# 4. Verificar logs de otimização
+tail -f ~/.cluster_optimization/optimization.log
+```
+
+### ❌ Uso Alto de Recursos pelo Sistema de Monitoramento
+
+**Soluções**:
+```bash
+# 1. Verificar processos do sistema de monitoramento
+pgrep -f "memory_manager\|resource_optimizer"
+
+# 2. Ajustar intervalo de verificação (aumentar para reduzir carga)
+sed -i 's/CHECK_INTERVAL=30/CHECK_INTERVAL=60/' ~/.cluster_optimization/config
+
+# 3. Reduzir verbosidade dos logs
+sed -i 's/LOG_LEVEL=INFO/LOG_LEVEL=WARN/' ~/.cluster_optimization/config
+
+# 4. Reiniciar serviços com configuração otimizada
+bash ~/scripts/utils/memory_manager.sh stop
+bash ~/scripts/utils/resource_optimizer.sh stop
+sleep 2
+bash ~/scripts/utils/memory_manager.sh start
+bash ~/scripts/utils/resource_optimizer.sh start
+```
+
 ## 🚨 Problemas Críticos
 
 ### ❌ Sistema Não Inicia
@@ -355,10 +438,11 @@ echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 **Procedimento de Emergência**:
 ```bash
 # 1. Backup manual dos dados importantes
-tar -czf emergency_backup.tar.gz ~/.ollama ~/.cluster_role
+tar -czf emergency_backup.tar.gz ~/.ollama ~/.cluster_role ~/.cluster_optimization
 
 # 2. Verificar logs do sistema
 journalctl -xe
+tail -f ~/.cluster_optimization/optimization.log
 
 # 3. Reiniciar serviços críticos
 sudo systemctl restart docker ollama

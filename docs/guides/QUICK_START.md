@@ -217,6 +217,28 @@ sudo usermod -aG docker $USER
 # Reiniciar sessão (logout/login)
 ```
 
+## ⚡ Sistema de Gerenciamento de Recursos
+
+O Cluster AI inclui um sistema avançado que:
+- **Expande automaticamente** a memória usando SSD como swap (2G-16G)
+- **Otimiza configurações** baseadas no hardware disponível
+- **Monitora continuamente** CPU, memória e disco
+- **Previne travamentos** com medidas emergenciais automáticas
+
+### Comandos de Gerenciamento
+```bash
+# Verificar recursos do sistema
+bash ~/scripts/utils/resource_checker.sh full
+
+# Gerenciar memória e swap
+bash ~/scripts/utils/memory_manager.sh status
+
+# Otimizar configurações automaticamente
+bash ~/scripts/utils/resource_optimizer.sh optimize
+```
+
+Consulte [Guia de Gerenciamento de Recursos](RESOURCE_MANAGEMENT.md) para detalhes completos.
+
 ## 📈 Próximos Passos
 
 1. **Adicionar mais workers**: Instale em outras máquinas
@@ -224,6 +246,7 @@ sudo usermod -aG docker $USER
 3. **Personalizar modelos**: Adicione modelos específicos ao Ollama
 4. **Integrar com seus dados**: Conecte ao seu banco de dados
 5. **Desenvolver aplicações**: Use o cluster para seus projetos
+6. **Otimizar performance**: Veja [Técnicas Avançadas](OPTIMIZATION.md)
 
 ## 🔗 Links Úteis
 
