@@ -32,11 +32,27 @@
 - [x] Organizar utilitários em pasta separada
 
 ## 🧪 Fase 5: Validação
-- [ ] Testar scripts consolidados
+- [x] Testar scripts consolidados
 - [x] Verificar documentação (consolidação concluída)
 - [x] Validar estrutura final de documentação
 - [ ] Testar configurações TLS
 - [ ] Verificar backups funcionais
+- [x] Criar sistema de verificação de modelos Ollama
+- [x] Completar manuais faltantes (OPENWEBUI.md, BACKUP.md, TROUBLESHOOTING.md)
+- [x] Corrigir wrapper script install_cluster.sh
+- [x] Criar script de validação da instalação
+- [x] Tornar script de validação executável
+
+## 🚀 Fase 6: Otimização de Performance (NOVO)
+- [x] Implementar sistema de memória auxiliar auto-expansível (SSD swap)
+- [x] Criar otimizador de recursos automático
+- [x] Desenvolver verificador de recursos pré-instalação
+- [x] Adicionar monitoramento contínuo de CPU/memória/disco
+- [x] Implementar medidas emergenciais contra travamentos
+- [x] Criar documentação completa de gerenciamento de recursos
+- [ ] Testar sistema de otimização em diferentes hardwares
+- [ ] Validar expansão automática de swap
+- [ ] Verificar eficácia das medidas emergenciais
 
 ## ✅ Estrutura Final Implementada:
 ```

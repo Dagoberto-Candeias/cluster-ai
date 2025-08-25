@@ -17,7 +17,7 @@ SERVER_IP=""
 MACHINE_NAME=$(hostname)
 CURRENT_IP=$(hostname -I | awk '{print $1}')
 BACKUP_DIR="$HOME/cluster_backups"
-OLLAMA_MODELS=("llama3" "deepseek-coder" "mistral" "llava" "phi3" "codellama")
+OLLAMA_MODELS=("llama3.1:8b" "llama3:8b" "mixtral:8x7b" "deepseek-coder" "mistral" "llava" "phi3" "gemma2:9b" "codellama")
 OLLAMA_HOST="0.0.0.0"
 OLLAMA_PORT="11434"
 
@@ -940,8 +940,22 @@ configure_firewall() {
     fi
 }
 
+# Função para verificar e instalar modelos Ollama
+check_and_install_models() {
+    echo -e "\n${BLUE}=== VERIFICAÇÃO DE MODELOS OLLAMA ===${NC}"
+    ./scripts/utils/check_models.sh
+}
+
+# Verificar recursos antes de iniciar a instalação
+bash "$(dirname "$0")/../utils/resource_checker.sh" full
+
+# Iniciar gerenciamento de memória e otimização de recursos
+bash "$(dirname "$0")/../utils/memory_manager.sh" start &
+bash "$(dirname "$0")/../utils/resource_optimizer.sh" optimize &
+
 # Função principal de configuração
 setup_based_on_role() {
+    check_and_install_models
     case $ROLE in
         "server")
             install_ollama

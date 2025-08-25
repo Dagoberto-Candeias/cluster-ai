@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   open-webui:
-    image: open-webui/open-webui:ollama
+    image: dyrnq/open-webui
     container_name: open-webui
     ports:
       - "3000:3000"
