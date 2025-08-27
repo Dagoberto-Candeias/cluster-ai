@@ -57,6 +57,178 @@ log "Sistema detectado: $OS $OS_VERSION"
 info "Nome da máquina: $MACHINE_NAME"
 info "IP atual: $CURRENT_IP"
 
+# Função para limpar ambiente completamente
+clean_environment() {
+    echo -e "\n${RED}=== LIMPEZA COMPLETA DO AMBIENTE ===${NC}"
+    echo -e "${YELLOW}AVISO: Esta operação removerá TODOS os dados do cluster!${NC}"
+    read -p "Tem certeza que deseja continuar? (s/n): " confirm_clean
+    
+    if [ "$confirm_clean" != "s" ]; then
+        log "Limpeza cancelada."
+        return 0
+    fi
+    
+    log "Iniciando limpeza completa do ambiente..."
+    
+    # Parar todos os serviços
+    pkill -f "dask-scheduler" || true
+    pkill -f "dask-worker" || true
+    pkill -f "ollama" || true
+    
+    # Remover containers Docker
+    sudo docker rm -f open-webui 2>/dev/null || true
+    
+    # Remover arquivos e diretórios
+    rm -rf ~/.cluster_role
+    rm -rf ~/cluster_scripts
+    rm -rf ~/.ollama
+    rm -rf ~/open-webui
+    rm -rf ~/cluster_env
+    rm -rf ~/cluster_backups
+    rm -rf ~/scheduler.log
+    rm -rf ~/worker.log
+    
+    # Remover configurações específicas
+    rm -rf /etc/systemd/system/ollama.service.d/
+    
+    log "Ambiente completamente limpo. Todos os dados foram removidos."
+}
+
+# Função para resetar configurações
+reset_configuration() {
+    echo -e "\n${YELLOW}=== RESET DE CONFIGURAÇÕES ===${NC}"
+    echo "1. Reset completo (limpar tudo e reinstalar)"
+    echo "2. Reset apenas das configurações (manter dados)"
+    echo "3. Voltar"
+    
+    read -p "Selecione o tipo de reset [1-3]: " reset_choice
+    
+    case $reset_choice in
+        1)
+            clean_environment
+            log "Ambiente resetado. Execute a instalação novamente."
+            exit 0
+            ;;
+        2)
+            rm -rf ~/.cluster_role
+            rm -rf ~/cluster_scripts/*.sh
+            log "Configurações resetadas. Papel da máquina será redefinido."
+            ;;
+        3)
+            return
+            ;;
+        *)
+            warn "Opção inválida."
+            ;;
+    esac
+}
+
+# Função para reconfigurar ambiente
+reconfigure_environment() {
+    echo -e "\n${BLUE}=== RECONFIGURAÇÃO DO AMBIENTE ===${NC}"
+    echo "1. Alterar papel da máquina"
+    echo "2. Reconfigurar serviços existentes"
+    echo "3. Reinstalar dependências"
+    echo "4. Voltar"
+    
+    read -p "Selecione a opção de reconfiguração [1-4]: " reconf_choice
+    
+    case $reconf_choice in
+        1)
+            define_role
+            setup_based_on_role
+            ;;
+        2)
+            pkill -f "dask-scheduler" || true
+            pkill -f "dask-worker" || true
+            pkill -f "ollama" || true
+            setup_based_on_role
+            ;;
+        3)
+            install_dependencies
+            setup_python_env
+            ;;
+        4)
+            return
+            ;;
+        *)
+            warn "Opção inválida."
+            ;;
+    esac
+}
+
+# Função para reaproveitar configuração existente
+reuse_existing_config() {
+    echo -e "\n${GREEN}=== REAPROVEITAR CONFIGURAÇÃO EXISTENTE ===${NC}"
+    
+    if [ -f ~/.cluster_role ]; then
+        source ~/.cluster_role
+        log "Configuração existente detectada:"
+        echo "Papel: $ROLE"
+        echo "Servidor: $SERVER_IP"
+        echo "Máquina: $MACHINE_NAME"
+        
+        read -p "Deseja reaproveitar esta configuração? (s/n): " reuse_choice
+        
+        if [ "$reuse_choice" = "s" ]; then
+            log "Configuração existente será reaproveitada."
+            return 0
+        else
+            log "Configuração existente será ignorada."
+            rm -f ~/.cluster_role
+            return 1
+        fi
+    else
+        log "Nenhuma configuração existente encontrada."
+        return 1
+    fi
+}
+
+# Função para menu inicial de gerenciamento
+initial_management_menu() {
+    echo -e "\n${BLUE}=== GERENCIAMENTO DO CLUSTER AI ===${NC}"
+    echo "1. Instalação/Configuração Normal"
+    echo "2. Resetar/Reinstalar Tudo"
+    echo "3. Reconfigurar Ambiente Existente"
+    echo "4. Reaproveitar Configuração Existente"
+    echo "5. Limpar Tudo (Remover Completamente)"
+    echo "6. Sair"
+    
+    read -p "Selecione uma opção [1-6]: " initial_choice
+    
+    case $initial_choice in
+        1)
+            # Continua com instalação normal
+            ;;
+        2)
+            reset_configuration
+            exit 0
+            ;;
+        3)
+            reconfigure_environment
+            exit 0
+            ;;
+        4)
+            if reuse_existing_config; then
+                log "Continuando com configuração reaproveitada..."
+            else
+                log "Iniciando configuração do zero..."
+                define_role
+            fi
+            ;;
+        5)
+            clean_environment
+            exit 0
+            ;;
+        6)
+            exit 0
+            ;;
+        *)
+            warn "Opção inválida. Continuando com instalação normal."
+            ;;
+    esac
+}
+
 # Função para criar diretório de backups
 create_backup_dir() {
     if [ ! -d "$BACKUP_DIR" ]; then
@@ -664,537 +836,4 @@ configure_ollama_gpu() {
     
     # Detectar GPU e configurar apropriadamente
     if lspci | grep -i nvidia > /dev/null; then
-        log "GPU NVIDIA detectada, configurando para uso com CUDA..."
-        cat > ~/.ollama/config.json << EOL
-{
-    "runners": {
-        "nvidia": {
-            "url": "https://github.com/ollama/ollama/blob/main/gpu/nvidia/runner.cu"
-        }
-    },
-    "environment": {
-        "OLLAMA_NUM_GPU_LAYERS": "35",
-        "OLLAMA_MAX_LOADED_MODELS": "3",
-        "OLLAMA_KEEP_ALIVE": "24h"
-    }
-}
-EOL
-    elif lspci | grep -i amd/ati > /dev/null; then
-        log "GPU AMD detectada, configurando para uso com ROCm..."
-        cat > ~/.ollama/config.json << EOL
-{
-    "runners": {
-        "rocm": {
-            "url": "https://github.com/ollama/ollama/blob/main/gpu/rocm/runner.cc"
-        }
-    },
-    "environment": {
-        "OLLAMA_NUM_GPU_LAYERS": "20",
-        "OLLAMA_MAX_LOADED_MODELS": "2"
-    }
-}
-EOL
-    else
-        log "GPU não detectada, usando configuração CPU-only..."
-        cat > ~/.ollama/config.json << EOL
-{
-    "environment": {
-        "OLLAMA_MAX_LOADED_MODELS": "1",
-        "OLLAMA_KEEP_ALIVE": "1h"
-    }
-}
-EOL
-    fi
-    
-    sudo systemctl restart ollama
-}
-
-# Função para baixar modelos Ollama
-download_ollama_models() {
-    log "Baixando modelos Ollama essenciais..."
-    
-    for model in "${OLLAMA_MODELS[@]}"; do
-        if ollama list | grep -q "$model"; then
-            log "Modelo $model já está instalado."
-        else
-            log "Baixando modelo: $model"
-            ollama pull "$model" &
-        fi
-    done
-    
-    # Aguardar todos os downloads
-    wait
-    log "Download de modelos concluído."
-}
-
-# Função para verificar saúde do Ollama
-health_check_ollama() {
-    log "Verificando saúde do Ollama..."
-    
-    if curl -s http://localhost:11434/api/tags > /dev/null; then
-        log "✓ Ollama está respondendo na porta 11434"
-        return 0
-    else
-        error "✗ Ollama não está respondendo"
-        
-        # Tentativa de reparo
-        sudo systemctl restart ollama
-        sleep 5
-        
-        if curl -s http://localhost:11434/api/tags > /dev/null; then
-            log "✓ Ollama reparado com sucesso"
-            return 0
-        else
-            error "✗ Falha ao reparar Ollama"
-            return 1
-        fi
-    fi
-}
-
-# Função para configurar servidor
-setup_server() {
-    log "Configurando servidor (scheduler)..."
-    
-    # Obter IP dinâmico
-    IP=$(hostname -I | awk '{print $1}')
-    log "IP desta máquina: $IP"
-    
-    # Criar script para iniciar scheduler
-    cat > ~/cluster_scripts/start_scheduler.sh << EOL
-#!/bin/bash
-source ~/cluster_env/bin/activate
-dask-scheduler --host 0.0.0.0 --port 8786 --dashboard --dashboard-address 0.0.0.0:8787
-EOL
-    
-    chmod +x ~/cluster_scripts/start_scheduler.sh
-    
-    # Iniciar scheduler
-    pkill -f "dask-scheduler" || true
-    nohup ~/cluster_scripts/start_scheduler.sh > ~/scheduler.log 2>&1 &
-    
-    log "Scheduler iniciado. Dashboard disponível em: http://$IP:8787"
-    
-    # Configurar serviços adicionais
-    setup_services
-}
-
-# Função para configurar worker
-setup_worker() {
-    log "Configurando worker..."
-    
-    if [ -z "$SERVER_IP" ]; then
-        read -p "Digite o IP do servidor principal: " SERVER_IP
-        echo "SERVER_IP=$SERVER_IP" >> ~/.cluster_role
-    fi
-    
-    # Se SERVER_IP for "localhost", usar o IP atual
-    if [ "$SERVER_IP" = "localhost" ]; then
-        SERVER_IP=$CURRENT_IP
-    fi
-    
-    # Criar script para iniciar worker
-    cat > ~/cluster_scripts/start_worker.sh << EOL
-#!/bin/bash
-source ~/cluster_env/bin/activate
-
-# Tentar conectar ao scheduler
-while true; do
-    if nc -z -w 5 $SERVER_IP 8786; then
-        echo "Conectando ao scheduler em $SERVER_IP:8786"
-        dask-worker $SERVER_IP:8786 --nworkers auto --nthreads 2 --name $MACHINE_NAME
-        break
-    else
-        echo "Scheduler não disponível. Tentando novamente em 10 segundos..."
-        sleep 10
-    fi
-done
-EOL
-    
-    chmod +x ~/cluster_scripts/start_worker.sh
-    
-    # Iniciar worker
-    pkill -f "dask-worker" || true
-    nohup ~/cluster_scripts/start_worker.sh > ~/worker.log 2>&1 &
-    
-    log "Worker configurado para conectar ao scheduler: $SERVER_IP:8786"
-}
-
-# Função para configurar serviços
-setup_services() {
-    log "Configurando serviços adicionais..."
-    
-    # OpenWebUI
-    if sudo docker ps -a --format '{{.Names}}' | grep -q '^open-webui$'; then
-        log "OpenWebUI já está instalado."
-    else
-        sudo docker run -d --name open-webui -p 8080:8080 -v $HOME/open-webui:/app/data ghcr.io/open-webui/open-webui:main
-        log "OpenWebUI instalado. Acesse: http://$(hostname -I | awk '{print $1}'):8080"
-    fi
-}
-
-# Função para instalar IDEs
-install_ides() {
-    log "Instalando IDEs..."
-    
-    # Spyder
-    if ! command_exists spyder; then
-        source ~/cluster_env/bin/activate
-        pip install spyder
-        deactivate
-        log "Spyder instalado."
-    else
-        log "Spyder já está instalado."
-    fi
-    
-    # VSCode com instalação otimizada
-    log "Instalando VSCode com extensões essenciais..."
-    if [ -f "scripts/installation/setup_vscode.sh" ]; then
-        chmod +x scripts/installation/setup_vscode.sh
-        ./scripts/installation/setup_vscode.sh
-    else
-        warn "Script de instalação do VSCode não encontrado. Instalando versão básica..."
-        install_vscode_basic
-    fi
-    
-    # PyCharm (opcional)
-    install_pycharm_optional
-}
-
-# Função para instalação básica do VSCode (fallback)
-install_vscode_basic() {
-    if ! command_exists code; then
-        case $OS in
-            ubuntu|debian)
-                wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-                sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
-                sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
-                sudo apt update
-                sudo apt install -y code
-                ;;
-            manjaro)
-                sudo pacman -S --noconfirm code
-                ;;
-            centos|rhel|fedora)
-                sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-                sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
-                if command_exists dnf; then
-                    sudo dnf install -y code
-                else
-                    sudo yum install -y code
-                fi
-                ;;
-        esac
-        
-        if command_exists code; then
-            log "VSCode instalado (versão básica)."
-            warn "Execute 'scripts/installation/setup_vscode.sh' para instalar extensões essenciais."
-        else
-            error "Falha ao instalar VSCode."
-        fi
-    else
-        log "VSCode já está instalado."
-    fi
-}
-
-# Função para instalação opcional do PyCharm
-install_pycharm_optional() {
-    read -p "Deseja instalar o PyCharm Community? (s/N): " install_pycharm
-    if [[ "$install_pycharm" =~ ^[Ss]$ ]]; then
-        if [ ! -d "/opt/pycharm" ] && [ ! -d "$HOME/pycharm" ]; then
-            log "Instalando PyCharm Community Edition..."
-            
-            # URL mais recente do PyCharm
-            PYCHARM_URL="https://download.jetbrains.com/python/pycharm-community-2024.1.tar.gz"
-            
-            # Tentar baixar
-            if wget -O /tmp/pycharm.tar.gz "$PYCHARM_URL"; then
-                # Extrair para home do usuário (não requer sudo)
-                tar -xzf /tmp/pycharm.tar.gz -C "$HOME/"
-                mv "$HOME"/pycharm-* "$HOME/pycharm"
-                
-                # Criar atalho
-                cat > ~/.local/share/applications/pycharm-cluster.desktop << EOL
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=PyCharm (Cluster AI)
-Exec=$HOME/pycharm/bin/pycharm.sh
-Icon=$HOME/pycharm/bin/pycharm.png
-Comment=PyCharm IDE for Cluster AI development
-Categories=Development;IDE;
-Terminal=false
-EOL
-                
-                # Tornar executável
-                chmod +x ~/.local/share/applications/pycharm-cluster.desktop
-                chmod +x "$HOME/pycharm/bin/pycharm.sh"
-                
-                log "PyCharm instalado em: $HOME/pycharm"
-                log "Atalho criado no menu de aplicações"
-            else
-                warn "Falha ao baixar PyCharm. Você pode instalá-lo manualmente depois."
-            fi
-        else
-            log "PyCharm já está instalado."
-        fi
-    else
-        log "Instalação do PyCharm pulada."
-    fi
-}
-
-# Função para converter estação em servidor
-convert_to_server() {
-    warn "Transformando esta estação em servidor..."
-    ROLE="server"
-    SERVER_IP="localhost"
-    echo "ROLE=server" > ~/.cluster_role
-    echo "SERVER_IP=localhost" >> ~/.cluster_role
-    echo "MACHINE_NAME=$MACHINE_NAME" >> ~/.cluster_role
-    echo "CURRENT_IP=$CURRENT_IP" >> ~/.cluster_role
-    
-    # Parar worker se estiver executando
-    pkill -f "dask-worker" || true
-    
-    # Configurar como servidor
-    setup_server
-    
-    # Configurar como worker também
-    setup_worker
-    
-    log "Conversão concluída. Esta máquina agora é um servidor completo."
-}
-
-# Função para configurar firewall
-configure_firewall() {
-    log "Configurando firewall para o cluster..."
-    
-    if command_exists ufw; then
-        sudo ufw allow 22/tcp    # SSH
-        sudo ufw allow 8786/tcp  # Dask Scheduler
-        sudo ufw allow 8787/tcp  # Dask Dashboard
-        sudo ufw allow 8080/tcp  # OpenWebUI
-        sudo ufw allow 11434/tcp # Ollama API
-        
-        # Se for servidor, permite conexões de entrada
-        if [ "$ROLE" = "server" ] || [ "$ROLE" = "both" ]; then
-            sudo ufw allow from any to any port 11434 proto tcp
-        fi
-        
-        sudo ufw --force enable
-        log "Firewall configurado."
-    else
-        warn "UFW não disponível, pulando configuração de firewall."
-    fi
-}
-
-# Função para verificar e instalar modelos Ollama
-check_and_install_models() {
-    echo -e "\n${BLUE}=== VERIFICAÇÃO DE MODELOS OLLAMA ===${NC}"
-    ./scripts/utils/check_models.sh
-}
-
-# Verificar recursos apenas se solicitado ou durante a instalação
-# (removida a execução automática para não interferir com o menu)
-
-# Função principal de configuração
-setup_based_on_role() {
-    check_and_install_models
-    case $ROLE in
-        "server")
-            install_ollama
-            download_ollama_models
-            setup_server
-            setup_worker  # Servidor também é um worker
-            ;;
-        "workstation")
-            install_ollama
-            download_ollama_models
-            install_ides
-            setup_worker
-            ;;
-        "worker")
-            install_ollama
-            setup_worker
-            ;;
-        "convert")
-            install_ollama
-            download_ollama_models
-            convert_to_server
-            ;;
-        *)
-            warn "Papel não reconhecido: $ROLE"
-            ;;
-    esac
-    
-    # Configurar firewall
-    configure_firewall
-    
-    # Verificar saúde do Ollama
-    health_check_ollama
-}
-
-# Função para mostrar status
-show_status() {
-    echo -e "\n${BLUE}=== STATUS DO SISTEMA ===${NC}"
-    echo -e "Papel: ${CYAN}$ROLE${NC}"
-    echo -e "Máquina: ${CYAN}$MACHINE_NAME${NC}"
-    
-    if [ -n "$SERVER_IP" ]; then
-        if [ "$SERVER_IP" = "localhost" ]; then
-            echo -e "Servidor: ${CYAN}Esta máquina${NC}"
-        else
-            echo -e "Servidor: ${CYAN}$SERVER_IP${NC}"
-        fi
-    fi
-    
-    # Verificar serviços em execução
-    echo -e "\n${YELLOW}Serviços:${NC}"
-    if pgrep -f "dask-scheduler" >/dev/null; then
-        echo "✓ Dask Scheduler está em execução"
-    else
-        echo "✗ Dask Scheduler não está em execução"
-    fi
-    
-    if pgrep -f "dask-worker" >/dev/null; then
-        echo "✓ Dask Worker está em execução"
-    else
-        echo "✗ Dask Worker não está em execução"
-    fi
-    
-    if pgrep -f "ollama" >/dev/null; then
-        echo "✓ Ollama está em execução"
-    else
-        echo "✗ Ollama não está em execução"
-    fi
-    
-    if sudo docker ps -a --format '{{.Names}}' | grep -q '^open-webui$'; then
-        echo "✓ OpenWebUI está instalado"
-    else
-        echo "✗ OpenWebUI não está instalado"
-    fi
-    
-    # Verificar IP atual
-    IP=$(hostname -I | awk '{print $1}')
-    echo -e "\n${YELLOW}IP atual:${NC} $IP"
-    
-    # Verificar chaves SSH
-    echo -e "\n${YELLOW}Chaves SSH:${NC}"
-    if [ -f ~/.ssh/id_rsa.pub ]; then
-        echo "✓ Chave SSH existe"
-        echo "Chave pública: $(cat ~/.ssh/id_rsa.pub | awk '{print $3}')"
-    else
-        echo "✗ Chave SSH não existe"
-    fi
-    
-    # Verificar ambiente Python
-    echo -e "\n${YELLOW}Ambiente Python:${NC}"
-    if [ -d "$HOME/cluster_env" ]; then
-        echo "✓ Ambiente virtual existe"
-    else
-        echo "✗ Ambiente virtual não existe"
-    fi
-    
-    # Verificar Ollama
-    echo -e "\n${YELLOW}Ollama:${NC}"
-    if curl -s http://localhost:11434/api/tags > /dev/null; then
-        echo "✓ API do Ollama está respondendo"
-        echo "Modelos instalados:"
-        ollama list
-    else
-        echo "✗ API do Ollama não está respondendo"
-    fi
-}
-
-# Função para menu de backup
-backup_menu() {
-    while true; do
-        echo -e "\n${BLUE}=== MENU DE BACKUP E RESTAURAÇÃO ===${NC}"
-        echo "1. Fazer backup"
-        echo "2. Restaurar backup"
-        echo "3. Agendar backups automáticos"
-        echo "4. Definir diretório de backup"
-        echo "5. Voltar"
-        
-        read -p "Selecione uma opção [1-5]: " backup_choice
-        
-        case $backup_choice in
-            1) backup_data ;;
-            2) restore_backup ;;
-            3) schedule_automatic_backups ;;
-            4) set_custom_backup_dir ;;
-            5) break ;;
-            *) warn "Opção inválida. Tente novamente." ;;
-        esac
-    done
-}
-
-# Função para menu principal
-main_menu() {
-    # Processar argumentos de linha de comando
-    process_arguments "$1" "$2"
-    
-    # Verificar se já existe configuração
-    if ! load_config; then
-        info "Nenhuma configuração encontrada. Definindo papel da máquina..."
-        define_role
-    fi
-    
-    while true; do
-        echo -e "\n${BLUE}=== MENU PRINCIPAL - $MACHINE_NAME ($ROLE) ===${NC}"
-        echo "1. Instalar dependências básicas"
-        echo "2. Configurar ambiente Python"
-        echo "3. Configurar SSH e trocar chaves"
-        echo "4. Executar configuração baseada no papel"
-        echo "5. Alterar papel desta máquina"
-        echo "6. Ver status do sistema"
-        echo "7. Reiniciar serviços"
-        echo "8. Backup e Restauração"
-        echo "9. Sair"
-        
-        read -p "Selecione uma opção [1-9]: " choice
-        
-        case $choice in
-            1) install_dependencies ;;
-            2) setup_python_env ;;
-            3) setup_ssh ;;
-            4) setup_based_on_role ;;
-            5) 
-                define_role
-                setup_based_on_role
-                ;;
-            6) show_status ;;
-            7)
-                pkill -f "dask-scheduler" || true
-                pkill -f "dask-worker" || true
-                pkill -f "ollama" || true
-                setup_based_on_role
-                ;;
-            8)
-                backup_menu
-                ;;
-            9) break ;;
-            *) warn "Opção inválida. Tente novamente." ;;
-        esac
-    done
-}
-
-# Criar diretório para scripts
-mkdir -p ~/cluster_scripts
-
-# Executar menu principal
-main_menu "$1" "$2"
-
-log "Instalação e configuração concluídas!"
-echo -e "\n${GREEN}=== RESUMO DA CONFIGURAÇÃO ===${NC}"
-echo "Papel: $ROLE"
-echo "Máquina: $MACHINE_NAME"
-if [ -n "$SERVER_IP" ]; then
-    if [ "$SERVER_IP" = "localhost" ]; then
-        echo "Servidor: Esta máquina"
-    else
-        echo "Servidor: $SERVER_IP"
-    fi
-fi
-echo "Scripts de gerenciamento: ~/cluster_scripts/"
-echo "Diretório de backup: $BACKUP_DIR"
-echo "Arquivo de configuração: ~/.cluster_role"
+        log "GPU NVIDIA detectada, configurando para uso
