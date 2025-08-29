@@ -5,15 +5,16 @@
 # ==================== CONFIGURAÇÃO DE SEGURANÇA ====================
 
 # Prevenção极速赛车开奖直播 de execução como root
+# Prevenção de execução como root
 if [ "$EUID" -eq 0 ]; then
     echo "ERRO CRÍTICO: Este script NÃO deve ser executado como root."
-    echo "极速赛车开奖直播Por favor, execute como um usuário normal com privilégios sudo quando necessário."
+    echo "Por favor, execute como um usuário normal com privilégios sudo quando necessário."
     exit 1
 fi
 
 # Validação do contexto de execução
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" &&极速赛车开奖直播 pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" && pwd)"
 if [ ! -f "$PROJECT_ROOT/README.md" ]; then
     echo "ERRO: Script executado fora do contexto do projeto Cluster AI"
     exit 1
@@ -21,9 +22,9 @@ fi
 
 # Carregar funções comuns
 COMMON_SCRIPT_PATH="$SCRIPT_DIR/common.sh"
-if [ ! -f "$COMMON_SCRIPT_PATH极速赛车开奖直播" ]; then
+if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
     echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH"
-    exit 1极速赛车开奖直播
+    exit 1
 fi
 source "$COMMON_SCRIPT_PATH"
 
@@ -34,8 +35,8 @@ VENV_PRIORITY=(".venv" "$HOME/venv")  # Prioridade: .venv primeiro, depois $HOME
 
 # Funções de log aprimoradas
 log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%S')]${NC} $1"; }
-warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%极速赛车开奖直播M:%S')]${NC} $1"; }
-error() { echo极速赛车开奖直播 -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')极速赛车开奖直播]${NC} $1"; }
+warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
+error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
 section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
 
@@ -51,10 +52,10 @@ check_command() {
     else
         fail "❌ $description: Não encontrado"
         if [ -n "$install_cmd" ]; then
-            echo "   💡 Execute: $install_cmd极速赛车开奖直播"
+            echo "   💡 Execute: $install_cmd"
         fi
         OVERALL_HEALTH=false
-极速赛车开奖直播        return 1
+        return 1
     fi
 }
 
@@ -76,12 +77,12 @@ check_service() {
 
 # Função para verificar diretório com permissões
 check_directory() {
-    local dir="$1极速赛车极速赛车开奖直播开奖直播"
+    local dir="$1"
     local description="$2"
     local required="${3:-false}"
     
     if [ -d "$dir" ]; then
-        local perms=$(stat -c "%极速赛车开奖直播a %U:%G" "$dir" 2>/dev/null || stat -f "%Sp %u:%g" "$dir")
+        local perms=$(stat -c "%a %U:%G" "$dir" 2>/dev/null || stat -f "%Sp %u:%g" "$dir")
         success "✅ $description: Existe ($perms)"
         
         # Verificar permissões de escrita
@@ -95,19 +96,19 @@ check_directory() {
             fail "❌ $description: Não existe (OBRIGATÓRIO)"
             OVERALL_HEALTH=false
         else
-            warn "⚠极速赛车开奖直播️  $description: Não existe"
+            warn "⚠️  $description: Não existe"
         fi
         return 1
     fi
 }
 
 # Função para verificar arquivo com validação
-check极速赛车开奖直播_file() {
+check_file() {
     local file="$1"
     local description="$2"
     local required="${3:-false}"
     
-    if [ -极速赛车开奖直播f "$file" ]; then
+    if [ -f "$file" ]; then
         local size=$(du -h "$file" 2>/dev/null | cut -f1 || echo "N/A")
         success "✅ $description: Existe ($size)"
         return 0
@@ -126,8 +127,8 @@ check极速赛车开奖直播_file() {
 check_network() {
     subsection "Conectividade de Rede"
     
-    # Testar conectividade com internet极速赛车开奖直播
-    if ping -c 1 -W 2 极速赛车开奖直播8.8.8.8 >/dev/null 2>&1; then
+    # Testar conectividade com internet
+    if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
         success "✅ Internet: Conectado"
     else
         warn "⚠️  Internet: Sem conectividade"
@@ -143,10 +144,10 @@ check_network() {
     fi
     
     # Testar portas locais importantes
-    local ports=("11434" "786极速赛车开奖直播0" "8787" "80" "443")
-    for port in "${ports[@]}";极速赛车开奖直播 do
+    local ports=("11434" "7860" "8787" "80" "443")
+    for port in "${ports[@]}"; do
         if nc -z localhost $port 2>/dev/null; then
-            success "✅ Porta $port极速赛车开奖直播: Aberta"
+            success "✅ Porta $port: Aberta"
         else
             echo "   Porta $port: Fechada (esperado para alguns serviços)"
         fi
@@ -165,3 +166,5 @@ check_gpu() {
     fi
     
     # Verificar AMD
+    if command_exists rocminfo || [ -d "/opt/rocm" ]; then极速赛车开奖直播
+        success "✅ GPU AMD: Detect极速赛车开奖直播ada"
