@@ -1,7 +1,6 @@
 #!/bin/bash
-# Biblioteca de funções comuns para os scripts do Cluster AI
 
-# --- Configuração de Cores ---
+# Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -9,118 +8,114 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# --- Funções de Log ---
+# Funções de log
+success() {
+    local message="$1"
+    echo -e "${GREEN}[SUCCESS]${NC} $message"
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SUCCESS] $message" >> "$CLUSTER_AI_LOG_FILE"
+    fi
+}
+
 log() {
-    echo -e "${CYAN}[INFO]${NC} $1"
+    local message="$1"
+    echo -e "${GREEN}[INFO]${NC} $message"
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO]    $message" >> "$CLUSTER_AI_LOG_FILE"
+    fi
 }
 
 warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    local message="$1"
+    echo -e "${YELLOW}[WARN]${NC} $message"
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN]    $message" >> "$CLUSTER_AI_LOG_FILE"
+    fi
 }
 
 fail() {
-    echo -e "${RED}❌ $1${NC}"
+    local message="$1"
+    echo -e "${RED}[FAIL]${NC} $message" >&2
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [FAIL]    $message" >> "$CLUSTER_AI_LOG_FILE"
+    fi
 }
 
-# --- Funções de Verificação ---
+error() {
+    local message="$1"
+    echo -e "${RED}[ERROR]${NC} $message" >&2
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR]   $message" >> "$CLUSTER_AI_LOG_FILE"
+    fi
+}
 
-# Verifica se um comando existe
+# Funções de formatação de output
+section() {
+    local message="$1"
+    echo -e "\n${BLUE}=== $message ===${NC}"
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo -e "\n[$(date '+%Y-%m-%d %H:%M:%S')] [SECTION] === $message ===" >> "$CLUSTER_AI_LOG_FILE"
+    fi
+}
+
+subsection() {
+    local message="$1"
+    echo -e "\n${CYAN}➤ $message${NC}"
+}
+
+# Função para verificar se um comando existe
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Verifica se um serviço systemd está ativo
+# Função para verificar se um serviço está ativo
 service_active() {
     systemctl is-active --quiet "$1"
 }
 
-# Verifica se um processo está rodando (usando pgrep)
-process_running() {
-    pgrep -f "$1" >/dev/null
-}
-
-# --- Funções de Segurança ---
-
-# Validação de segurança para caminhos de arquivos/diretórios
+# Função de validação de caminhos seguros
 safe_path_check() {
     local path="$1"
-    local operation="$2"
-    
-    # Verificar se o caminho está vazio
+    local operation="${2:-"operação de arquivo"}"
+
     if [ -z "$path" ]; then
-        error "ERRO CRÍTICO: Caminho vazio para operação: $operation"
+        error "ERRO CRÍTICO: Caminho vazio fornecido para a $operation."
         return 1
     fi
-    
-    # Verificar se é o diretório raiz
-    if [ "$path" = "/" ]; then
-        error "ERRO CRÍTICO: Tentativa de operação no diretório raiz: $operation"
+
+    # Resolve o caminho absoluto para uma verificação mais segura
+    local resolved_path
+    resolved_path=$(realpath -m "$path")
+
+    if [ "$resolved_path" = "/" ]; then
+        error "ERRO CRÍTICO: Tentativa de $operation no diretório raiz (/). Operação abortada."
         return 1
     fi
-    
-    # Lista de diretórios críticos do sistema
-    local critical_dirs=("/usr" "/bin" "/sbin" "/etc" "/var" "/lib" "/boot" "/root")
+
+    local critical_dirs=("/bin" "/boot" "/dev" "/etc" "/lib" "/lib64" "/proc" "/root" "/run" "/sbin" "/sys" "/usr" "/var")
     for dir in "${critical_dirs[@]}"; do
-        if [[ "$path" == "$dir"* ]]; then
-            error "ERRO CRÍTICO: Tentativa de operação em diretório crítico: $dir"
+        # Verifica se o caminho é exatamente um diretório crítico ou um subdiretório dele
+        if [[ "$resolved_path" == "$dir" || "$resolved_path" == "$dir/"* ]]; then
+            # Permite operações em subdiretórios específicos e seguros, como /var/log
+            if [[ "$resolved_path" == "/var/log"* ]]; then
+                continue
+            fi
+            error "ERRO CRÍTICO: Tentativa de $operation em um diretório de sistema protegido ($resolved_path). Operação abortada."
             return 1
         fi
     done
-    
-    # Verificar se o caminho está dentro do projeto ou home do usuário
-    local project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-    if [[ "$path" != "$HOME"* ]] && [[ "$path" != "$project_root"* ]] && [[ "$path" != "/tmp"* ]]; then
-        warn "AVISO: Operação fora do diretório do projeto, home ou tmp: $path"
-        # Não é erro crítico, apenas warning
-    fi
-    
+
     return 0
 }
 
-# Confirmação explícita do usuário para operações perigosas
+# Função para solicitar confirmação do usuário
 confirm_operation() {
     local message="$1"
-    local default="${2:-n}"
-    
-    echo -e "${YELLOW}⚠️  $message${NC}"
-    read -p "Deseja continuar? (s/N): " -n 1 -r
+    read -p "$(echo -e "${YELLOW}AVISO:${NC} $message Deseja continuar? (s/N) ")" -n 1 -r
     echo
-    
     if [[ $REPLY =~ ^[Ss]$ ]]; then
         return 0
     else
-        return 1
-    fi
-}
-
-# Função segura para remoção de arquivos/diretórios
-safe_remove() {
-    local target="$1"
-    local description="$2"
-    
-    if ! safe_path_check "$target" "remoção de $description"; then
-        return 1
-    fi
-    
-    if [ -e "$target" ]; then
-        if confirm_operation "Esta operação irá remover: $target"; then
-            rm -rf "$target"
-            log "$description removido com segurança: $target"
-            return 0
-        else
-            warn "Operação de remoção cancelada pelo usuário"
-            return 1
-        fi
-    else
-        warn "$description não existe: $target"
         return 1
     fi
 }

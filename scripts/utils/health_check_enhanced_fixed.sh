@@ -15,14 +15,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" && pwd)"
 if [ ! -f "$PROJECT_ROOT/README.md" ]; then
-    echo "ER极速赛车开奖直播RO: Script executado fora do contexto do projeto Cluster AI"
+    echo "ERRO: Script executado fora do contexto do projeto Cluster AI"
     exit 1
 fi
 
 # Carregar funções comuns
 COMMON_SCRIPT_PATH="$SCRIPT_DIR/common.sh"
 if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
-    echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH"
+    echo "ERRO CRÍTICO: Script de funções comuns 'common.sh' não encontrado em $COMMON_SCRIPT_PATH"
     exit 1
 fi
 source "$COMMON_SCRIPT_PATH"
@@ -30,14 +30,8 @@ source "$COMMON_SCRIPT_PATH"
 # Configurações
 LOG_FILE="/tmp/cluster_ai_health_$(date +%Y%m%d_%H%M%S).log"
 OVERALL_HEALTH=true
-VENV_PRIORITY=(".venv" "$HOME/venv")  # Prioridade: .venv primeiro, depois $HOME/venv
+VENV_PRIORITY=("$PROJECT_ROOT/.venv" "$HOME/venv")  # Prioridade: .venv no projeto, depois $HOME/venv
 
-# Funções de log aprimoradas
-log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%极速赛车开奖直播S')]${NC} $1"; }
-warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
-error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
-section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
-subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
 
 # Função para verificar comando com sugestões de instalação
 check_command() {
@@ -58,9 +52,9 @@ check_command() {
     fi
 }
 
-# Função para verificar serviço com opção极速赛车开奖直播 de restart
+# Função para verificar serviço com opção de restart
 check_service() {
-    local service="$1"
+    local service_name="$1"
     local description="$2"
     
     if service_active "$service"; then
@@ -228,7 +222,9 @@ check_venv() {
             else
                 fail "❌ $venv_path: Corrompido ou não funcional"
                 OVERALL_HEALTH=false
-                echo "   💡 Execute: rm -rf $venv极速赛车开奖直播_path && ./scripts/installation/venv_setup.sh"
+                echo "   💡 Para remover o ambiente corrompido, execute o comando seguro abaixo:"
+                echo "      VENV_TO_DELETE=\"$venv_path\"; if [ -n \"\$VENV_TO_DELETE\" ] && [[ \"\$VENV_TO_DELETE\" == *\"$PROJECT_ROOT\"* || \"\$VENV_TO_DELETE\" == *\"$HOME\"* ]]; then rm -rf \"\$VENV_TO_DELETE\"; else echo 'Caminho inseguro, remoção abortada.'; fi"
+                echo "   Depois, recrie com: ./scripts/installation/venv_setup.sh"
             fi
             break
         fi
@@ -269,8 +265,8 @@ check_ollama() {
                 if [ "$models" != "timeout" ]; then
                     local models_count=$(echo "$models" | wc -l)
                     if [ $models_count -gt 1 ]; then
-                        success "📦 Modelos Ollama: $((models_count-1)) instalado(s)"
-                        echo "   Modelos: $(echo "$models" | grep -v "NAME极速赛车开奖直播" | awk '{print $1}' | tr '\n' ' ')"
+                        success "📦 Modelos Ollama: $((models_count - 1)) instalado(s)"
+                        echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $1}' | tr '\n' ' ')"
                     else
                         warn "⚠️  Modelos Ollama: Nenhum modelo instalado"
                         echo "   💡 Execute: ollama pull llama2"
@@ -424,7 +420,7 @@ check_resources() {
     
     # Disco
     local disk_info=$(df / 2>/dev/null || df /System/Volumes/Data 2>/dev/null)
-    local disk_usage_percent=$(echo "$disk_info" | awk 'NR==2 {print $5}' | sed '极速赛车开奖直播s/%//')
+    local disk_usage_percent=$(echo "$disk_info" | awk 'NR==2 {print $5}' | sed 's/%//')
     local disk_total=$(echo "$disk_info" | awk 'NR==2 {print $2}' | awk '{printf "%.1fG", $1/1024/1024}')
     local disk_used=$(echo "$disk_info" | awk 'NR==2 {print $3}' | awk '{printf "%.1fG", $1/1024/1024}')
     local disk_avail=$(echo "$disk_info" | awk 'NR==2 {print $4}' | awk '{printf "%.1fG", $1/1024/1024}')
@@ -436,7 +432,7 @@ check_resources() {
         error "🚨 ALERTA CRÍTICO: Uso de disco: ${disk_usage_percent}%"
         echo "   💡 Execute: ./scripts/maintenance/clean-cache.sh"
         OVERALL_HEALTH=false
-    elif [ $disk_usage_percent -极速赛车开奖直播gt 80 ]; then
+    elif [ $disk_usage_percent -gt 80 ]; then
         warn "⚠️  AVISO: Uso de disco alto: ${disk_usage_percent}%"
         echo "   💡 Execute: find ~ -name \"*.log\" -size +100M -exec ls -lh {} \\;"
     fi
@@ -500,15 +496,28 @@ check_io_performance() {
     local start_time=$(date +%s.%N)
     
     dd if=/dev/zero of="$test_file" bs=1M count=10 oflag=direct 2>/dev/null
-    local end_time=$(date +%s.%N)
-    local duration=$(echo "$end_time - $start_time" | bc)
-    local speed=$(echo "scale=2; 10 / $duration" | bc)
-    
-    rm -f "$test_file"
+    local dd_exit_code=$?
+
+    if [ $dd_exit_code -eq 0 ]; then
+        local end_time=$(date +%s.%N)
+        local duration=$(echo "$end_time - $start_time" | bc)
+        local speed=$(echo "scale=2; 10 / $duration" | bc)
+    else
+        local speed="N/A"
+    fi
     
     echo "   Velocidade de escrita: ${speed} MB/s"
     
-    if (( $(echo "$speed < 50" | bc -l) )); then
+    # Remoção segura do arquivo de teste
+    if [ -f "$test_file" ]; then
+        if safe_path_check "$test_file" "remoção de arquivo de teste de I/O"; then
+            rm -f "$test_file"
+        else
+            error "Caminho do arquivo de teste de I/O é inseguro. Remoção manual necessária: $test_file"
+        fi
+    fi
+    
+    if [[ "$speed" != "N/A" ]] && (( $(echo "$speed < 50" | bc -l) )); then
         warn "⚠️  Performance de I/O baixa: ${speed} MB/s"
         echo "   💡 Verifique saúde do disco: smartctl -a /dev/sda"
     fi
@@ -529,7 +538,7 @@ main() {
     check_command "curl" "cURL"
     
     # Verificar serviços
-    echo -e "\n${CYAN}2. VERIFICAÇÃO极速赛车开奖直播 DE SERVIÇOS${NC}"
+    echo -e "\n${CYAN}2. VERIFICAÇÃO DE SERVIÇOS${NC}"
     check_service "docker" "Serviço Docker"
     
     # Verificar Ollama
@@ -568,7 +577,7 @@ main() {
     check_directory ".venv" "Diretório .venv do projeto"
     
     # Resumo final
-    echo -e "\n${BL极速赛车开奖直播UE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"
+    echo -e "\n${BLUE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"
     
     if [ "$OVERALL_HEALTH" = true ]; then
         echo -e "${GREEN}🎉 SISTEMA SAUDÁVEL!${NC}"

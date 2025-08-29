@@ -29,15 +29,9 @@ source "$COMMON_SCRIPT_PATH"
 
 # Configurações
 LOG_FILE="/tmp/cluster_ai_health_$(date +%Y%m%d_%H%M%S).log"
+export CLUSTER_AI_LOG_FILE="$LOG_FILE"
 OVERALL_HEALTH=true
 VENV_PRIORITY=(".venv" "$HOME/venv")  # Prioridade: .venv primeiro, depois $HOME/venv
-
-# Funções de log aprimoradas
-log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%S')]${NC} $1"; }
-warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
-error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
-section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
-subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
 
 # Função para verificar comando com sugestões de instalação
 check_command() {
@@ -448,12 +442,11 @@ check_temperature() {
 
 # Função principal
 main() {
-    echo -e "${BLUE}=== VERIFICAÇÃO DE SAÚDE - CLUSTER AI ===${NC}"
+    section "VERIFICAÇÃO DE SAÚDE - CLUSTER AI"
     echo "Log: $LOG_FILE"
-    exec > >(tee -a "$LOG_FILE") 2>&1
     
     # Verificações básicas do sistema
-    echo -e "\n${CYAN}1. VERIFICAÇÕES DO SISTEMA${NC}"
+    section "1. VERIFICAÇÕES DO SISTEMA"
     check_command "docker" "Docker"
     check_command "python3" "Python 3"
     check_command "pip" "PIP"
@@ -461,47 +454,47 @@ main() {
     check_command "curl" "cURL"
     
     # Verificar serviços
-    echo -e "\n${CYAN}2. VERIFICAÇÃO DE SERVIÇOS${NC}"
+    section "2. VERIFICAÇÃO DE SERVIÇOS"
     check_service "docker" "Serviço Docker"
     
     # Verificar Ollama
-    echo -e "\n${BLUE}3. VERIFICAÇÃO DO OLLAMA${NC}"
+    section "3. VERIFICAÇÃO DO OLLAMA"
     check_ollama
     
     # Verificar Dask
-    echo -e "\n${CYAN}4. VERIFICAÇÃO DO DASK${NC}"
+    section "4. VERIFICAÇÃO DO DASK"
     check_dask
     
     # Verificar containers Docker
-    echo -e "\n${BLUE}5. VERIFICAÇÃO DE CONTAINERS DOCKER${NC}"
+    section "5. VERIFICAÇÃO DE CONTAINERS DOCKER"
     check_docker_containers
     
     # Verificar GPU
-    echo -e "\n${CYAN}6. VERIFICAÇÃO DE GPU${NC}"
+    section "6. VERIFICAÇÃO DE GPU"
     check_gpu
     
     # Verificar PyTorch
-    echo -e "\n${BLUE}7. VERIFICAÇÃO DO PyTorch${NC}"
+    section "7. VERIFICAÇÃO DO PyTorch"
     check_pytorch
     
     # Verificar ambiente virtual
-    echo -e "\n${CYAN}8. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
+    section "8. VERIFICAÇÃO DO AMBIENTE VIRTUAL"
     check_venv
     
     # Verificar recursos
-    echo -e "\n${CYAN}9. RECURSOS DO SISTEMA${NC}"
+    section "9. RECURSOS DO SISTEMA"
     check_resources
     check_temperature
     
     # Verificar diretórios importantes
-    echo -e "\n${BLUE}10. ESTRUTURA DE DIRETÓRIOS${NC}"
+    section "10. ESTRUTURA DE DIRETÓRIOS"
     check_directory "$HOME/venv" "Diretório do ambiente virtual"
     check_directory "$HOME/cluster_scripts" "Diretório de scripts do cluster"
     check_directory "$HOME/.ollama" "Diretório do Ollama"
     check_directory ".venv" "Diretório .venv do projeto"
     
     # Resumo final
-    echo -e "\n${BLUE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"
+    section "RESUMO DA SAÚDE DO SISTEMA"
     
     if [ "$OVERALL_HEALTH" = true ]; then
         echo -e "${GREEN}🎉 SISTEMA SAUDÁVEL!${NC}"

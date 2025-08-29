@@ -43,32 +43,22 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 
 ## 🚀 Instalação Rápida
 
-### Instalação Local (Recomendado para desenvolvimento)
-Se você já clonou o repositório:
+### Instalação via Repositório (Recomendado)
 ```bash
-# Executar diretamente o script local
-./install_cluster.sh
+# Clone o repositório
+git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+cd cluster-ai
 
-# Ou usar o script principal diretamente
-./scripts/installation/main.sh
+# Execute o instalador universal
+./install_universal.sh
 ```
 
-### Instalação via Download (Para usuários externos)
+**💡 Nota**: O script `install_universal.sh` é o ponto de entrada principal e guiará você por todas as opções de instalação, seja para uma máquina local ou para configurar os nós de um cluster.
+
+### Instalação em Múltiplas Máquinas (Cluster)
 ```bash
-# Download do script de instalação
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/installation/main.sh -o install_cluster.sh
-
-# Tornar executável
-chmod +x install_cluster.sh
-
-# Executar instalação
-./install_cluster.sh
-```
-
-### Instalação em Cluster
-```bash
-# Em cada máquina do cluster
-./install_cluster.sh
+# Em cada máquina do cluster, execute o instalador universal
+./install_universal.sh
 
 # Siga o menu interativo para definir o papel de cada máquina
 ```
@@ -208,7 +198,38 @@ results = db.from_sequence(texts).map(analyze_sentiment).compute()
 
 ## 🛡️ Segurança
 
-### Configuração de Firewall
+### 🔒 Segurança de Scripts e Prevenção de Corrupção
+O Cluster AI inclui proteções avançadas contra operações acidentais:
+
+#### ✅ Funções de Segurança Implementadas
+- **Validação de Caminhos**: Bloqueia operações em diretórios críticos do sistema (`/`, `/usr`, `/bin`, `/etc`)
+- **Confirmação do Usuário**: Requer aprovação explícita para operações destrutivas
+- **Prevenção de Execução como Root**: Scripts falham se executados como usuário root
+- **Validação de Valores**: Verifica todos os inputs numéricos antes do uso
+
+#### 📋 Scripts Seguros Disponíveis
+```bash
+# Gerenciador de Memória Seguro
+./scripts/utils/memory_manager_secure.sh start
+
+# Health Check Seguro  
+./scripts/utils/health_check_secure.sh
+
+# Otimizador de Recursos com Validação
+./scripts/utils/resource_optimizer.sh optimize
+```
+
+#### 🛡️ Proteções Ativas
+- ✅ Bloqueio de operações em diretórios críticos do sistema
+- ✅ Validação de caminhos vazios e inválidos
+- ✅ Confirmação obrigatória para limpeza de logs e arquivos temporários
+- ✅ Verificação de privilégios sudo antes de operações privilegiadas
+
+Consulte [SECURITY_IMPROVEMENTS_SUMMARY.md](../SECURITY_IMPROVEMENTS_SUMMARY.md) para detalhes completos.
+
+### 🔐 Segurança de Rede
+
+#### Configuração de Firewall
 ```bash
 # Configuração recomendada
 sudo ufw allow 22/tcp    # SSH
@@ -219,7 +240,7 @@ sudo ufw allow 11434/tcp # Ollama API
 sudo ufw enable
 ```
 
-### TLS/SSL para Produção
+#### TLS/SSL para Produção
 Consulte [Deploy com TLS](deployments/production/README.md) para configuração segura com:
 - Certificados Let's Encrypt
 - Nginx como reverse proxy

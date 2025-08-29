@@ -144,12 +144,43 @@ cluster-ai/
 └── 📄 .gitignore       # Arquivos ignorados pelo Git
 ```
 
+## 🛡️ SEGURANÇA AVANÇADA
+
+O Cluster AI inclui múltiplas camadas de proteção contra operações acidentais:
+
+### ✅ Funções de Segurança
+- **Validação de Caminhos**: Bloqueia operações em diretórios críticos do sistema
+- **Confirmação do Usuário**: Requer aprovação explícita para operações destrutivas
+- **Prevenção de Execução como Root**: Scripts falham se executados como usuário root
+- **Validação de Valores**: Verifica todos os inputs numéricos antes do uso
+
+### 📋 Scripts de Manutenção Seguros
+```bash
+# Gerenciar memória e swap
+./scripts/utils/memory_manager.sh start
+
+# Verificar a saúde do sistema
+./scripts/utils/health_check.sh
+
+# Otimizar recursos do sistema
+./scripts/utils/resource_optimizer.sh optimize
+```
+
+### 🔒 Proteções Ativas
+- ✅ Bloqueio de operações em `/`, `/usr`, `/bin`, `/etc` e outros diretórios críticos
+- ✅ Validação de caminhos vazios e inválidos
+- ✅ Confirmação obrigatória para limpeza de logs e arquivos temporários
+- ✅ Verificação de privilégios sudo antes de operações privilegiadas
+
+Consulte [SECURITY_IMPROVEMENTS_SUMMARY.md](SECURITY_IMPROVEMENTS_SUMMARY.md) para detalhes completos das melhorias de segurança.
+
 ## 📚 DOCUMENTAÇÃO
 
 - [ESTRUTURA_PROJETO.md](ESTRUTURA_PROJETO.md) - Estrutura detalhada
 - [DEMO_README.md](DEMO_README.md) - Guia de demonstrações
 - [EXTENSOES_ESSENCIAIS_VSCODE.md](EXTENSOES_ESSENCIAIS_VSCODE.md) - Lista de extensões
 - [PLANO_MELHORIAS_DEV_ENV.md](PLANO_MELHORIAS_DEV_ENV.md) - Plano de melhorias
+- [SECURITY_IMPROVEMENTS_SUMMARY.md](SECURITY_IMPROVEMENTS_SUMMARY.md) - Melhorias de segurança
 
 ## 🐛 SUPORTE
 

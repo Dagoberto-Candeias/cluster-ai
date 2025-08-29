@@ -1,34 +1,21 @@
 #!/bin/bash
-# Otimizador de Recursos para Cluster AI
+# Otimizador de Recursos para Cluster AI - Versão Segura
 # Evita sobrecarga e falta de memória através de ajustes automáticos
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Carregar funções comuns com segurança
+COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/common.sh"
+if [ -f "$COMMON_SCRIPT_PATH" ]; then
+    source "$COMMON_SCRIPT_PATH"
+else
+    echo "ERRO CRÍTICO: Script de funções comuns 'common.sh' não encontrado: $COMMON_SCRIPT_PATH" >&2
+    exit 1
+fi
 
 # Configurações
 CONFIG_DIR="$HOME/.cluster_optimization"
 LOG_FILE="$CONFIG_DIR/optimization.log"
 CHECK_INTERVAL=60  # Verificação a cada 60 segundos
-
-log() {
-    echo -e "${GREEN}[RESOURCE OPTIMIZER]${NC} $1"
-    echo "[$(date)] $1" >> "$LOG_FILE"
-}
-
-warn() {
-    echo -e "${YELLOW}[RESOURCE OPTIMIZER]${NC} $1"
-    echo "[$(date)] WARN: $1" >> "$LOG_FILE"
-}
-
-error() {
-    echo -e "${RED}[RESOURCE OPTIMIZER]${NC} $1"
-    echo "[$(date)] ERROR: $1" >> "$LOG_FILE"
-}
+export CLUSTER_AI_LOG_FILE="$LOG_FILE"
 
 # Função para detectar recursos do sistema
 detect_system_resources() {
@@ -269,31 +256,32 @@ free_memory() {
 
 # Função para limpar espaço em disco
 cleanup_disk() {
-    # Solicitar confirmação do usuário para operações destrutivas
-    if ! confirm_operation "Esta operação irá limpar logs antigos e caches. Deseja continuar?"; then
-        warn "Limpeza de disco cancelada pelo usuário"
+    warn "Iniciando limpeza de disco..."
+    
+    if ! confirm_operation "Esta operação tentará remover logs antigos e limpar caches do sistema (pip, docker)."; then
+        log "Limpeza de disco cancelada pelo usuário."
         return 1
     fi
     
-    warn "Iniciando limpeza segura de disco..."
-    
     # Limpar logs antigos com validação de caminhos
-    local log_dirs=("/var/log" "$HOME")
+    log "Limpando logs antigos..."
+    local log_dirs=("/var/log" "$HOME/.local/state" "$HOME/.cache")
     for log_dir in "${log_dirs[@]}"; do
-        if safe_path_check "$log_dir" "limpeza de logs"; then
-            warn "Limpando logs em: $log_dir"
-            find "$log_dir" -name "*.log" -type f -mtime +7 -delete 2>/dev/null
+        if safe_path_check "$log_dir" "limpeza de logs em $log_dir"; then
+            log "Procurando logs com mais de 7 dias em: $log_dir"
+            # Usar -print0 e xargs para mais segurança com nomes de arquivo
+            find "$log_dir" -name "*.log" -type f -mtime +7 -print0 | xargs -0 -r -- sudo rm -f
+        else
+            error "Caminho para limpeza de log é inseguro, pulando: $log_dir"
         fi
     done
     
     # Limpar cache do pip
-    warn "Limpando cache do pip..."
-    pip cache purge 2>/dev/null
+    if command_exists pip; then log "Limpando cache do pip..."; pip cache purge >/dev/null 2>&1; fi
     
     # Limpar cache do Docker com validação
     if command_exists docker; then
-        warn "Limpando cache do Docker..."
-        docker system prune -af 2>/dev/null
+        if confirm_operation "Limpar cache do Docker (imagens, contêineres e volumes não utilizados)?"; then log "Limpando cache do Docker..."; sudo docker system prune -af; fi
     fi
     
     warn "Espaço em disco liberado através de limpeza segura de arquivos temporários"
@@ -354,7 +342,12 @@ show_status() {
 # Menu principal
 main() {
     # Criar diretório de configuração
+    if ! safe_path_check "$CONFIG_DIR" "criação de diretório de configuração"; then
+        exit 1
+    fi
     mkdir -p "$CONFIG_DIR"
+    # Touch log file to ensure it exists
+    touch "$LOG_FILE"
     
     case "$1" in
         "optimize")

@@ -1,17 +1,18 @@
 #!/bin/bash
-# Sistema de Gerenciamento de Memória Auxiliar Auto-Expansível
+# Sistema de Gerenciamento de Memória Auxiliar Auto-Expansível - Versão Segura
 # Utiliza SSD como memória virtual para evitar falta de memória
 
 # Adicionar /usr/sbin ao PATH para garantir que swapon seja encontrado
 export PATH=$PATH:/usr/sbin
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Carregar funções comuns com segurança
+COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/common.sh"
+if [ -f "$COMMON_SCRIPT_PATH" ]; then
+    source "$COMMON_SCRIPT_PATH"
+else
+    echo "ERRO CRÍTICO: Script de funções comuns 'common.sh' não encontrado: $COMMON_SCRIPT_PATH" >&2
+    exit 1
+fi
 
 # Configurações
 SWAP_DIR="$HOME/cluster_swap"
@@ -21,18 +22,6 @@ MAX_SWAP_SIZE="16G"     # Tamanho máximo do swap
 SWAP_INCREMENT="1G"     # Incremento para expansão
 MEMORY_THRESHOLD=80     # Percentual de uso de memória para ativar expansão
 CHECK_INTERVAL=30       # Intervalo de verificação em segundos
-
-log() {
-    echo -e "${GREEN}[MEMORY MANAGER]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[MEMORY MANAGER]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[MEMORY MANAGER]${NC} $1"
-}
 
 # Função para verificar uso de memória
 check_memory_usage() {
@@ -65,31 +54,28 @@ check_swap_usage() {
 create_swap_file() {
     local size="$1"
     
-    # Validar caminho do diretório de swap
-    if ! safe_path_check "$SWAP_DIR" "criação de diretório swap"; then
-        return 1
-    fi
-    
     # Criar diretório se não existir
+    if ! safe_path_check "$SWAP_DIR" "criação de diretório de swap"; then return 1; fi
     mkdir -p "$SWAP_DIR"
     
     # Verificar se arquivo de swap já existe
     if [ -f "$SWAP_FILE" ]; then
-        warn "Arquivo de swap já existe. Removendo com segurança..."
-        sudo swapoff "$SWAP_FILE" 2>/dev/null
-        safe_remove "$SWAP_FILE" "arquivo de swap"
+        warn "Arquivo de swap '$SWAP_FILE' já existe."
+        if confirm_operation "Deseja remover o swap existente e criar um novo?"; then
+            cleanup_swap
+        else
+            warn "Operação cancelada. Usando o arquivo de swap existente."
+            return 0
+        fi
     fi
     
-    # Validar caminho do arquivo de swap
-    if ! safe_path_check "$SWAP_FILE" "criação de arquivo swap"; then
-        return 1
-    fi
-    
-    # Criar arquivo de swap
+    if ! safe_path_check "$SWAP_FILE" "criação de arquivo de swap"; then return 1; fi
+
     log "Criando arquivo de swap de $size..."
     
     # Converter tamanho para megabytes
-    local size_mb=$(echo "$size" | sed 's/G/*1024/;s/M//' | bc)
+    local size_mb
+    size_mb=$(echo "$size" | sed 's/G/*1024/;s/M//' | bc)
     
     # Validar tamanho
     if [ -z "$size_mb" ] || [ "$size_mb" -le 0 ]; then
@@ -98,7 +84,7 @@ create_swap_file() {
     fi
     
     # Criar arquivo com validação
-    dd if=/dev/zero of="$SWAP_FILE" bs=1M count="$size_mb" status=progress
+    sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count="$size_mb" status=progress
     if [ $? -ne 0 ]; then
         error "Falha ao criar arquivo de swap"
         return 1
@@ -118,11 +104,12 @@ create_swap_file() {
         echo "$SWAP_FILE none swap sw 0 0" | sudo tee -a /etc/fstab
     fi
     
-    log "Swap file criado e ativado com segurança: $size"
+    log "Arquivo de swap criado e ativado com sucesso: $size"
 }
 
 # Função para expandir swap
 expand_swap() {
+    if ! safe_path_check "$SWAP_FILE" "expansão de swap"; then return 1; fi
     local current_size=$(du -h "$SWAP_FILE" 2>/dev/null | cut -f1)
     local new_size=""
     
@@ -133,9 +120,15 @@ expand_swap() {
     fi
     
     # Converter tamanho atual para megabytes
-    local current_mb=$(echo "$current_size" | sed 's/G/*1024/;s/M//' | bc)
-    local increment_mb=$(echo "$SWAP_INCREMENT" | sed 's/G/*1024/;s/M//' | bc)
-    local max_mb=$(echo "$MAX_SWAP_SIZE" | sed 's/G/*1024/;s/M//' | bc)
+    local current_mb
+    current_mb=$(echo "$current_size" | sed 's/G/*1024/;s/M//' | bc)
+    local increment_mb
+    increment_mb=$(echo "$SWAP_INCREMENT" | sed 's/G/*1024/;s/M//' | bc)
+    local max_mb
+    max_mb=$(echo "$MAX_SWAP_SIZE" | sed 's/G/*1024/;s/M//' | bc)
+
+    # Validar valores numéricos
+    if ! [[ "$current_mb" =~ ^[0-9]+$ ]] || ! [[ "$increment_mb" =~ ^[0-9]+$ ]] || ! [[ "$max_mb" =~ ^[0-9]+$ ]]; then error "Cálculo de tamanho de swap inválido."; return 1; fi
     
     local new_mb=$((current_mb + increment_mb))
     
@@ -156,7 +149,7 @@ expand_swap() {
     
     # Expandir arquivo
     log "Expandindo swap de $current_size para $new_size..."
-    dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$((new_mb)) oflag=append conv=notrunc status=progress
+    sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$((new_mb)) oflag=append conv=notrunc status=progress
     
     # Reformatar e reativar
     sudo mkswap "$SWAP_FILE"
@@ -167,6 +160,7 @@ expand_swap() {
 
 # Função para reduzir swap (se necessário)
 reduce_swap() {
+    if ! safe_path_check "$SWAP_FILE" "redução de swap"; then return 1; fi
     # Verificar se o arquivo de swap existe
     if [ ! -f "$SWAP_FILE" ]; then
         warn "Arquivo de swap não encontrado: $SWAP_FILE"
@@ -174,7 +168,8 @@ reduce_swap() {
     fi
     
     # Obter tamanho atual em megabytes (mais confiável que bytes)
-    local current_size_mb=$(du --block-size=1M "$SWAP_FILE" 2>/dev/null | cut -f1)
+    local current_size_mb
+    current_size_mb=$(du --block-size=1M "$SWAP_FILE" 2>/dev/null | cut -f1)
     local min_size_mb=2048  # 2GB em MB
     
     # Garantir valores numéricos
@@ -186,7 +181,8 @@ reduce_swap() {
     fi
     
     # Calcular novo tamanho (reduzir pela metade, mas não abaixo do mínimo)
-    local new_size_mb=$((current_size_mb / 2))
+    local new_size_mb
+    new_size_mb=$((current_size_mb / 2))
     if [ "$new_size_mb" -lt "$min_size_mb" ] 2>/dev/null; then
         new_size_mb=$min_size_mb
     fi
@@ -311,14 +307,19 @@ show_memory_status() {
 cleanup_swap() {
     log "Limpando configuração de swap..."
     
-    if [ -f "$SWAP_FILE" ]; then
-        sudo swapoff "$SWAP_FILE" 2>/dev/null
-        rm -f "$SWAP_FILE"
-        log "Arquivo de swap removido"
+    if ! safe_path_check "$SWAP_FILE" "limpeza de swap"; then return 1; fi
+
+    if swapon --show | grep -q "$SWAP_FILE"; then
+        log "Desativando swap: $SWAP_FILE"
+        sudo swapoff "$SWAP_FILE"
     fi
-    
-    # Remover do fstab
-    sudo sed -i "\|$SWAP_FILE|d" /etc/fstab
+
+    if [ -f "$SWAP_FILE" ] && confirm_operation "Remover o arquivo de swap '$SWAP_FILE'?"; then
+        sudo rm -f "$SWAP_FILE"
+        log "Arquivo de swap removido."
+        sudo sed -i.bak "\|$SWAP_FILE|d" /etc/fstab
+        log "Entrada removida do /etc/fstab (backup criado em /etc/fstab.bak)."
+    fi
     
     # Remover diretório se vazio
     if [ -d "$SWAP_DIR" ] && [ -z "$(ls -A "$SWAP_DIR")" ]; then
@@ -330,6 +331,12 @@ cleanup_swap() {
 
 # Menu principal
 main() {
+    # Verificar privilégios de sudo no início, pois quase todas as operações exigem
+    if [[ $EUID -ne 0 ]] && [[ "$1" != "status" ]]; then
+        error "Este comando precisa ser executado com privilégios de sudo (ex: sudo $0 $1)"
+        exit 1
+    fi
+
     case "$1" in
         "start")
             create_swap_file "$MIN_SWAP_SIZE"
@@ -337,7 +344,7 @@ main() {
             monitor_memory &
             ;;
         "stop")
-            pkill -f "memory_manager.sh"
+            pkill -f "$(basename "$0")"
             cleanup_swap
             ;;
         "status")
