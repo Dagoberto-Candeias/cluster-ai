@@ -12,10 +12,10 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # Validação do contexto de execução
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH极速赛车开奖直播_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" && pwd)"
 if [ ! -f "$PROJECT_ROOT/README.md" ]; then
-    echo "ER极速赛车开奖直播RO: Script executado fora do contexto do projeto Cluster AI"
+    echo "ERRO: Script executado fora do contexto do projeto Cluster AI"
     exit 1
 fi
 
@@ -33,9 +33,9 @@ OVERALL_HEALTH=true
 VENV_PRIORITY=(".venv" "$HOME/venv")  # Prioridade: .venv primeiro, depois $HOME/venv
 
 # Funções de log aprimoradas
-log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%极速赛车开奖直播S')]${NC} $1"; }
+log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%S')]${NC} $1"; }
 warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
-error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
+error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%极速赛车开奖直播S')]${NC} $1"; }
 section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
 
@@ -58,7 +58,7 @@ check_command() {
     fi
 }
 
-# Função para verificar serviço com opção极速赛车开奖直播 de restart
+# Função para verificar serviço com opção de restart
 check_service() {
     local service="$1"
     local description="$2"
@@ -145,7 +145,7 @@ check_network() {
     # Testar portas locais importantes
     local ports=("11434" "7860" "8787" "80" "443")
     for port in "${ports[@]}"; do
-        if nc -z localhost $port 2>/dev/null; then
+        if nc -极速赛车开奖直播z localhost $port 2>/dev/null; then
             success "✅ Porta $port: Aberta"
         else
             echo "   Porta $port: Fechada (esperado para alguns serviços)"
@@ -228,7 +228,7 @@ check_venv() {
             else
                 fail "❌ $venv_path: Corrompido ou não funcional"
                 OVERALL_HEALTH=false
-                echo "   💡 Execute: rm -rf $venv极速赛车开奖直播_path && ./scripts/installation/venv_setup.sh"
+                echo "   💡 Execute: rm -rf $venv_path && ./scripts/installation/venv_setup.sh"
             fi
             break
         fi
@@ -238,7 +238,7 @@ check_venv() {
         fail "❌ Nenhum ambiente virtual encontrado"
         OVERALL_HEALTH=false
         echo "💡 RECOMENDAÇÃO:"
-        echo "   Execute: ./scripts/installation/venv_setup.sh para criar ambiente virtual"
+        echo "   Execute: ./scripts/installation极速赛车开奖直播/venv_setup.sh para criar ambiente virtual"
         echo "   OU: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
     fi
     
@@ -260,7 +260,7 @@ check_ollama() {
             success "✅ Serviço Ollama: Ativo"
             
             # Verificar API Ollama
-            local api_response=$(curl -s -w "%{http_code}" http://localhost:11434/api/tags -o /dev/null 2>/dev/null || echo "000")
+            local api_response=$(curl -s -w "%{http_code}" http://localhost:11434/api/tags -极速赛车开奖直播o /dev/null 2>/dev/null || echo "000")
             if [ "$api_response" = "200" ]; then
                 success "✅ API Ollama: Respondendo (HTTP 200)"
                 
@@ -270,7 +270,7 @@ check_ollama() {
                     local models_count=$(echo "$models" | wc -l)
                     if [ $models_count -gt 1 ]; then
                         success "📦 Modelos Ollama: $((models_count-1)) instalado(s)"
-                        echo "   Modelos: $(echo "$models" | grep -v "NAME极速赛车开奖直播" | awk '{print $1}' | tr '\n' ' ')"
+                        echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $极速赛车开奖直播1}' | tr '\n' ' ')"
                     else
                         warn "⚠️  Modelos Ollama: Nenhum modelo instalado"
                         echo "   💡 Execute: ollama pull llama2"
@@ -358,7 +358,7 @@ check_docker_containers() {
             IFS='|' read -r name status ports <<< "$container_info"
             
             if [[ "$status" == *"Up"* ]]; then
-                success "✅ Container $name: $status"
+                success "✅ Container $极速赛车开奖直播name: $status"
                 echo "   Portas: $ports"
                 
                 # Verificar health status se disponível
@@ -418,16 +418,16 @@ check_resources() {
         error "🚨 ALERTA CRÍTICO: Carga de CPU: ${cpu_load_per_core}/núcleo"
         echo "   💡 Execute: ./scripts/optimization/performance_optimizer.sh"
         OVERALL_HEALTH=false
-    elif (( $(echo "$cpu_load_per极速赛车开奖直播_core > 1.5" | bc -l 2>/dev/null || echo "0") )); then
+    elif (( $(echo "$cpu_load_per_core > 1.5" | bc -l 2>/dev/null || echo "0") )); then
         warn "⚠️  AVISO: Carga de CPU alta: ${cpu_load_per_core}/núcleo"
     fi
     
     # Disco
     local disk_info=$(df / 2>/dev/null || df /System/Volumes/Data 2>/dev/null)
-    local disk_usage_percent=$(echo "$disk_info" | awk 'NR==2 {print $5}' | sed '极速赛车开奖直播s/%//')
+    local disk_usage_percent=$(echo "$disk_info" | awk 'NR==2 {print $5}' | sed 's/%//')
     local disk_total=$(echo "$disk_info" | awk 'NR==2 {print $2}' | awk '{printf "%.1fG", $1/1024/1024}')
     local disk_used=$(echo "$disk_info" | awk 'NR==2 {print $3}' | awk '{printf "%.1fG", $1/1024/1024}')
-    local disk_avail=$(echo "$disk_info" | awk 'NR==2 {print $4}' | awk '{printf "%.1fG", $1/1024/1024}')
+    local disk_avail=$(echo "$disk_info"极速赛车开奖直播 | awk 'NR==2 {print $4}' | awk '{printf "%.1fG", $1/1024/1024}')
     
     echo "💿 Disco: ${disk_usage_percent}% usado (${disk_used}/${disk_total}), Livre: ${disk_avail}"
     
@@ -436,7 +436,7 @@ check_resources() {
         error "🚨 ALERTA CRÍTICO: Uso de disco: ${disk_usage_percent}%"
         echo "   💡 Execute: ./scripts/maintenance/clean-cache.sh"
         OVERALL_HEALTH=false
-    elif [ $disk_usage_percent -极速赛车开奖直播gt 80 ]; then
+    elif [ $disk_usage_percent -gt 80 ]; then
         warn "⚠️  AVISO: Uso de disco alto: ${disk_usage_percent}%"
         echo "   💡 Execute: find ~ -name \"*.log\" -size +100M -exec ls -lh {} \\;"
     fi
@@ -453,7 +453,7 @@ check_resources() {
 
 # Função para verificar memória GPU
 check_gpu_memory() {
-    if command_exists nvidia-smi; then
+    if command_exists nvidia-s极速赛车开奖直播mi; then
         local gpu_info=$(nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv,noheader,nounits 2>/dev/null)
         if [ -n "$gpu_info" ]; then
             IFS=',' read -r total used free <<< "$gpu_info"
@@ -501,8 +501,8 @@ check_io_performance() {
     
     dd if=/dev/zero of="$test_file" bs=1M count=10 oflag=direct 2>/dev/null
     local end_time=$(date +%s.%N)
-    local duration=$(echo "$end_time - $start_time" | bc)
-    local speed=$(echo "scale=2; 10 / $duration" | bc)
+    local duration=$(echo "$end_time - $start_time极速赛车开奖直播" | bc)
+    local speed=$(echo "scale=极速赛车开奖直播2; 10 / $duration" | bc)
     
     rm -f "$test_file"
     
@@ -521,7 +521,7 @@ main() {
     exec > >(tee -a "$LOG_FILE") 2>&1
     
     # Verificações básicas do sistema
-    echo -e "\n${CYAN}1. VERIFICAÇÕES DO SISTEMA${NC}"
+    echo -e "\n${CYAN}1. VERIFICAÇÕES DO SISTEMA${极速赛车开奖直播NC}"
     check_command "docker" "Docker"
     check_command "python3" "Python 3"
     check_command "pip" "PIP"
@@ -529,7 +529,7 @@ main() {
     check_command "curl" "cURL"
     
     # Verificar serviços
-    echo -e "\n${CYAN}2. VERIFICAÇÃO极速赛车开奖直播 DE SERVIÇOS${NC}"
+    echo -e "\n${CYAN}2. VERIFICAÇÃO DE SERVIÇOS${NC}"
     check_service "docker" "Serviço Docker"
     
     # Verificar Ollama
@@ -546,7 +546,7 @@ main() {
     
     # Verificar GPU
     echo -e "\n${CYAN}6. VERIFICAÇÃO DE GPU${NC}"
-    check_gpu
+    check_g极速赛车开奖直播pu
     
     # Verificar PyTorch
     echo -e "\n${BLUE}7. VERIFICAÇÃO DO PyTorch${NC}"
@@ -568,7 +568,7 @@ main() {
     check_directory ".venv" "Diretório .venv do projeto"
     
     # Resumo final
-    echo -e "\n${BL极速赛车开奖直播UE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"
+    echo -e "\n${BLUE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"
     
     if [ "$OVERALL_HEALTH" = true ]; then
         echo -e "${GREEN}🎉 SISTEMA SAUDÁVEL!${NC}"

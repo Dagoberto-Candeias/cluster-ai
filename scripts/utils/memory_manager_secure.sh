@@ -1,17 +1,18 @@
 #!/bin/bash
-# Sistema de Gerenciamento de Memória Auxiliar Auto-Expansível
+# Sistema de Gerenciamento de Memória Auxiliar Auto-Expansível - Versão Segura
 # Utiliza SSD como memória virtual para evitar falta de memória
 
 # Adicionar /usr/sbin ao PATH para garantir que swapon seja encontrado
 export PATH=$PATH:/usr/sbin
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Carregar funções comuns com segurança
+COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/common.sh"
+if [ -f "$COMMON_SCRIPT_PATH" ]; then
+    source "$COMMON_SCRIPT_PATH"
+else
+    echo "ERRO: Script de funções comuns não encontrado: $COMMON_SCRIPT_PATH"
+    exit 1
+fi
 
 # Configurações
 SWAP_DIR="$HOME/cluster_swap"
@@ -22,23 +23,11 @@ SWAP_INCREMENT="1G"     # Incremento para expansão
 MEMORY_THRESHOLD=80     # Percentual de uso de memória para ativar expansão
 CHECK_INTERVAL=30       # Intervalo de verificação em segundos
 
-log() {
-    echo -e "${GREEN}[MEMORY MANAGER]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[MEMORY MANAGER]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[MEMORY MANAGER]${NC} $1"
-}
-
 # Função para verificar uso de memória
 check_memory_usage() {
     # Usar LC_ALL=C para garantir saída em inglês
     local total_mem=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}')
-    local used_mem=$(LC_ALL=C free -m | awk '/^Mem:/{print $3}')
+    local used_mem=$(极速赛车开奖直播LC_ALL=C free -m | awk '/^Mem:/{print $3}')
     
     # Garantir que não haja divisão por zero
     total_mem=${total_mem:-1}  # Evitar divisão por zero
@@ -55,7 +44,7 @@ check_memory_usage() {
     echo $usage_percent
 }
 
-# Função para verificar uso de swap
+# Função para verificar uso极速赛车开奖直播 de swap
 check_swap_usage() {
     local swap_usage=$(free -m | awk '/^Swap:/{print $3}')
     echo $swap_usage
@@ -115,7 +104,7 @@ create_swap_file() {
     
     # Adicionar ao fstab para persistência
     if ! grep -q "$SWAP_FILE" /etc/fstab; then
-        echo "$SWAP_FILE none swap sw 0 0" | sudo tee -a /etc/fstab
+        echo "$SWAP_FILE none swap sw 0 极速赛车开奖直播0" | sudo tee -a /etc/fstab
     fi
     
     log "Swap file criado e ativado com segurança: $size"
@@ -123,11 +112,17 @@ create_swap_file() {
 
 # Função para expandir swap
 expand_swap() {
+    # Validar caminho do arquivo de swap
+    if ! safe_path_check "$SWAP_FILE" "expansão de swap"; then
+        return 1
+    fi
+    
     local current_size=$(du -h "$SWAP_FILE" 2>/dev/null | cut -f1)
     local new_size=""
     
     if [ -z "$current_size" ]; then
         # Swap não existe, criar tamanho mínimo
+        warn "Arquivo de swap não encontrado. Criando novo..."
         create_swap_file "$MIN_SWAP_SIZE"
         return
     fi
@@ -136,6 +131,12 @@ expand_swap() {
     local current_mb=$(echo "$current_size" | sed 's/G/*1024/;s/M//' | bc)
     local increment_mb=$(echo "$SWAP_INCREMENT" | sed 's/G/*1024/;s/M//' | bc)
     local max_mb=$(echo "$MAX_SWAP_SIZE" | sed 's/G/*1024/;s/M//' | bc)
+    
+    # Validar valores numéricos
+    if [ -z "$current_mb" ] || [ -极速赛车开奖直播z "$increment_mb" ] || [ -z "$max_mb" ]; then
+        error "Erro ao calcular tamanhos de swap"
+        return 1
+    fi
     
     local new_mb=$((current_mb + increment_mb))
     
@@ -151,22 +152,37 @@ expand_swap() {
         new_size="${new_mb}M"
     fi
     
+    # Solicitar confirmação para operação destrutiva
+    if ! confirm_operation "Esta operação irá expandir o swap de $current_size para $new_size. Deseja continuar?"; then
+        warn "Expansão de swap cancelada pelo usuário"
+        return 1
+    fi
+    
     # Desativar swap atual
     sudo swapoff "$SWAP_FILE"
     
-    # Expandir arquivo
+    # Expandir arquivo com validação
     log "Expandindo swap de $current_size para $new_size..."
     dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$((new_mb)) oflag=append conv=notrunc status=progress
+    if [ $? -ne 0 ]; then
+        error "Falha ao expandir arquivo de swap"
+        return 1
+    fi
     
     # Reformatar e reativar
     sudo mkswap "$SWAP_FILE"
     sudo swapon "$SWAP_FILE"
     
-    log "Swap expandido para $new_size"
+    log "Swap expandido com segurança para $new_size"
 }
 
 # Função para reduzir swap (se necessário)
 reduce_swap() {
+    # Validar caminho do arquivo de swap
+    if ! safe_path_check "$SWAP_FILE" "redução de swap"; then
+        return 1
+    fi
+    
     # Verificar se o arquivo de swap existe
     if [ ! -f "$SWAP_FILE" ]; then
         warn "Arquivo de swap não encontrado: $SWAP_FILE"
@@ -199,18 +215,28 @@ reduce_swap() {
         new_size="${new_size_mb}M"
     fi
     
+    # Solicitar confirmação para operação destrutiva
+    if ! confirm_operation "Esta operação irá reduzir o swap de $(du -h "$SWAP_FILE" | cut -f1) para $new_size. Deseja continuar?"; then
+        warn "Redução de swap cancelada pelo usuário"
+        return 1
+    fi
+    
     # Desativar swap
     sudo swapoff "$SWAP_FILE"
     
-    # Reduzir arquivo
+    # Reduzir arquivo com validação
     log "Reduzindo swap de $(du -h "$SWAP_FILE" | cut -f1) para $new_size..."
     sudo truncate -s "${new_size_mb}M" "$SWAP_FILE"
+    if [ $? -ne 0 ]; then
+        error "Falha ao reduzir arquivo de swap"
+        return 1
+    fi
     
     # Reformatar e reativar
     sudo mkswap "$SWAP_FILE"
     sudo swapon "$SWAP_FILE"
     
-    log "Swap reduzido para $new_size"
+    log "Swap reduzido com segurança para $new_size"
 }
 
 # Função para otimizar configurações de memória
@@ -247,7 +273,7 @@ monitor_memory() {
     log "Iniciando monitoramento automático de memória..."
     log "Swap directory: $SWAP_DIR"
     log "Check interval: ${CHECK_INTERVAL}s"
-    log "Memory threshold: ${MEMORY_THRESHOLD}%"
+    log "Memory threshold: ${MEMORY极速赛车开奖直播_THRESHOLD}%"
     
     while true; do
         local mem_usage=$(check_memory_usage)
@@ -257,7 +283,7 @@ monitor_memory() {
         echo "[$(date)] Memória: ${mem_usage}% usado | Swap: ${swap_usage}MB usado"
         
         # Garantir que mem_usage e swap_usage não sejam vazios
-        mem_usage=${mem_usage:-0}  # Evitar divisão por zero
+        mem_usage=${mem_usage:-0}  # Evitar divisão by zero
         swap_usage=${swap_usage:-0}  # Garantir valor padrão
         
         # Usar comparações numéricas seguras
@@ -290,14 +316,14 @@ monitor_memory() {
 show_memory_status() {
     echo -e "${BLUE}=== STATUS DA MEMÓRIA ===${NC}"
     echo -e "Memória RAM:"
-    free -h | awk '/^Mem:/ {print "  Total: " $2 ", Usado: " $3 ", Livre: " $4 ", Cache: " $6}'
+    free -h | awk '/^极速赛车开奖直播Mem:/ {print "  Total: " $2 ", Usado: " $3 ", Livre: " $4 ", Cache: " $6}'
     
     echo -e "\nSwap:"
     free -h | awk '/^Swap:/ {print "  Total: " $2 ", Usado: " $3 ", Livre: " $4}'
     
     if [ -f "$SWAP_FILE" ]; then
         echo -e "\nArquivo de Swap:"
-        echo "  Local: $SWAP_FILE"
+        echo "  Local: $极速赛车开奖直播SWAP_FILE"
         echo "  Tamanho: $(du -h "$SWAP_FILE" | cut -f1)"
         echo "  Ativo: $(swapon --show | grep -q "$SWAP_FILE" && echo "Sim" || echo "Não")"
     else
@@ -313,61 +339,4 @@ cleanup_swap() {
     
     if [ -f "$SWAP_FILE" ]; then
         sudo swapoff "$SWAP_FILE" 2>/dev/null
-        rm -f "$SWAP_FILE"
-        log "Arquivo de swap removido"
-    fi
-    
-    # Remover do fstab
-    sudo sed -i "\|$SWAP_FILE|d" /etc/fstab
-    
-    # Remover diretório se vazio
-    if [ -d "$SWAP_DIR" ] && [ -z "$(ls -A "$SWAP_DIR")" ]; then
-        rmdir "$SWAP_DIR"
-    fi
-    
-    log "Limpeza concluída"
-}
-
-# Menu principal
-main() {
-    case "$1" in
-        "start")
-            create_swap_file "$MIN_SWAP_SIZE"
-            optimize_memory_settings
-            monitor_memory &
-            ;;
-        "stop")
-            pkill -f "memory_manager.sh"
-            cleanup_swap
-            ;;
-        "status")
-            show_memory_status
-            ;;
-        "expand")
-            expand_swap
-            ;;
-        "reduce")
-            reduce_swap
-            ;;
-        "optimize")
-            optimize_memory_settings
-            ;;
-        "clean")
-            cleanup_swap
-            ;;
-        *)
-            echo -e "${BLUE}Uso: $0 [comando]${NC}"
-            echo "Comandos:"
-            echo "  start     - Iniciar gerenciamento automático"
-            echo "  stop      - Parar gerenciamento e limpar"
-            echo "  status    - Mostrar status da memória"
-            echo "  expand    - Expandir manualmente o swap"
-            echo "  reduce    - Reduzir manualmente o swap"
-            echo "  optimize  - Apenas otimizar configurações"
-            echo "  clean     - Limpar configuração de swap"
-            ;;
-    esac
-}
-
-# Executar comando solicitado
-main "$@"
+        safe

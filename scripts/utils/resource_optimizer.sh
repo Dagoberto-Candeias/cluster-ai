@@ -248,11 +248,19 @@ reduce_workload() {
 
 # Função para liberar memória
 free_memory() {
-    # Liberar cache de memória
+    # Verificar se temos privilégios sudo antes de executar comandos destrutivos
+    if ! sudo -n true 2>/dev/null; then
+        warn "Privilégios sudo necessários para liberar memória. Execute com sudo."
+        return 1
+    fi
+    
+    # Liberar cache de memória com validação
+    warn "Liberando cache de memória do sistema..."
     sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
     
     # Limpar cache do Ollama se estiver usando muita memória
     if command_exists ollama; then
+        warn "Limpando cache do Ollama..."
         ollama ps | grep -v "NAME" | awk '{print $1}' | xargs -I {} ollama rm {} 2>/dev/null
     fi
     
@@ -261,17 +269,34 @@ free_memory() {
 
 # Função para limpar espaço em disco
 cleanup_disk() {
-    # Limpar logs antigos
-    find /var/log -name "*.log" -type f -mtime +7 -delete 2>/dev/null
-    find ~ -name "*.log" -type f -mtime +3 -delete 2>/dev/null
+    # Solicitar confirmação do usuário para operações destrutivas
+    if ! confirm_operation "Esta operação irá limpar logs antigos e caches. Deseja continuar?"; then
+        warn "Limpeza de disco cancelada pelo usuário"
+        return 1
+    fi
+    
+    warn "Iniciando limpeza segura de disco..."
+    
+    # Limpar logs antigos com validação de caminhos
+    local log_dirs=("/var/log" "$HOME")
+    for log_dir in "${log_dirs[@]}"; do
+        if safe_path_check "$log_dir" "limpeza de logs"; then
+            warn "Limpando logs em: $log_dir"
+            find "$log_dir" -name "*.log" -type f -mtime +7 -delete 2>/dev/null
+        fi
+    done
     
     # Limpar cache do pip
+    warn "Limpando cache do pip..."
     pip cache purge 2>/dev/null
     
-    # Limpar cache do Docker
-    docker system prune -af 2>/dev/null
+    # Limpar cache do Docker com validação
+    if command_exists docker; then
+        warn "Limpando cache do Docker..."
+        docker system prune -af 2>/dev/null
+    fi
     
-    warn "Espaço em disco liberado através de limpeza de arquivos temporários"
+    warn "Espaço em disco liberado através de limpeza segura de arquivos temporários"
 }
 
 # Função para mostrar status
