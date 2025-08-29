@@ -35,9 +35,9 @@ Menu interativo com todas as opções.
 ```
 
 ### 3. Scripts Específicos
-- `scripts/installation/universal_install.sh` - Instalador universal do sistema
-- `scripts/installation/venv_setup.sh` - Configuração do ambiente Python
-- `scripts/installation/vscode_optimized.sh` - VSCode com 25 extensões
+- `install_universal.sh` - Instalador universal do sistema
+- `scripts/installation/setup_python_env.sh` - Configuração do ambiente Python
+- `scripts/installation/setup_vscode.sh` - VSCode com extensões essenciais
 - `scripts/utils/health_check.sh` - Verificação de saúde do sistema
 
 ## 📦 Componentes Instalados
@@ -70,13 +70,13 @@ sudo ./install_cluster_universal.sh
 ### 🔧 Instalação Modular
 ```bash
 # Apenas sistema base + Docker
-sudo ./scripts/installation/universal_install.sh
+sudo ./install_universal.sh
 
 # Apenas ambiente Python com ML
-./scripts/installation/venv_setup.sh
+./scripts/installation/setup_python_env.sh
 
 # Apenas VSCode otimizado
-sudo ./scripts/installation/vscode_optimized.sh
+sudo ./scripts/installation/setup_vscode.sh
 ```
 
 ### ✅ Verificação do Sistema
@@ -131,10 +131,10 @@ tail -f /tmp/venv_setup_logs/*
 ```bash
 # Recriar ambiente virtual
 rm -rf ~/venv
-./scripts/installation/venv_setup.sh
+./scripts/installation/setup_python_env.sh
 
 # Reinstalar VSCode
-sudo ./scripts/installation/vscode_optimized.sh
+sudo ./scripts/installation/setup_vscode.sh
 ```
 
 ## 📊 Distribuições Suportadas

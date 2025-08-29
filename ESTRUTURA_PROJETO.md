@@ -94,13 +94,14 @@ cluster-ai/
   - `webui-*.sh` - Scripts do OpenWebUI
 - **history/**: Scripts históricos (deepseek)
 - **installation/**: Scripts de instalação
-  - `main.sh` - Script principal
+  - `main.sh` - Script principal de instalação
+  - `setup_dependencies.sh` - Instalação de dependências do sistema
+  - `setup_ollama.sh` - Instalação do Ollama
+  - `setup_python_env.sh` - Configuração do ambiente Python
+  - `setup_vscode.sh` - Instalação do VSCode
   - `final-install.sh` - Instalação final
-  - `backup-install.sh` - Instalação com backup
-  - `ides.sh` - Instalação de IDEs
   - `roles-install.sh` - Instalação de papéis
   - `legacy-install.sh` - Instalação legada
-  - `Script Principal de Instalação.txt` - Script principal
 - **maintenance/**: Scripts de manutenção
   - `clean-cache.sh` - Limpeza de cache
   - `update-models.sh` - Atualização de modelos

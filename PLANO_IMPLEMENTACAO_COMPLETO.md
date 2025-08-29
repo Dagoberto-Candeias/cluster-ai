@@ -6,12 +6,12 @@ Transformar o Cluster AI em um ambiente de desenvolvimento universal com suporte
 ## 🔍 ANÁLISE DO ESTADO ATUAL
 
 ### ✅ COMPONENTES IMPLEMENTADOS:
-- **✅ Instalador Universal**: `universal_install.sh` com suporte a múltiplas distribuições
+- **✅ Instalador Universal**: `install_universal.sh` com suporte a múltiplas distribuições
 - **✅ Configuração GPU**: `gpu_setup.sh` com suporte NVIDIA CUDA e AMD ROCm
-- **✅ VSCode Otimizado**: `vscode_optimized.sh` com 25 extensões essenciais
-- **✅ Ambiente Virtual**: `venv_setup.sh` com PyTorch e bibliotecas ML
+- **✅ VSCode Otimizado**: `setup_vscode.sh` com extensões essenciais
+- **✅ Ambiente Virtual**: `setup_python_env.sh` com PyTorch e bibliotecas ML
 - **✅ Sistema de Saúde**: `health_check.sh` com verificação completa
-- **✅ Script Principal**: `install_cluster_universal.sh` com menu interativo
+- **✅ Script Principal**: `install.sh` com menu interativo
 
 ### 📋 PRÓXIMAS OTIMIZAÇÕES:
 1. **Integração completa** entre todos os componentes
@@ -39,7 +39,7 @@ Transformar o Cluster AI em um ambiente de desenvolvimento universal com suporte
 ## 🚀 PLANO DE IMPLEMENTAÇÃO POR FASE
 
 ### Fase 1: Universalização do Instalador (SISTEMA)
-1. **`scripts/installation/universal_install.sh`**
+1. **`install_universal.sh`**
    - Detecção automática de distribuição (Ubuntu/Debian, Arch, Fedora)
    - Instalação de pacotes específicos por distro
    - Remoção de dependências do KDE Plasma
@@ -50,10 +50,10 @@ Transformar o Cluster AI em um ambiente de desenvolvimento universal com suporte
    - Suporte a fallback automático (CPU se GPU falhar)
 
 ### Fase 2: Otimização do VSCode (SISTEMA)
-1. **`scripts/development/setup_vscode_optimized.sh`**
-   - Instalar apenas 25 extensões essenciais (lista otimizada)
+1. **`scripts/development/setup_vscode.sh`**
+   - Instalar extensões essenciais (lista otimizada)
    - Configurações pré-definidas para Python/IA
-   - Remover as 80+ extensões desnecessárias
+   - Remover extensões desnecessárias
 
 2. **Configuração de temas e produtividade**
    - Tema Dracula + ícones Material
@@ -61,7 +61,7 @@ Transformar o Cluster AI em um ambiente de desenvolvimento universal com suporte
    - Snippets para Cluster AI
 
 ### Fase 3: Ambiente Virtual Otimizado (.venv)
-1. **`scripts/installation/venv_setup.sh`**
+1. **`scripts/installation/setup_python_env.sh`**
    - PyTorch com suporte apropriado (CUDA/ROCm/CPU)
    - Todas as dependências ML necessárias
    - Configuração de variáveis de ambiente
@@ -86,10 +86,11 @@ Transformar o Cluster AI em um ambiente de desenvolvimento universal com suporte
 ## 📦 SCRIPTS IMPLEMENTADOS
 
 ### 📁 `scripts/installation/` ✅ COMPLETO
-- `universal_install.sh` - Instalador universal para qualquer distro
+- `setup_dependencies.sh` - Instalação de dependências do sistema
+- `setup_ollama.sh` - Instalação do Ollama
+- `setup_python_env.sh` - Configuração do ambiente Python
+- `setup_vscode.sh` - Instalação do VSCode
 - `gpu_setup.sh` - Configuração automática de NVIDIA CUDA/AMD ROCm
-- `vscode_optimized.sh` - VSCode com 25 extensões essenciais
-- `venv_setup.sh` - Ambiente Python com PyTorch e ML
 
 ### 📁 `scripts/utils/` ✅ COMPLETO
 - `health_check.sh` - Verificação completa do sistema
@@ -97,14 +98,14 @@ Transformar o Cluster AI em um ambiente de desenvolvimento universal com suporte
 - `gpu_detection.sh` - Detecção automática de hardware GPU
 
 ### 📁 Scripts Principais ✅ COMPLETO
-- `install_cluster_universal.sh` - Wrapper universal com menu
-- `install_cluster.sh` - Script tradicional de instalação
+- `install_universal.sh` - Instalador universal com menu
+- `install.sh` - Script principal de instalação
 
 ## 🔧 OTIMIZAÇÕES PENDENTES
 
-### ✅ IMPLEMENTADO NO `install_cluster_universal.sh`:
+### ✅ IMPLEMENTADO NO `install_universal.sh`:
 1. ✅ Detecção universal de distribuições
-2. ✅ Integração com `universal_install.sh`
+2. ✅ Integração com scripts de instalação
 3. ✅ Menu interativo com múltiplas opções
 4. ✅ Tratamento de erros robusto
 

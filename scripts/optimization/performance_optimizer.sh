@@ -36,13 +36,12 @@ optimize_bash_scripts() {
     log "Otimizando scripts bash..."
     
     local scripts=(
-        "scripts/installation/universal_install.sh"
-        "scripts/installation/venv_setup.sh"
-        "scripts/installation/vscode_optimized.sh"
+        "install_universal.sh"
+        "scripts/installation/setup_python_env.sh"
+        "scripts/installation/setup_vscode.sh"
         "scripts/utils/health_check.sh"
         "scripts/utils/check_models.sh"
-        "install_cluster_universal.sh"
-        "install_cluster.sh"
+        "install.sh"
     )
     
     local optimized=0
@@ -224,7 +223,7 @@ run_benchmark() {
     declare -A times
     
     local scripts=(
-        "scripts/installation/universal_install.sh --check"
+        "install_universal.sh --check"
         "scripts/utils/health_check.sh"
         "scripts/utils/check_models.sh"
     )

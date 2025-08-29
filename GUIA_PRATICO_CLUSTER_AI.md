@@ -20,9 +20,9 @@ sudo ./install_cluster_universal.sh
 ./install_cluster.sh
 
 # Instalação modular
-sudo ./scripts/installation/universal_install.sh  # Sistema
-./scripts/installation/venv_setup.sh              # Ambiente Python
-sudo ./scripts/installation/vscode_optimized.sh    # VSCode
+sudo ./install_universal.sh  # Sistema
+./scripts/installation/setup_python_env.sh              # Ambiente Python
+sudo ./scripts/installation/setup_vscode.sh    # VSCode
 ```
 
 ### Verificação do Sistema

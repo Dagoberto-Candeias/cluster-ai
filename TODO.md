@@ -37,12 +37,15 @@
 - [x] Criar cluster.conf.example
 - [x] Refatorar README.md
 
-### Fase 2 - Pendente
-- [ ] Organizar scripts em scripts/management/
-- [ ] Organizar scripts em scripts/validation/
-- [ ] Organizar scripts em scripts/utils/
-- [ ] Unificar health_check scripts
-- [ ] Unificar memory_manager scripts
+### Fase 2 - Em Andamento ⚡
+- [x] Organizar scripts em scripts/management/
+- [x] Organizar scripts em scripts/validation/
+- [x] Organizar scripts em scripts/utils/
+- [x] Unificar health_check scripts (removidas 5 versões duplicadas)
+- [x] Unificar memory_manager scripts (removida 1 versão duplicada)
+- [x] Refatorar install_universal.sh para usar funções unificadas
+- [ ] Atualizar referências nos scripts para nova estrutura
+- [ ] Verificar e organizar scripts de instalação restantes
 
 ### Fase 3 - Pendente
 - [ ] Consolidar docs/README_PRINCIPAL.md em README.md

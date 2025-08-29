@@ -43,9 +43,11 @@ cluster-ai/
 ├── scripts/
 │   └── installation/
 │       ├── main.sh                 # Script principal de instalação
-│       ├── backup-install.sh       # Script de backup
+│       ├── setup_dependencies.sh   # Instalação de dependências
+│       ├── setup_ollama.sh         # Instalação do Ollama
+│       ├── setup_python_env.sh      # Configuração ambiente Python
+│       ├── setup_vscode.sh         # Instalação do VSCode
 │       ├── final-install.sh        # Instalação final
-│       ├── ides.sh                 # Instalação de IDEs
 │       ├── legacy-install.sh       # Instalação legada
 │       └── roles-install.sh        # Definição de papéis
 ```
