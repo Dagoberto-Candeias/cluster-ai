@@ -4,32 +4,12 @@
 # Com tratamento robusto de erros e retry automático
 
 # Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-fail() {
-    echo -e "${RED}❌ $1${NC}"
-}
+COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../utils" && pwd)/common.sh"
+if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
+    echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH"
+    exit 1
+fi
+source "$COMMON_SCRIPT_PATH"
 
 # Configuração
 TEST_DIR="/tmp/cluster_ai_full_test"
@@ -57,19 +37,9 @@ record_result() {
     fi
 }
 
-# Função para verificar comando
-check_command() {
-    local cmd="$1"
-    if command -v "$cmd" >/dev/null 2>&1; then
-        return 0
-    else
-        return 1
-    fi
-}
-
 # Função para verificar se timeout está disponível
 check_timeout() {
-    if check_command timeout; then
+    if command_exists timeout; then
         return 0
     else
         warn "Comando 'timeout' não disponível. Instalando..."
@@ -173,7 +143,7 @@ clean_environment_completely() {
     done
     
     # Parar e remover containers Docker
-    if check_command docker; then
+    if command_exists docker; then
         log "Limpando containers Docker..."
         run_with_retry "docker ps -aq | xargs -r docker stop" "Parar containers"
         run_with_retry "docker ps -aq | xargs -r docker rm" "Remover containers"
@@ -191,15 +161,15 @@ install_dependencies() {
     local missing_deps=()
     
     # Verificar dependências faltantes
-    if ! check_command docker; then
+    if ! command_exists docker; then
         missing_deps+=("docker")
     fi
     
-    if ! check_command python3; then
+    if ! command_exists python3; then
         missing_deps+=("python3")
     fi
     
-    if ! check_command curl; then
+    if ! command_exists curl; then
         missing_deps+=("curl")
     fi
     

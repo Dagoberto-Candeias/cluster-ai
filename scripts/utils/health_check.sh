@@ -1,33 +1,24 @@
 #!/bin/bash
 # Sistema de Verificação de Saúde do Cluster AI
 
+# Security check to prevent running as root
+if [ "$EUID" -eq 0 ]; then
+    echo "ERRO: Este script não deve ser executado como root. Por favor, execute como um usuário normal."
+    exit 1
+fi
+
 # Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/." && pwd)/common.sh"
+if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
+    echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH"
+    exit 1
+fi
+source "$COMMON_SCRIPT_PATH"
 
-log() {
-    echo -e "${GREEN}[HEALTH-CHECK]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[HEALTH-WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[HEALTH-ERROR]${NC} $1"
-}
-
-success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-fail() {
-    echo -e "${RED}❌ $1${NC}"
-}
+# Sobrescrever log para adicionar prefixo
+log() { echo -e "${CYAN}[HEALTH-CHECK]${NC} $1"; }
+warn() { echo -e "${YELLOW}[HEALTH-WARN]${NC} $1"; }
+error() { echo -e "${RED}[HEALTH-ERROR]${NC} $1"; }
 
 # Configuração
 LOG_FILE="/tmp/cluster_ai_health_$(date +%Y%m%d_%H%M%S).log"
@@ -38,7 +29,7 @@ check_command() {
     local cmd="$1"
     local description="$2"
     
-    if command -v "$cmd" >/dev/null 2>&1; then
+    if command_exists "$cmd"; then
         success "$description: Disponível"
         return 0
     else
@@ -53,7 +44,7 @@ check_service() {
     local service="$1"
     local description="$2"
     
-    if systemctl is-active --quiet "$service"; then
+    if service_active "$service"; then
         success "$description: Ativo"
         return 0
     else
@@ -98,16 +89,16 @@ check_gpu() {
     log "Verificando configuração de GPU..."
     
     # Verificar NVIDIA
-    if command -v nvidia-smi >/dev/null 2>&1; then
+    if command_exists nvidia-smi; then
         success "GPU NVIDIA: Detectada"
         nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
         return 0
     fi
     
     # Verificar AMD
-    if command -v rocminfo >/dev/null 2>&1 || [ -d "/opt/rocm" ]; then
+    if command_exists rocminfo || [ -d "/opt/rocm" ]; then
         success "GPU AMD: Detectada"
-        if command -v rocminfo >/dev/null 2>&1; then
+        if command_exists rocminfo; then
             rocminfo | grep -E "Device Type|Marketing Name" | head -4
         fi
         return 0
@@ -135,10 +126,26 @@ check_pytorch() {
 check_venv() {
     log "Verificando ambiente virtual..."
     
-    if [ -d "$HOME/venv" ]; then
-        success "Ambiente virtual: Existe"
+    # Check for .venv in the project root
+    if [ -d ".venv" ]; then
+        success "Ambiente virtual: .venv Existe"
         
-        # Verificar se pode ser ativado
+        # Verify if it can be activated
+        if source ".venv/bin/activate" 2>/dev/null && python -c "import sys; print(f'Python: {sys.version}')"; then
+            success "Ambiente virtual: Funcional"
+            deactivate
+        else
+            fail "Ambiente virtual: Não funcional"
+            OVERALL_HEALTH=false
+        fi
+        return 0
+    fi
+
+    # Check for $HOME/venv
+    if [ -d "$HOME/venv" ]; then
+        success "Ambiente virtual: $HOME/venv Existe"
+        
+        # Verify if it can be activated
         if source "$HOME/venv/bin/activate" 2>/dev/null && python -c "import sys; print(f'Python: {sys.version}')"; then
             success "Ambiente virtual: Funcional"
             deactivate
@@ -154,26 +161,131 @@ check_venv() {
     fi
 }
 
-# Função para verificar uso de recursos
+
+# Função para verificar Ollama
+check_ollama() {
+    log "Verificando Ollama..."
+    
+    if command_exists ollama; then
+        success "Ollama: Instalado"
+        
+        # Check if Ollama service is running
+        if service_active ollama; then
+            success "Ollama Service: Ativo"
+            
+            # Check if Ollama API is responding
+            if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+                success "Ollama API: Respondendo"
+                
+                # List installed models
+                local models_count=$(ollama list 2>/dev/null | wc -l)
+                if [ $models_count -gt 1 ]; then
+                    success "Modelos Ollama: $((models_count-1)) instalado(s)"
+                else
+                    warn "Modelos Ollama: Nenhum modelo instalado"
+                fi
+            else
+                fail "Ollama API: Não responde"
+                OVERALL_HEALTH=false
+            fi
+        else
+            fail "Ollama Service: Inativo"
+            OVERALL_HEALTH=false
+        fi
+    else
+        warn "Ollama: Não instalado"
+    fi
+}
+
+# Função para verificar Dask
+check_dask() {
+    log "Verificando Dask..."
+    
+    # Check Dask scheduler
+    if process_running "dask-scheduler"; then
+        success "Dask Scheduler: Executando"
+    else
+        warn "Dask Scheduler: Não está executando"
+    fi
+    
+    # Check Dask workers
+    local workers_count=$(pgrep -f "dask-worker" | wc -l)
+    if [ $workers_count -gt 0 ]; then
+        success "Dask Workers: $workers_count executando"
+    else
+        warn "Dask Workers: Nenhum worker executando"
+    fi
+}
+
+# Função para verificar containers Docker do projeto
+check_docker_containers() {
+    log "Verificando containers Docker do projeto..."
+    
+    # Check for OpenWebUI container
+    if docker ps --format '{{.Names}}' | grep -q "open-webui"; then
+        success "Container OpenWebUI: Executando"
+    else
+        warn "Container OpenWebUI: Não está executando"
+    fi
+    
+    # Check for OpenWebUI Nginx container
+    if docker ps --format '{{.Names}}' | grep -q "openwebui-nginx"; then
+        success "Container OpenWebUI Nginx: Executando"
+    else
+        warn "Container OpenWebUI Nginx: Não está executando"
+    fi
+}
+
+# Função para verificar uso de recursos com alertas
 check_resources() {
     log "Verificando recursos do sistema..."
     
     # Memória
+    local mem_total_kb=$(free | awk '/Mem:/ {print $2}')
+    local mem_used_kb=$(free | awk '/Mem:/ {print $3}')
+    local mem_used_percent=$((mem_used_kb * 100 / mem_total_kb))
     local mem_total=$(free -h | awk '/Mem:/ {print $2}')
     local mem_used=$(free -h | awk '/Mem:/ {print $3}')
     local mem_free=$(free -h | awk '/Mem:/ {print $4}')
     
     echo "💾 Memória: Total: $mem_total, Usada: $mem_used, Livre: $mem_free"
     
+    # Memory alert
+    if [ $mem_used_percent -gt 90 ]; then
+        error "ALERTA: Uso de memória crítico: ${mem_used_percent}%"
+        OVERALL_HEALTH=false
+    elif [ $mem_used_percent -gt 80 ]; then
+        warn "Aviso: Uso de memória alto: ${mem_used_percent}%"
+    fi
+    
     # CPU
     local cpu_cores=$(nproc)
     local cpu_load=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}')
+    local cpu_load_per_core=$(echo "scale=2; $cpu_load / $cpu_cores" | bc)
     
-    echo "⚡ CPU: Núcleos: $cpu_cores, Carga: $cpu_load"
+    echo "⚡ CPU: Núcleos: $cpu_cores, Carga: $cpu_load (${cpu_load_per_core} por núcleo)"
+    
+    # CPU alert
+    if (( $(echo "$cpu_load_per_core > 2.0" | bc -l) )); then
+        error "ALERTA: Carga de CPU muito alta: ${cpu_load_per_core} por núcleo"
+        OVERALL_HEALTH=false
+    elif (( $(echo "$cpu_load_per_core > 1.5" | bc -l) )); then
+        warn "Aviso: Carga de CPU alta: ${cpu_load_per_core} por núcleo"
+    fi
     
     # Disco
+    local disk_usage_percent=$(df / | awk 'NR==2 {print $5}' | sed 's/%//')
     local disk_usage=$(df -h / | awk 'NR==2 {print $5 " usado (" $3 "/" $2 ")"}')
+    
     echo "💿 Disco: $disk_usage"
+    
+    # Disk alert
+    if [ $disk_usage_percent -gt 90 ]; then
+        error "ALERTA: Uso de disco crítico: ${disk_usage_percent}%"
+        OVERALL_HEALTH=false
+    elif [ $disk_usage_percent -gt 80 ]; then
+        warn "Aviso: Uso de disco alto: ${disk_usage_percent}%"
+    fi
 }
 
 # Função para verificar temperatura (se disponível)
@@ -207,28 +319,41 @@ main() {
     echo -e "\n${CYAN}2. VERIFICAÇÃO DE SERVIÇOS${NC}"
     check_service "docker" "Serviço Docker"
     
+    # Verificar Ollama
+    echo -e "\n${BLUE}3. VERIFICAÇÃO DO OLLAMA${NC}"
+    check_ollama
+    
+    # Verificar Dask
+    echo -e "\n${CYAN}4. VERIFICAÇÃO DO DASK${NC}"
+    check_dask
+    
+    # Verificar containers Docker
+    echo -e "\n${BLUE}5. VERIFICAÇÃO DE CONTAINERS DOCKER${NC}"
+    check_docker_containers
+    
     # Verificar GPU
-    echo -e "\n${CYAN}3. VERIFICAÇÃO DE GPU${NC}"
+    echo -e "\n${CYAN}6. VERIFICAÇÃO DE GPU${NC}"
     check_gpu
     
     # Verificar PyTorch
-    echo -e "\n${CYAN}4. VERIFICAÇÃO DO PyTorch${NC}"
+    echo -e "\n${BLUE}7. VERIFICAÇÃO DO PyTorch${NC}"
     check_pytorch
     
     # Verificar ambiente virtual
-    echo -e "\n${CYAN}5. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
+    echo -e "\n${CYAN}8. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
     check_venv
     
     # Verificar recursos
-    echo -e "\n${CYAN}6. RECURSOS DO SISTEMA${NC}"
+    echo -e "\n${CYAN}9. RECURSOS DO SISTEMA${NC}"
     check_resources
     check_temperature
     
     # Verificar diretórios importantes
-    echo -e "\n${CYAN}7. ESTRUTURA DE DIRETÓRIOS${NC}"
+    echo -e "\n${BLUE}10. ESTRUTURA DE DIRETÓRIOS${NC}"
     check_directory "$HOME/venv" "Diretório do ambiente virtual"
     check_directory "$HOME/cluster_scripts" "Diretório de scripts do cluster"
     check_directory "$HOME/.ollama" "Diretório do Ollama"
+    check_directory ".venv" "Diretório .venv do projeto"
     
     # Resumo final
     echo -e "\n${BLUE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"
@@ -243,7 +368,7 @@ main() {
     fi
     
     echo -e "\n${BLUE}📋 RECOMENDAÇÕES:${NC}"
-    if ! command -v nvidia-smi >/dev/null 2>&1 && ! [ -d "/opt/rocm" ]; then
+    if ! command_exists nvidia-smi && ! [ -d "/opt/rocm" ]; then
         echo "- Instalar drivers GPU para melhor performance"
     fi
     
@@ -251,7 +376,7 @@ main() {
         echo "- Configurar ambiente virtual: ./scripts/installation/venv_setup.sh"
     fi
     
-    if ! systemctl is-active --quiet docker; then
+    if ! service_active docker; then
         echo "- Iniciar serviço Docker: sudo systemctl start docker"
     fi
     

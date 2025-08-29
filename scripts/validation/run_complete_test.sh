@@ -3,32 +3,12 @@
 # Executa validação de todas as funcionalidades principais
 
 # Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-fail() {
-    echo -e "${RED}❌ $1${NC}"
-}
+COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../utils" && pwd)/common.sh"
+if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
+    echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH"
+    exit 1
+fi
+source "$COMMON_SCRIPT_PATH"
 
 # Configuração
 TEST_DIR="/tmp/cluster_ai_test"
@@ -51,16 +31,6 @@ record_result() {
     else
         fail "$test_name: $message"
         OVERALL_SUCCESS=false
-    fi
-}
-
-# Função para verificar comando
-check_command() {
-    local cmd="$1"
-    if command -v "$cmd" >/dev/null 2>&1; then
-        return 0
-    else
-        return 1
     fi
 }
 
@@ -91,19 +61,19 @@ echo ""
 
 # Teste 1: Dependências básicas
 echo -e "${YELLOW}1. TESTANDO DEPENDÊNCIAS BÁSICAS${NC}"
-if check_command docker; then
+if command_exists docker; then
     record_result "Docker" "SUCCESS" "Docker instalado"
 else
     record_result "Docker" "FAIL" "Docker não instalado"
 fi
 
-if check_command python3; then
+if command_exists python3; then
     record_result "Python3" "SUCCESS" "Python3 instalado"
 else
     record_result "Python3" "FAIL" "Python3 não instalado"
 fi
 
-if check_command curl; then
+if command_exists curl; then
     record_result "cURL" "SUCCESS" "cURL instalado"
 else
     record_result "cURL" "FAIL" "cURL não instalado"
@@ -181,7 +151,7 @@ for dir in "${dirs[@]}"; do
 done
 
 # Teste 5: Execução de scripts (se dependências instaladas)
-if check_command docker && check_command python3; then
+if command_exists docker && command_exists python3; then
     echo -e "${YELLOW}5. TESTANDO EXECUÇÃO DE SCRIPTS${NC}"
     
     # Testar script de validação
