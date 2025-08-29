@@ -1,261 +1,218 @@
 #!/bin/bash
 # Instalador Universal Cluster AI - Ambiente de Desenvolvimento Completo
-# Funciona em qualquer distribuição Linux: Ubuntu, Debian, Manjaro, Arch, CentOS, RHEL, Fedora
+# Versão: 2.0 - Usando funções unificadas e modularizadas
 
-set -e
+set -euo pipefail
 
-echo "=== INSTALADOR UNIVERSAL CLUSTER AI ==="
-echo "Preparando ambiente de desenvolvimento completo..."
-echo "Distribuição: $(lsb_release -ds 2>/dev/null || cat /etc/*release 2>/dev/null | head -n1)"
-echo ""
+# ==================== CONFIGURAÇÃO INICIAL ====================
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_SCRIPT="${SCRIPT_DIR}/scripts/lib/common.sh"
+INSTALL_FUNCTIONS="${SCRIPT_DIR}/scripts/lib/install_functions.sh"
 
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+if [ ! -f "$COMMON_SCRIPT" ]; then
+    echo "ERRO: Script de funções comuns não encontrado: $COMMON_SCRIPT"
+    exit 1
+fi
+source "$COMMON_SCRIPT"
+
+if [ ! -f "$INSTALL_FUNCTIONS" ]; then
+    error "Script de funções de instalação não encontrado: $INSTALL_FUNCTIONS"
+    exit 1
+fi
+source "$INSTALL_FUNCTIONS"
+
+PROJECT_ROOT="$SCRIPT_DIR"
+CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
+LOG_DIR="${PROJECT_ROOT}/logs"
+LOG_FILE="${LOG_DIR}/install_universal_$(date +%Y%m%d_%H%M%S).log"
+
+# ==================== FUNÇÕES ====================
+
+show_banner() {
+    echo -e "${BLUE}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                INSTALADOR UNIVERSAL CLUSTER AI              ║"
+    echo "║          Ambiente de Desenvolvimento Completo               ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    echo "Sistema: $(lsb_release -ds 2>/dev/null || cat /etc/*release 2>/dev/null | head -n1)"
+    echo "Usuário: $(whoami)"
+    echo "Diretório: $PROJECT_ROOT"
+    echo "Log da instalação: $LOG_FILE"
+    echo ""
 }
 
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Função para verificar se um comando existe
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-# Detectar distribuição
-detect_os() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$ID
-        OS_VERSION=$VERSION_ID
-    elif command_exists lsb_release; then
-        OS=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
-        OS_VERSION=$(lsb_release -sr)
-    else
-        error "Não foi possível detectar o sistema operacional."
-        exit 1
-    fi
+check_requirements() {
+    section "Verificando Requisitos do Sistema"
+    check_root
     
-    # Normalizar nomes mas manter debian como distinto
-    case $OS in
-        ubuntu)
-            OS="ubuntu"
-            ;;
-        debian)
-            OS="debian"
-            ;;
-        manjaro|arch)
-            OS="manjaro" 
-            ;;
-        centos|rhel|fedora)
-            OS="centos"
-            ;;
-        *)
-            warn "Distribuição não totalmente suportada: $OS"
-            warn "Tentando modo compatível..."
-            ;;
-    esac
-    
-    log "Sistema detectado: $OS $OS_VERSION"
-}
+    local os
+    os=$(detect_os)
+    info "Sistema operacional detectado: $os"
 
-# Instalar dependências básicas universais
-install_dependencies() {
-    local setup_script="scripts/installation/setup_dependencies.sh"
+    check_command "curl" "cURL" "sudo apt install curl / sudo yum install curl"
+    check_command "git" "Git" "sudo apt install git / sudo yum install git"
+    check_command "python3" "Python 3" "sudo apt install python3 / sudo yum install python3"
+    check_command "pip" "PIP" "sudo apt install python3-pip / sudo yum install python3-pip"
 
-    if [ -f "$setup_script" ]; then
-        log "Executando script de configuração de dependências: $setup_script"
-        # Exporta a variável OS para que o script filho possa usá-la
-        export OS
-        bash "$setup_script"
-    else
-        warn "Script de setup de dependências '$setup_script' não encontrado. Pulando esta etapa."
+    local mem_total
+    mem_total=$(free -h | awk '/Mem:/ {print $2}')
+    local disk_free
+    disk_free=$(df -h . | awk 'NR==2 {print $4}')
+    info "Memória total: $mem_total"
+    info "Espaço livre em disco: $disk_free"
+
+    if [ "$(echo "$mem_total" | sed 's/G//')" -lt 8 ]; then
+        warn "Memória RAM baixa (mínimo recomendado: 8GB)"
+    fi
+
+    if [ "$(echo "$disk_free" | sed 's/G//')" -lt 50 ]; then
+        warn "Espaço em disco baixo (mínimo recomendado: 50GB)"
     fi
 }
 
-# Configurar ambiente Python universal
-setup_python_environment() {
-    local setup_script="scripts/installation/setup_python_env.sh"
-
-    if [ -f "$setup_script" ]; then
-        log "Executando script de configuração do ambiente Python: $setup_script"
-        bash "$setup_script"
+setup_environment() {
+    section "Configurando Ambiente"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        info "Criando arquivo de configuração padrão..."
+        cp "${PROJECT_ROOT}/cluster.conf.example" "$CONFIG_FILE"
+        chmod 600 "$CONFIG_FILE"
+        success "Arquivo de configuração criado: $CONFIG_FILE"
     else
-        warn "Script de setup do Python '$setup_script' não encontrado. Pulando esta etapa."
+        info "Arquivo de configuração já existe: $CONFIG_FILE"
     fi
+
+    if load_config; then
+        success "Configuração carregada com sucesso"
+    else
+        warn "Falha ao carregar configuração, usando padrões"
+    fi
+
+    safe_mkdir "$LOG_DIR"
+    safe_mkdir "$BACKUP_DIR"
+    safe_mkdir "${PROJECT_ROOT}/scripts/runtime"
 }
 
-# Instala e configura o serviço Ollama
-install_ollama_service() {
-    local setup_script="scripts/installation/setup_ollama.sh"
-
-    if [ -f "$setup_script" ]; then
-        log "Executando script de configuração do Ollama: $setup_script"
-        bash "$setup_script"
-    else
-        warn "Script de setup do Ollama '$setup_script' não encontrado. Pulando esta etapa."
-    fi
-}
-
-# Menu de instalação
 show_menu() {
-    echo -e "\n${BLUE}=== MENU DE INSTALAÇÃO UNIVERSAL ===${NC}"
+    section "Menu de Instalação Universal"
+    echo "📋 OPÇÕES DISPONÍVEIS:"
     echo "1. Instalação Completa (Recomendado)"
-    echo "2. Apenas Dependências Básicas"
+    echo "2. Apenas Dependências do Sistema"
     echo "3. Apenas Ambiente Python"
     echo "4. Apenas Ollama e Modelos de IA"
-    echo "5. Apenas IDEs e Ferramentas Dev"
+    echo "5. Apenas Ferramentas de Desenvolvimento"
     echo "6. Configurar Papel do Cluster"
     echo "7. Sair"
-    
-    read -p "Selecione uma opção [1-7]: " choice
-    
-    case $choice in
-        1)
-            install_complete
-            ;;
-        2)
-            install_dependencies
-            ;;
-        3)
-            setup_python_environment
-            ;;
-        4)
-            install_ollama_service
-            ;;
-        5)
-            install_development_tools
-            ;;
-        6)
-            configure_cluster_role
-            ;;
-        7)
-            exit 0
-            ;;
-        *)
-            warn "Opção inválida."
-            show_menu
-            ;;
-    esac
+    echo ""
 }
 
-# Instalação completa
 install_complete() {
-    log "Iniciando instalação completa..."
-    install_dependencies
+    section "Instalação Completa"
+    info "Iniciando instalação completa do Cluster AI..."
+
+    install_system_dependencies
     setup_python_environment
-    install_ollama_service
+    setup_ollama
+    setup_docker
+    setup_cluster_role
     install_development_tools
-    
-    echo -e "\n${GREEN}✅ INSTALAÇÃO COMPLETA CONCLUÍDA!${NC}"
+    setup_firewall
+
+    success "Instalação completa concluída!"
     show_post_install_info
 }
 
-# Instala as ferramentas de desenvolvimento, orquestrando as instalações individuais.
 install_development_tools() {
-    log "Iniciando instalação das ferramentas de desenvolvimento..."
-    local setup_script="scripts/development/setup_vscode.sh"
+    subsection "Instalando Ferramentas de Desenvolvimento"
+    
+    if ! command_exists code; then
+        info "Instalando Visual Studio Code..."
+        local os
+        os=$(detect_os)
 
-    if [ -f "$setup_script" ]; then
-        log "Executando script de configuração do ambiente de desenvolvimento: $setup_script"
-        # A variável $OS é detectada no início do install_universal.sh e estará disponível para o script filho.
-        bash "$setup_script"
+        case $os in
+            debian)
+                run_sudo "apt install -y wget gpg" "Instalando dependências"
+                run_sudo "wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg" "Baixando chave"
+                run_sudo "install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg" "Instalando chave"
+                run_sudo "sh -c 'echo \"deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main\" > /etc/apt/sources.list.d/vscode.list'"
+                run_sudo "apt update && apt install -y code" "Instalando VSCode"
+                ;;
+            arch)
+                run_sudo "pacman -S --noconfirm code" "Instalando VSCode"
+                ;;
+            rhel)
+                run_sudo "rpm --import https://packages.microsoft.com/keys/microsoft.asc"
+                run_sudo "sh -c 'echo -e \"[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\" > /etc/yum.repos.d/vscode.repo'"
+                run_sudo "yum install -y code" "Instalando VSCode"
+                ;;
+        esac
+
+        if command_exists code; then
+            success "VSCode instalado"
+        else
+            warn "Falha ao instalar VSCode"
+        fi
     else
-        warn "Script de setup de desenvolvimento '$setup_script' não encontrado. Pulando esta etapa."
+        info "VSCode já está instalado"
     fi
 
-    install_spyder
-
+    info "Instalando Spyder IDE..."
+    run_command "source \"$VENV_DIR/bin/activate\" && pip install spyder" "Instalando Spyder"
+    success "Ferramentas de desenvolvimento instaladas"
 }
 
-# Instala a IDE Spyder chamando seu script de setup dedicado.
-install_spyder() {
-    local setup_script="scripts/development/setup_spyder.sh"
-
-    if [ -f "$setup_script" ]; then
-        log "Executando script de configuração do Spyder: $setup_script"
-        bash "$setup_script"
-    else
-        warn "Script de setup do Spyder '$setup_script' não encontrado. Pulando esta etapa."
-    fi
+process_menu_choice() {
+    local choice="$1"
+    case $choice in
+        1) install_complete ;;
+        2) install_system_dependencies ;;
+        3) setup_python_environment ;;
+        4) setup_ollama ;;
+        5) install_development_tools ;;
+        6) setup_cluster_role ;;
+        7) info "Saindo..."; exit 0 ;;
+        *) warn "Opção inválida"; return 1 ;;
+    esac
 }
 
-# Configurar papel do cluster
-configure_cluster_role() {
-    log "Configurando papel do cluster..."
-
-    local setup_script="scripts/cluster/setup_cluster_role.sh"
-    if [ -f "$setup_script" ]; then
-        log "Executando script de configuração de papel do cluster: $setup_script"
-        bash "$setup_script"
-    else
-        warn "Script de configuração de papel '$setup_script' não encontrado. Pulando esta etapa."
-    fi
-}
-
-# Informações pós-instalação
 show_post_install_info() {
-    echo -e "\n${BLUE}=== PRÓXIMOS PASSOS ===${NC}"
-    echo -e "${GREEN}1. Configure o papel do cluster:${NC}"
-    echo "   ./scripts/installation/main.sh"
+    section "Próximos Passos"
+    echo -e "${GREEN}✅ INSTALAÇÃO CONCLUÍDA COM SUCESSO!${NC}"
     echo ""
-    echo -e "${GREEN}2. Ative o ambiente Python:${NC}"
-    echo "   source ~/cluster_env/bin/activate"
+    echo "📋 PRÓXIMOS PASSOS:"
+    echo "1. Execute o painel de controle: ./manager.sh"
+    echo "2. Consulte a documentação: docs/guides/usage.md"
+    echo "3. Teste a instalação: ./manager.sh (opção 14)"
     echo ""
-    echo -e "${GREEN}3. Teste a instalação:${NC}"
-    echo "   python test_installation.py"
+    echo "🌐 SERVIÇOS DISPONÍVEIS:"
+    echo "• OpenWebUI: http://localhost:3000"
+    echo "• Dask Dashboard: http://localhost:8787"
+    echo "• Ollama API: http://localhost:11434"
     echo ""
-    echo -e "${GREEN}4. Execute demonstrações:${NC}"
-    echo "   python demo_cluster.py"
-    echo "   python simple_demo.py"
-    echo ""
-    echo -e "${GREEN}5. Acesse o dashboard:${NC}"
-    echo "   http://localhost:8787"
-    echo ""
-    echo -e "${GREEN}6. Desenvolvimento com VS Code:${NC}"
-    echo "   code ."
-    echo ""
-    echo -e "${YELLOW}Documentação completa em:${NC}"
-    echo "   README.md e DEMO_README.md"
+    info "Log completo disponível em: $LOG_FILE"
 }
 
-# Main execution
 main() {
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${GREEN}       INSTALADOR UNIVERSAL CLUSTER AI${NC}"
-    echo -e "${BLUE}========================================${NC}"
-    echo "Sistema: $(lsb_release -ds 2>/dev/null || cat /etc/*release 2>/dev/null | head -n1)"
-    echo "Usuário: $(whoami)"
-    echo "Diretório: $(pwd)"
-    echo ""
-    
-    # Verificar se é root
-    if [ "$EUID" -eq 0 ]; then
-        error "Não execute como root! Use seu usuário normal."
-        exit 1
-    fi
-    
-    # Detecta o OS no início para que a variável esteja sempre disponível
-    detect_os
+    exec > >(tee -a "$LOG_FILE") 2>&1
+    show_banner
+    check_requirements
+    setup_environment
 
-    # Mostrar menu
-    show_menu
-    
-    echo -e "\n${GREEN}🎉 Processo concluído!${NC}"
-    echo "Seu ambiente de desenvolvimento está pronto."
+    while true; do
+        show_menu
+        read -p "Selecione uma opção [1-7]: " choice
+        if process_menu_choice "$choice"; then
+            if confirm "Deseja voltar ao menu principal?" "y"; then
+                continue
+            else
+                break
+            fi
+        fi
+    done
+
+    success "Processo de instalação concluído!"
 }
 
-# Executar
-main
+main "$@"
