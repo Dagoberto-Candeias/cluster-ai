@@ -15,12 +15,16 @@ NC='\033[0m' # No Color
 ROLE=""
 SERVER_IP=""
 MACHINE_NAME=$(hostname)
+PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CURRENT_IP=$(hostname -I | awk '{print $1}')
-BACKUP_DIR="$HOME/cluster_backups"
+BACKUP_DIR="$PROJECT_ROOT/backups"
+CONFIG_FILE="$PROJECT_ROOT/.cluster_config"
+VENV_DIR="$PROJECT_ROOT/.venv"
+RUNTIME_SCRIPTS_DIR="$PROJECT_ROOT/scripts/runtime"
 OLLAMA_MODELS=("llama3.1:8b" "llama3:8b" "mixtral:8x7b" "deepseek-coder" "mistral" "llava" "phi3" "gemma2:9b" "codellama")
 OLLAMA_HOST="0.0.0.0"
 OLLAMA_PORT="11434"
-
+LOG_DIR="$PROJECT_ROOT/logs"
 # Função para log colorido
 log() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -60,6 +64,8 @@ info "IP atual: $CURRENT_IP"
 # Função para criar diretório de backups
 create_backup_dir() {
     if [ ! -d "$BACKUP_DIR" ]; then
+        # O diretório de backup fica fora do diretório principal do projeto para não ser incluído em si mesmo.
+        BACKUP_DIR="$PROJECT_ROOT/../cluster_ai_backups"
         mkdir -p "$BACKUP_DIR"
         log "Diretório de backups criado: $BACKUP_DIR"
     fi
@@ -113,12 +119,12 @@ backup_complete() {
     
     # Lista de itens para backup
     local items_to_backup=(
-        "$HOME/.cluster_role"
-        "$HOME/cluster_scripts"
+        "$CONFIG_FILE"
+        "$RUNTIME_SCRIPTS_DIR"
         "$HOME/.ollama"
         "$HOME/open-webui"
         "$HOME/.ssh"
-        "$HOME/cluster_env"
+        "$VENV_DIR"
         "$HOME/.msmtprc"
         "$HOME/.gmail_pass.gpg"
     )
@@ -182,8 +188,8 @@ backup_configurations() {
     
     # Itens de configuração para backup
     local config_items=(
-        "$HOME/.cluster_role"
-        "$HOME/cluster_scripts"
+        "$CONFIG_FILE"
+        "$RUNTIME_SCRIPTS_DIR"
         "$HOME/.ssh"
         "$HOME/.msmtprc"
         "$HOME/.gmail_pass.gpg"
@@ -475,11 +481,11 @@ define_role() {
     esac
     
     # Salvar a configuração do papel
-    echo "ROLE=$ROLE" > ~/.cluster_role
-    echo "SERVER_IP=$SERVER_IP" >> ~/.cluster_role
-    echo "MACHINE_NAME=$MACHINE_NAME" >> ~/.cluster_role
-    echo "CURRENT_IP=$CURRENT_IP" >> ~/.cluster_role
-    echo "BACKUP_DIR=$BACKUP_DIR" >> ~/.cluster_role
+    echo "ROLE=$ROLE" > "$CONFIG_FILE"
+    echo "SERVER_IP=$SERVER_IP" >> "$CONFIG_FILE"
+    echo "MACHINE_NAME=$MACHINE_NAME" >> "$CONFIG_FILE"
+    echo "CURRENT_IP=$CURRENT_IP" >> "$CONFIG_FILE"
+    echo "BACKUP_DIR=$BACKUP_DIR" >> "$CONFIG_FILE"
 }
 
 # Função para mostrar ajuda sobre os papéis
@@ -514,8 +520,8 @@ show_role_help() {
 
 # Função para carregar configuração existente
 load_config() {
-    if [ -f ~/.cluster_role ]; then
-        source ~/.cluster_role
+    if [ -f "$CONFIG_FILE" ]; then
+        source "$CONFIG_FILE"
         info "Configuração carregada: $ROLE em $MACHINE_NAME"
         if [ -n "$SERVER_IP" ] && [ "$SERVER_IP" != "localhost" ]; then
             info "Servidor Principal: $SERVER_IP"
@@ -569,15 +575,15 @@ install_dependencies() {
 
 # Função para configurar ambiente Python
 setup_python_env() {
-    if [ ! -d "$HOME/cluster_env" ]; then
-        log "Criando ambiente virtual em ~/cluster_env"
-        python3 -m venv ~/cluster_env
+    if [ ! -d "$VENV_DIR" ]; then
+        log "Criando ambiente virtual em $VENV_DIR"
+        python3 -m venv "$VENV_DIR"
     else
         log "Ambiente virtual já existe."
     fi
 
     # Instalar dependências no ambiente virtual
-    source ~/cluster_env/bin/activate
+    source "$VENV_DIR/bin/activate"
     pip install --upgrade pip
     pip install "dask[complete]" distributed numpy pandas scipy mpi4py jupyterlab requests dask-ml scikit-learn torch torchvision torchaudio transformers
     deactivate
@@ -760,17 +766,17 @@ setup_server() {
     log "IP desta máquina: $IP"
     
     # Criar script para iniciar scheduler
-    cat > ~/cluster_scripts/start_scheduler.sh << EOL
+    cat > "$RUNTIME_SCRIPTS_DIR/start_scheduler.sh" << EOL
 #!/bin/bash
-source ~/cluster_env/bin/activate
+source "$VENV_DIR/bin/activate"
 dask-scheduler --host 0.0.0.0 --port 8786 --dashboard --dashboard-address 0.0.0.0:8787
 EOL
     
-    chmod +x ~/cluster_scripts/start_scheduler.sh
+    chmod +x "$RUNTIME_SCRIPTS_DIR/start_scheduler.sh"
     
     # Iniciar scheduler
     pkill -f "dask-scheduler" || true
-    nohup ~/cluster_scripts/start_scheduler.sh > ~/scheduler.log 2>&1 &
+    nohup "$RUNTIME_SCRIPTS_DIR/start_scheduler.sh" > "$LOG_DIR/scheduler.log" 2>&1 &
     
     log "Scheduler iniciado. Dashboard disponível em: http://$IP:8787"
     
@@ -784,7 +790,7 @@ setup_worker() {
     
     if [ -z "$SERVER_IP" ]; then
         read -p "Digite o IP do servidor principal: " SERVER_IP
-        echo "SERVER_IP=$SERVER_IP" >> ~/.cluster_role
+        echo "SERVER_IP=$SERVER_IP" >> "$CONFIG_FILE"
     fi
     
     # Se SERVER_IP for "localhost", usar o IP atual
@@ -793,9 +799,9 @@ setup_worker() {
     fi
     
     # Criar script para iniciar worker
-    cat > ~/cluster_scripts/start_worker.sh << EOL
+    cat > "$RUNTIME_SCRIPTS_DIR/start_worker.sh" << EOL
 #!/bin/bash
-source ~/cluster_env/bin/activate
+source "$VENV_DIR/bin/activate"
 
 # Tentar conectar ao scheduler
 while true; do
@@ -810,11 +816,11 @@ while true; do
 done
 EOL
     
-    chmod +x ~/cluster_scripts/start_worker.sh
+    chmod +x "$RUNTIME_SCRIPTS_DIR/start_worker.sh"
     
     # Iniciar worker
     pkill -f "dask-worker" || true
-    nohup ~/cluster_scripts/start_worker.sh > ~/worker.log 2>&1 &
+    nohup "$RUNTIME_SCRIPTS_DIR/start_worker.sh" > "$LOG_DIR/worker.log" 2>&1 &
     
     log "Worker configurado para conectar ao scheduler: $SERVER_IP:8786"
 }
@@ -838,7 +844,7 @@ install_ides() {
     
     # Spyder
     if ! command_exists spyder; then
-        source ~/cluster_env/bin/activate
+        source "$VENV_DIR/bin/activate"
         pip install spyder
         deactivate
         log "Spyder instalado."
@@ -947,10 +953,10 @@ convert_to_server() {
     warn "Transformando esta estação em servidor..."
     ROLE="server"
     SERVER_IP="localhost"
-    echo "ROLE=server" > ~/.cluster_role
-    echo "SERVER_IP=localhost" >> ~/.cluster_role
-    echo "MACHINE_NAME=$MACHINE_NAME" >> ~/.cluster_role
-    echo "CURRENT_IP=$CURRENT_IP" >> ~/.cluster_role
+    echo "ROLE=server" > "$CONFIG_FILE"
+    echo "SERVER_IP=localhost" >> "$CONFIG_FILE"
+    echo "MACHINE_NAME=$MACHINE_NAME" >> "$CONFIG_FILE"
+    echo "CURRENT_IP=$CURRENT_IP" >> "$CONFIG_FILE"
     
     # Parar worker se estiver executando
     pkill -f "dask-worker" || true
@@ -1088,8 +1094,8 @@ show_status() {
     
     # Verificar ambiente Python
     echo -e "\n${YELLOW}Ambiente Python:${NC}"
-    if [ -d "$HOME/cluster_env" ]; then
-        echo "✓ Ambiente virtual existe"
+    if [ -d "$VENV_DIR" ]; then
+        echo "✓ Ambiente virtual existe em $VENV_DIR"
     else
         echo "✗ Ambiente virtual não existe"
     fi
@@ -1179,8 +1185,9 @@ main_menu() {
 }
 
 # Criar diretório para scripts
-mkdir -p ~/cluster_scripts
-
+mkdir -p "$RUNTIME_SCRIPTS_DIR"
+# Criar diretório para logs
+mkdir -p "$LOG_DIR"
 # Executar menu principal
 main_menu "$1" "$2"
 
@@ -1195,6 +1202,6 @@ if [ -n "$SERVER_IP" ]; then
         echo "Servidor: $SERVER_IP"
     fi
 fi
-echo "Scripts de gerenciamento: ~/cluster_scripts/"
+echo "Scripts de gerenciamento: $RUNTIME_SCRIPTS_DIR"
 echo "Diretório de backup: $BACKUP_DIR"
-echo "Arquivo de configuração: ~/.cluster_role"
+echo "Arquivo de configuração: $CONFIG_FILE"
