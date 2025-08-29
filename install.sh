@@ -7,7 +7,7 @@ set -euo pipefail
 # ==================== CONFIGURAÇÃO INICIAL ====================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMMON_SCRIPT="${PROJECT_ROOT}/scripts/lib/common.sh"
 INSTALL_FUNCTIONS="${PROJECT_ROOT}/scripts/lib/install_functions.sh"
 
@@ -23,7 +23,6 @@ if [ ! -f "$INSTALL_FUNCTIONS" ]; then
 fi
 source "$INSTALL_FUNCTIONS"
 
-PROJECT_ROOT="$SCRIPT_DIR"
 CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
 LOG_DIR="${PROJECT_ROOT}/logs"
 BACKUP_DIR="${PROJECT_ROOT}/backups"
