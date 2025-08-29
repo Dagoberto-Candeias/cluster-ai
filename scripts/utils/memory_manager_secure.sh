@@ -339,4 +339,60 @@ cleanup_swap() {
     
     if [ -f "$SWAP_FILE" ]; then
         sudo swapoff "$SWAP_FILE" 2>/dev/null
-        safe
+        safe_remove "$SWAP_FILE" "arquivo de swap"
+    fi
+    
+    # Remover do fstab
+    sudo sed -i "\|$SWAP_FILE|d" /etc/fstab
+    
+    # Remover diretório se vazio
+    if [ -d "$SWAP_DIR" ] && [ -z "$(ls -A "$SWAP_DIR")" ]; then
+        rmdir "$SWAP_DIR"
+    fi
+    
+    log "Limpeza concluída com segurança"
+}
+
+# Menu principal
+main() {
+    case "$1" in
+        "start")
+            create_swap_file "$MIN_SWAP_SIZE"
+            optimize_memory_settings
+            monitor_memory &
+            ;;
+        "stop")
+            pkill -f "memory_manager.sh"
+            cleanup_swap
+            ;;
+        "status")
+            show_memory_status
+            ;;
+        "expand")
+            expand_swap
+            ;;
+        "reduce")
+            reduce_swap
+            ;;
+        "optimize")
+            optimize_memory_settings
+            ;;
+        "clean")
+            cleanup_swap
+            ;;
+        *)
+            echo -e "${BLUE}Uso: $0 [comando]${NC}"
+            echo "Comandos:"
+            echo "  start     - Iniciar gerenciamento automático"
+            echo "  stop      - Parar gerenciamento e limpar"
+            echo "  status    - Mostrar status da memória"
+            echo "  expand    - Expandir manualmente o swap"
+            echo "  reduce    - Reduzir manualmente o swap"
+            echo "  optimize  - Apenas otimizar configurações"
+            echo "  clean     - Limpar configuração de swap"
+            ;;
+    esac
+}
+
+# Executar comando solicitado
+main "$@"
