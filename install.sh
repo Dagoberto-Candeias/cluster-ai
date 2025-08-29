@@ -7,8 +7,9 @@ set -euo pipefail
 # ==================== CONFIGURAÇÃO INICIAL ====================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_SCRIPT="${SCRIPT_DIR}/scripts/lib/common.sh"
-INSTALL_FUNCTIONS="${SCRIPT_DIR}/scripts/lib/install_functions.sh"
+PROJECT_ROOT="$SCRIPT_DIR"
+COMMON_SCRIPT="${PROJECT_ROOT}/scripts/lib/common.sh"
+INSTALL_FUNCTIONS="${PROJECT_ROOT}/scripts/lib/install_functions.sh"
 
 if [ ! -f "$COMMON_SCRIPT" ]; then
     echo "ERRO: Script de funções comuns não encontrado: $COMMON_SCRIPT"
@@ -27,6 +28,9 @@ CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
 LOG_DIR="${PROJECT_ROOT}/logs"
 BACKUP_DIR="${PROJECT_ROOT}/backups"
 LOG_FILE="${LOG_DIR}/install_$(date +%Y%m%d_%H%M%S).log"
+
+# Criar diretório de logs se não existir
+mkdir -p "$LOG_DIR"
 
 # ==================== FUNÇÕES ====================
 

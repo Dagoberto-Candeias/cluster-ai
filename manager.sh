@@ -40,17 +40,21 @@ start_services() {
     section "Starting Services"
     # Start Dask Scheduler
     if ! pgrep -f dask-scheduler > /dev/null; then
-        run_command "dask scheduler --port 8786 --dashboard-address :8787 > ${SCRIPT_DIR}/logs/dask_scheduler.log 2>&1 &" "Starting Dask Scheduler"
+        run_command "dask scheduler --port 8786 --dashboard-address :8787 > ${PROJECT_ROOT}/logs/dask_scheduler.log 2>&1 &" "Starting Dask Scheduler"
         sleep 2
     else
         info "Dask Scheduler already running"
     fi
 
-    # Start Ollama service
-    if systemctl is-active --quiet ollama; then
-        info "Ollama service already running"
+    # Start Ollama service (only if installed)
+    if command_exists ollama; then
+        if systemctl is-active --quiet ollama; then
+            info "Ollama service already running"
+        else
+            run_sudo "systemctl start ollama" "Starting Ollama service"
+        fi
     else
-        run_sudo "systemctl start ollama" "Starting Ollama service"
+        info "Ollama not installed, skipping service start"
     fi
 }
 
