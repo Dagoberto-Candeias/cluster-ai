@@ -1,342 +1,189 @@
 #!/bin/bash
-# Script de gerenciamento de backup do Cluster AI
+# Sistema de Gerenciamento de Backup para o Cluster AI
+#
+# Este script automatiza o backup de componentes críticos, incluindo:
+# - Modelos Ollama
+# - Dados do OpenWebUI
+# - Configurações do Cluster
+# - Chaves SSH e outras configurações do usuário
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Carregar funções comuns
+COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/../utils/common.sh"
+if [ -f "$COMMON_SCRIPT_PATH" ]; then
+    # shellcheck source=../utils/common.sh
+    source "$COMMON_SCRIPT_PATH"
+else
+    # Fallback para cores e logs se common.sh não for encontrado
+    RED='\033[0;31m'; YELLOW='\033[1;33m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
+    error() { echo -e "${RED}[ERROR]${NC} $1"; }
+    warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+    log() { echo -e "${GREEN}[INFO]${NC} $1"; }
+    success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+    section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
+    confirm_operation() {
+        read -p "$1 (s/N): " -n 1 -r; echo
+        [[ $REPLY =~ ^[Ss]$ ]]
+    }
+fi
 
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+# --- Configurações ---
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BACKUP_BASE_DIR="$PROJECT_ROOT/backups" # Salvar backups dentro da pasta do projeto
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS=30 # Dias para manter os backups
 
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-info() {
-    echo -e "${CYAN}[INFO]${NC} $1"
-}
-
-success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-fail() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-# Configuração
-BACKUP_DIR="$HOME/cluster_backups"
-DEFAULT_BACKUP_ITEMS=(
-    "$HOME/.cluster_role"
-    "$HOME/cluster_scripts"
+# --- Componentes para Backup ---
+# Adicionar ou remover caminhos conforme necessário
+# Usando $PROJECT_ROOT para caminhos relativos ao projeto
+COMPONENTS_FULL=(
     "$HOME/.ollama"
-    "$HOME/.cluster_optimization"
-    "$HOME/open-webui"
-    "/etc/docker/daemon.json"
-    "/etc/systemd/system/ollama.service"
+    "$HOME/open-webui" # Assumindo que os dados do OpenWebUI estão aqui
+    "$PROJECT_ROOT/.cluster_config"
+    "$PROJECT_ROOT/scripts" # Scripts de instalação, utils, etc.
+    "$PROJECT_ROOT/.venv" # Ambiente virtual
+    "$HOME/.msmtprc"
+    "$HOME/.gmail_pass.gpg"
+    "$HOME/.ssh"
 )
+COMPONENTS_MODELS=("$HOME/.ollama")
+COMPONENTS_CONFIG=(
+    "$PROJECT_ROOT/.cluster_config"
+    "$PROJECT_ROOT/scripts"
+    "$HOME/.msmtprc"
+    "$HOME/.gmail_pass.gpg"
+    "$HOME/.ssh"
+)
+COMPONENTS_WEBUI=("$HOME/open-webui")
 
-# Função para criar diretório de backups
-create_backup_dir() {
-    if [ ! -d "$BACKUP_DIR" ]; then
-        mkdir -p "$BACKUP_DIR"
-        log "Diretório de backups criado: $BACKUP_DIR"
-    fi
+# --- Funções ---
+
+# Função de ajuda
+show_help() {
+    echo "Uso: $0 [comando]"
+    echo "Gerencia backups para o Cluster AI."
+    echo ""
+    echo "Comandos:"
+    echo "  full      - Realiza um backup completo de todos os componentes."
+    echo "  models    - Realiza um backup apenas dos modelos Ollama."
+    echo "  config    - Realiza um backup apenas das configurações do cluster."
+    echo "  webui     - Realiza um backup apenas dos dados do OpenWebUI."
+    echo "  list      - Lista todos os backups existentes."
+    echo "  cleanup   - Remove backups mais antigos que $RETENTION_DAYS dias."
+    echo "  help      - Mostra esta ajuda."
 }
 
-# Função para verificar itens existentes
-get_existing_items() {
-    local items=("$@")
-    local existing_items=()
-    
-    for item in "${items[@]}"; do
-        if [ -e "$item" ]; then
-            existing_items+=("$item")
+# Função principal de backup
+# Argumentos: 1=Nome do arquivo de saída, 2=Array de componentes
+do_backup() {
+    local backup_name="$1"
+    shift
+    local components_to_backup=("$@")
+    local backup_file="$BACKUP_BASE_DIR/${backup_name}_${TIMESTAMP}.tar.gz"
+    local existing_components=()
+
+    log "Iniciando backup: $backup_name"
+    log "Arquivo de destino: $backup_file"
+
+    # Verificar quais componentes existem
+    for component in "${components_to_backup[@]}"; do
+        if [ -e "$component" ]; then
+            existing_components+=("$component")
+        else
+            warn "Componente não encontrado, pulando: $component"
         fi
     done
-    
-    echo "${existing_items[@]}"
-}
 
-# Backup completo
-backup_complete() {
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="${BACKUP_DIR}/cluster_backup_${timestamp}.tar.gz"
-    
-    log "Iniciando backup completo..."
-    
-    # Obter itens existentes
-    local existing_items=($(get_existing_items "${DEFAULT_BACKUP_ITEMS[@]}"))
-    
-    if [ ${#existing_items[@]} -eq 0 ]; then
-        error "Nenhum item encontrado para backup."
+    if [ ${#existing_components[@]} -eq 0 ]; then
+        error "Nenhum componente encontrado para o backup. Operação abortada."
         return 1
     fi
-    
-    # Criar backup
-    tar -czf "$backup_file" "${existing_items[@]}"
+
+    # Criar diretório de backup se não existir
+    mkdir -p "$BACKUP_BASE_DIR"
+
+    # Criar o arquivo de backup
+    log "Componentes a serem incluídos: ${existing_components[*]}"
+    tar -czf "$backup_file" --absolute-names "${existing_components[@]}"
     
     if [ $? -eq 0 ]; then
-        success "Backup completo criado com sucesso: $backup_file"
+        success "Backup '$backup_name' concluído com sucesso!"
         log "Tamanho do backup: $(du -h "$backup_file" | cut -f1)"
-        return 0
     else
-        error "Falha ao criar backup."
-        return 1
-    fi
-}
-
-# Backup dos modelos Ollama
-backup_ollama_models() {
-    if [ ! -d "$HOME/.ollama" ]; then
-        error "Diretório .ollama não encontrado."
-        return 1
-    fi
-    
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="${BACKUP_DIR}/ollama_models_${timestamp}.tar.gz"
-    
-    log "Fazendo backup dos modelos Ollama..."
-    
-    tar -czf "$backup_file" -C "$HOME" .ollama
-    
-    if [ $? -eq 0 ]; then
-        success "Backup dos modelos Ollama criado com sucesso: $backup_file"
-        log "Tamanho do backup: $(du -h "$backup_file" | cut -f1)"
-        return 0
-    else
-        error "Falha ao criar backup dos modelos Ollama."
-        return 1
-    fi
-}
-
-# Backup das configurações
-backup_configurations() {
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="${BACKUP_DIR}/cluster_config_${timestamp}.tar.gz"
-    
-    log "Fazendo backup das configurações..."
-    
-    # Itens de configuração para backup
-    local config_items=(
-        "$HOME/.cluster_role"
-        "/etc/docker/daemon.json"
-        "/etc/systemd/system/ollama.service"
-        "$HOME/cluster_scripts"
-    )
-    
-    local existing_items=($(get_existing_items "${config_items[@]}"))
-    
-    if [ ${#existing_items[@]} -eq 0 ]; then
-        error "Nenhum item de configuração encontrado para backup."
-        return 1
-    fi
-    
-    # Criar backup
-    tar -czf "$backup_file" "${existing_items[@]}"
-    
-    if [ $? -eq 0 ]; then
-        success "Backup das configurações criado com sucesso: $backup_file"
-        log "Tamanho do backup: $(du -h "$backup_file" | cut -f1)"
-        return 0
-    else
-        error "Falha ao criar backup das configurações."
-        return 1
-    fi
-}
-
-# Backup dos dados do OpenWebUI
-backup_openwebui_data() {
-    if [ ! -d "$HOME/open-webui" ]; then
-        error "Diretório open-webui não encontrado."
-        return 1
-    fi
-    
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="${BACKUP_DIR}/openwebui_data_${timestamp}.tar.gz"
-    
-    log "Fazendo backup dos dados do OpenWebUI..."
-    
-    tar -czf "$backup_file" -C "$HOME" open-webui
-    
-    if [ $? -eq 0 ]; then
-        success "Backup dos dados do OpenWebUI criado com sucesso: $backup_file"
-        log "Tamanho do backup: $(du -h "$backup_file" | cut -f1)"
-        return 0
-    else
-        error "Falha ao criar backup dos dados do OpenWebUI."
-        return 1
-    fi
-}
-
-# Função para restaurar backup
-restore_backup() {
-    create_backup_dir
-    
-    # Listar backups disponíveis
-    local backup_files=($(ls -1t "$BACKUP_DIR"/*.tar.gz 2>/dev/null))
-    
-    if [ ${#backup_files[@]} -eq 0 ]; then
-        error "Nenhum arquivo de backup encontrado em $BACKUP_DIR"
-        return 1
-    fi
-    
-    echo -e "\n${BLUE}=== BACKUPS DISPONÍVEIS ===${NC}"
-    local i=1
-    for backup_file in "${backup_files[@]}"; do
-        echo "$i. $(basename "$backup_file") ($(du -h "$backup_file" | cut -f1))"
-        ((i++))
-    done
-    
-    read -p "Selecione o backup para restaurar [1-${#backup_files[@]}]: " backup_choice
-    
-    if ! [[ "$backup_choice" =~ ^[0-9]+$ ]] || [ "$backup_choice" -lt 1 ] || [ "$backup_choice" -gt ${#backup_files[@]} ]; then
-        error "Seleção inválida."
-        return 1
-    fi
-    
-    local selected_backup="${backup_files[$((backup_choice-1))]}"
-    
-    log "Restaurando backup: $selected_backup"
-    
-    # Extrair backup
-    tar -xzf "$selected_backup" -C "$HOME"
-    
-    if [ $? -eq 0 ]; then
-        success "Backup restaurado com sucesso!"
-        
-        # Verificar se é necessário reiniciar serviços
-        if [[ "$selected_backup" == *config* ]] || [[ "$selected_backup" == *complete* ]]; then
-            warn "Backup de configuração restaurado. Reinicie os serviços para aplicar as mudanças."
-        fi
-        
-        return 0
-    else
-        error "Falha ao restaurar backup."
+        error "Falha ao criar o arquivo de backup. Verifique as permissões e o espaço em disco."
+        rm -f "$backup_file" # Remove arquivo parcial em caso de erro
         return 1
     fi
 }
 
 # Função para listar backups
 list_backups() {
-    create_backup_dir
-    
-    local backup_files=($(ls -1t "$BACKUP_DIR"/*.tar.gz 2>/dev/null))
-    
-    if [ ${#backup_files[@]} -eq 0 ]; then
-        warn "Nenhum arquivo de backup encontrado em $BACKUP_DIR"
-        return 1
+    section "Backups Existentes em $BACKUP_BASE_DIR"
+    if [ -d "$BACKUP_BASE_DIR" ] && [ -n "$(ls -A "$BACKUP_BASE_DIR"/*.tar.gz 2>/dev/null)" ]; then
+        ls -lh "$BACKUP_BASE_DIR" | awk '{print "  " $9 " (" $5 ") - " $6 " " $7 " " $8}'
+    else
+        warn "Nenhum backup encontrado."
     fi
-    
-    echo -e "\n${BLUE}=== BACKUPS DISPONÍVEIS ===${NC}"
-    local i=1
-    for backup_file in "${backup_files[@]}"; do
-        echo "$i. $(basename "$backup_file") ($(du -h "$backup_file" | cut -f1)) - $(date -r "$backup_file" '+%Y-%m-%d %H:%M:%S')"
-        ((i++))
-    done
-    
-    return 0
 }
 
 # Função para limpar backups antigos
-clean_old_backups() {
-    local days_to_keep=${1:-30}
-    
-    create_backup_dir
-    
-    log "Limpando backups com mais de $days_to_keep dias..."
-    
-    local deleted_count=0
-    local backup_files=($(find "$BACKUP_DIR" -name "*.tar.gz" -mtime "+$days_to_keep"))
-    
-    for backup_file in "${backup_files[@]}"; do
-        rm -f "$backup_file"
-        ((deleted_count++))
-        log "Removido: $(basename "$backup_file")"
-    done
-    
-    if [ $deleted_count -gt 0 ]; then
-        success "$deleted_count backup(s) antigo(s) removido(s)"
+cleanup_backups() {
+    section "Limpando Backups Antigos (mais de $RETENTION_DAYS dias)"
+    if [ ! -d "$BACKUP_BASE_DIR" ]; then
+        warn "Diretório de backup não existe. Nada a fazer."
+        return
+    fi
+
+    log "Procurando por backups com mais de $RETENTION_DAYS dias em '$BACKUP_BASE_DIR'..."
+    # Armazena os arquivos a serem deletados em um array para um manuseio mais seguro
+    mapfile -t files_to_delete < <(find "$BACKUP_BASE_DIR" -name "*.tar.gz" -mtime +"$RETENTION_DAYS")
+
+    if [ ${#files_to_delete[@]} -eq 0 ]; then
+        log "Nenhum backup antigo para remover."
+        return
+    fi
+
+    echo "Os seguintes arquivos serão removidos:"
+    printf "  - %s\n" "${files_to_delete[@]}"
+
+    if confirm_operation "Deseja continuar com a remoção destes arquivos?"; then
+        # Usar print0 e xargs para segurança com nomes de arquivos que possam ter espaços
+        find "$BACKUP_BASE_DIR" -name "*.tar.gz" -mtime +"$RETENTION_DAYS" -print0 | xargs -0 -r rm -f
+        success "Backups antigos removidos com sucesso."
     else
-        log "Nenhum backup antigo encontrado"
+        warn "Operação de limpeza cancelada."
     fi
 }
 
-# Mostrar ajuda
-show_help() {
-    echo -e "${BLUE}=== AJUDA - BACKUP MANAGER ===${NC}"
-    echo ""
-    echo "Uso: $0 [OPÇÃO]"
-    echo ""
-    echo "Opções:"
-    echo "  --complete       Fazer backup completo"
-    echo "  --ollama         Fazer backup dos modelos Ollama"
-    echo "  --config         Fazer backup das configurações"
-    echo "  --openwebui      Fazer backup dos dados do OpenWebUI"
-    echo "  --restore        Restaurar backup"
-    echo "  --list           Listar backups disponíveis"
-    echo "  --clean [DIAS]   Limpar backups antigos (padrão: 30 dias)"
-    echo "  --help           Mostrar esta ajuda"
-    echo ""
-    echo "Exemplos:"
-    echo "  $0 --complete"
-    echo "  $0 --restore"
-    echo "  $0 --list"
-    echo "  $0 --clean 15"
-    echo ""
-}
-
-# Função principal
+# --- Execução ---
 main() {
     case "$1" in
-        "--complete")
-            create_backup_dir
-            backup_complete
+        full)
+            do_backup "cluster_full" "${COMPONENTS_FULL[@]}"
             ;;
-        "--ollama")
-            create_backup_dir
-            backup_ollama_models
+        models)
+            do_backup "ollama_models" "${COMPONENTS_MODELS[@]}"
             ;;
-        "--config")
-            create_backup_dir
-            backup_configurations
+        config)
+            do_backup "cluster_config" "${COMPONENTS_CONFIG[@]}"
             ;;
-        "--openwebui")
-            create_backup_dir
-            backup_openwebui_data
+        webui)
+            do_backup "openwebui_data" "${COMPONENTS_WEBUI[@]}"
             ;;
-        "--restore")
-            restore_backup
-            ;;
-        "--list")
+        list)
             list_backups
             ;;
-        "--clean")
-            local days=${2:-30}
-            clean_old_backups "$days"
+        cleanup)
+            cleanup_backups
             ;;
-        "--help"|"")
+        help|--help|-h|"")
             show_help
             ;;
         *)
-            error "Opção inválida: $1"
+            error "Comando desconhecido: '$1'"
             show_help
-            return 1
+            exit 1
             ;;
     esac
 }
 
-# Executar função principal
 main "$@"
-
-# Salvar resultado
-exit $?

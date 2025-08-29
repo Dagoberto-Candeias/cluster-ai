@@ -64,7 +64,7 @@ check_service() {
     local service_name="$1"
     local description="$2"
 
-    if service_active "$service"; then
+    if service_active "$service_name"; then
         success "✅ $description: Ativo"
         return 0
     else
@@ -530,6 +530,20 @@ check_io_performance() {
     fi
 }
 
+# Função para verificar o serviço de monitoramento
+check_monitor_service() {
+    subsection "Serviço de Monitoramento de Recursos"
+    local service_name="resource-monitor.service"
+
+    if systemctl is-active --quiet "$service_name"; then
+        success "✅ Serviço de Monitoramento ($service_name): Ativo e protegendo o sistema."
+    else
+        warn "⚠️  Serviço de Monitoramento ($service_name): Inativo."
+        echo "   💡 Recomenda-se fortemente ativá-lo para prevenir instabilidade:"
+        echo "      sudo systemctl enable --now $service_name"
+    fi
+}
+
 # Função principal
 main() {
     echo -e "${BLUE}=== VERIFICAÇÃO DE SAÚDE - CLUSTER AI (VERSÃO APRIMORADA) ===${NC}"
@@ -547,6 +561,7 @@ main() {
     # Verificar serviços
     echo -e "\n${CYAN}2. VERIFICAÇÃO DE SERVIÇOS${NC}"
     check_service "docker" "Serviço Docker"
+    check_monitor_service
 
     # Verificar Ollama
     echo -e "\n${BLUE}3. VERIFICAÇÃO DO OLLAMA${NC}"

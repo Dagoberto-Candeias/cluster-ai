@@ -1,198 +1,85 @@
-# Cluster AI - Ambiente Universal de Desenvolvimento e Processamento Distribuído
+# 🚀 Cluster AI - Ambiente de IA Local e Distribuído
 
-![GitHub](https://img.shields.io/github/license/Dagoberto-Candeias/cluster-ai)
-![GitHub issues](https://img.shields.io/github/issues/Dagoberto-Candeias/cluster-ai)
-![GitHub release](https://img.shields.io/github/v/release/Dagoberto-Candeias/cluster-ai)
-![Platform](https://img.shields.io/badge/platform-linux%20universal-blue)
+![Cluster AI Banner](https://example.com/banner.png) <!-- Placeholder para um banner futuro -->
 
-Sistema completo para desenvolvimento e implantação de clusters de IA com processamento distribuído usando Dask, Ollama, OpenWebUI e ambiente de desenvolvimento universal.
-
-## 🎯 NOVAS FUNCIONALIDADES
-
-### 🚀 Instalador Universal
-- **Suporte a múltiplas distribuições**: Ubuntu, Debian, Manjaro, Arch, CentOS, RHEL, Fedora
-- **Detecção automática**: Identifica a distribuição e instala pacotes apropriados
-- **Modo texto/gráfico**: Funciona com ou sem interface gráfica
-
-### 💻 Ambiente de Desenvolvimento Completo
-- **VS Code Otimizado**: 25 extensões essenciais pré-configuradas
-- **Spyder e PyCharm**: IDEs Python completas
-- **Configurações otimizadas**: Settings pré-ajustados para Python/IA
-
-### ⚡ Performance e Usabilidade
-- **Instalação enxuta**: Apenas o necessário, sem bloat
-- **Boot rápido**: Ambiente pronto em minutos
-- **Fácil manutenção**: Scripts modulares e documentados
-
-## 🚀 INSTALAÇÃO RÁPIDA
-
-### Método Universal (Recomendado)
-```bash
-# Clone o repositório
-git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
-cd cluster-ai
-
-# Instalação universal
-./install_universal.sh
-```
-
-### Método Automático (Single Machine)
-```bash
-# Instalação automática em uma única máquina
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/install_cluster.sh)"
-```
-
-## 🛠️ OPÇÕES DE INSTALAÇÃO
-
-O instalador universal oferece múltiplas opções:
-
-1. **Instalação Completa** (Recomendado) - Tudo em um só comando
-2. **Apenas Dependências** - Sistema operacional e bibliotecas base
-3. **Apenas Python** - Ambiente virtual com todas as bibliotecas
-4. **Apenas IDEs** - Ferramentas de desenvolvimento
-5. **Configurar Cluster** - Definir papel da máquina no cluster
-
-## 📦 EXTENSÕES ESSENCIAIS DO VS CODE
-
-### 🐍 Python Development (6)
-- `ms-python.python` - Suporte essencial Python
-- `ms-python.vscode-pylance` - Language server rápido  
-- `ms-python.debugpy` - Debugging avançado
-- `ms-python.pylint` - Linting e análise
-- `ms-python.autopep8` - Formatação automática
-- `kevinrose.vsc-python-indent` - Indentação inteligente
-
-### 🤖 IA Assistants (4)
-- `github.copilot` - GitHub Copilot
-- `github.copilot-chat` - Chat com Copilot
-- `blackboxapp.blackbox` - BLACKBOX AI
-- `sourcegraph.cody-ai` - Cody AI assistant
-
-### 🔧 Development Tools (8)
-- `eamodio.gitlens` - Git superpoderes
-- `ms-azuretools.vscode-docker` - Gerenciamento Docker
-- `ms-vscode-remote.remote-containers` - Dev Containers
-- `streetsidesoftware.code-spell-checker` - Spell checker
-- `usernamehw.errorlens` - Erros em tempo real
-- `yzhang.markdown-all-in-one` - Tudo para Markdown
-- `dracula-theme.theme-dracula` - Tema Dracula
-- `pkief.material-icon-theme` - Ícones Material
-
-### 📊 Jupyter (1)
-- `ms-toolsai.jupyter` - Suporte a Jupyter Notebooks
-
-**Total: 25 extensões** (vs 80+ anterior) - 70% menos, muito mais foco!
-
-## ⚡ SISTEMA DE GERENCIAMENTO DE RECURSOS
-
-### Recursos Avançados
-- **✅ Memória Auxiliar Auto-Expansível**: Swap dinâmico SSD (2G-16G)
-- **✅ Otimização Automática**: Configurações baseadas no hardware
-- **✅ Monitoramento Contínuo**: Previne travamentos e falta de memória
-- **✅ Verificação Pré-Instalação**: Garante recursos mínimos
-- **✅ Suporte Multi-Interface**: Wi-Fi + Ethernet simultâneas
-
-### Scripts de Gerenciamento
-- `scripts/utils/resource_checker.sh` - Verificação completa de recursos
-- `scripts/utils/memory_manager.sh` - Gerenciamento de memória e swap
-- `scripts/utils/resource_optimizer.sh` - Otimização automática
-- `scripts/utils/memory_stress_test.sh` - Testes de estresse
-
-## 🎮 COMO USAR
-
-### Ambiente de Desenvolvimento
-```bash
-# Ativar ambiente Python
-source ~/cluster_env/bin/activate
-
-# Abrir projeto no VS Code
-code .
-
-# Executar demonstrações
-python demo_cluster.py
-python simple_demo.py
-
-# Testar instalação
-python test_installation.py
-```
-
-### Cluster Management
-```bash
-# Configurar papel da máquina
-./scripts/installation/main.sh
-
-# Acessar dashboards
-http://localhost:8787    # Dask Dashboard
-http://localhost:8080    # OpenWebUI
-http://localhost:11434   # Ollama API
-```
-
-## 🔧 ESTRUTURA DO PROJETO
-
-```
-cluster-ai/
-├── 📁 scripts/           # Scripts de gerenciamento
-│   ├── 📁 installation/  # Instalação universal
-│   ├── 📁 utils/         # Utilitários do sistema
-│   └── 📁 validation/    # Testes e validação
-├── 📁 docs/             # Documentação completa
-├── 📁 configs/          # Configurações do sistema
-├── 📁 deployments/      # Configurações de deploy
-├── 📁 examples/         # Exemplos de código
-├── 📄 install_universal.sh  # Instalador universal
-├── 📄 requirements.txt  # Dependências Python
-└── 📄 .gitignore       # Arquivos ignorados pelo Git
-```
-
-## 🛡️ SEGURANÇA AVANÇADA
-
-O Cluster AI inclui múltiplas camadas de proteção contra operações acidentais:
-
-### ✅ Funções de Segurança
-- **Validação de Caminhos**: Bloqueia operações em diretórios críticos do sistema
-- **Confirmação do Usuário**: Requer aprovação explícita para operações destrutivas
-- **Prevenção de Execução como Root**: Scripts falham se executados como usuário root
-- **Validação de Valores**: Verifica todos os inputs numéricos antes do uso
-
-### 📋 Scripts de Manutenção Seguros
-```bash
-# Gerenciar memória e swap
-./scripts/utils/memory_manager.sh start
-
-# Verificar a saúde do sistema
-./scripts/utils/health_check.sh
-
-# Otimizar recursos do sistema
-./scripts/utils/resource_optimizer.sh optimize
-```
-
-### 🔒 Proteções Ativas
-- ✅ Bloqueio de operações em `/`, `/usr`, `/bin`, `/etc` e outros diretórios críticos
-- ✅ Validação de caminhos vazios e inválidos
-- ✅ Confirmação obrigatória para limpeza de logs e arquivos temporários
-- ✅ Verificação de privilégios sudo antes de operações privilegiadas
-
-Consulte [SECURITY_IMPROVEMENTS_SUMMARY.md](SECURITY_IMPROVEMENTS_SUMMARY.md) para detalhes completos das melhorias de segurança.
-
-## 📚 DOCUMENTAÇÃO
-
-- [ESTRUTURA_PROJETO.md](ESTRUTURA_PROJETO.md) - Estrutura detalhada
-- [DEMO_README.md](DEMO_README.md) - Guia de demonstrações
-- [EXTENSOES_ESSENCIAIS_VSCODE.md](EXTENSOES_ESSENCIAIS_VSCODE.md) - Lista de extensões
-- [PLANO_MELHORIAS_DEV_ENV.md](PLANO_MELHORIAS_DEV_ENV.md) - Plano de melhorias
-- [SECURITY_IMPROVEMENTS_SUMMARY.md](SECURITY_IMPROVEMENTS_SUMMARY.md) - Melhorias de segurança
-
-## 🐛 SUPORTE
-
-Para problemas ou dúvidas:
-1. Consulte a documentação acima
-2. Execute `python test_installation.py` para diagnóstico
-3. Verifique os logs em `~/scheduler.log` e `~/worker.log`
-
-## 📄 LICENÇA
-
-Este projeto está licenciado sob a MIT License - veja [LICENSE.txt](LICENSE.txt) para detalhes.
+O **Cluster AI** é um projeto completo para criar, gerenciar e otimizar um ambiente de desenvolvimento e execução de Inteligência Artificial localmente. Ele integra ferramentas poderosas como **Ollama**, **OpenWebUI** e **Dask** em um sistema coeso, robusto e com capacidades de auto-gerenciamento.
 
 ---
 
-**🎉 PRONTO PARA DESENVOLVIMENTO!** Seu ambiente universal de IA está configurado!
+## 🎯 Visão Geral
+
+Este projeto resolve o desafio de executar modelos de linguagem grandes (LLMs) e cargas de trabalho de processamento de dados em máquinas locais, mesmo com recursos limitados. Ele automatiza a instalação, configuração, monitoramento e otimização de todo o ecossistema de IA.
+
+## ✨ Principais Funcionalidades
+
+- **Instalação Automatizada:** Scripts unificados para configurar todo o ambiente (Ollama, Docker, Python, Dask).
+- **Interface Web Intuitiva:** Integração com **OpenWebUI** para interagir facilmente com os modelos Ollama.
+- **Processamento Distribuído:** Cluster **Dask** pré-configurado para processamento de dados em paralelo.
+- **Gerenciamento de Recursos:** Sistema de **swap auto-expansível** para evitar travamentos por falta de memória.
+- **Monitoramento e Auto-Cura:** Um serviço de monitoramento contínuo que verifica a saúde do sistema (CPU, RAM, Disco) e **reinicia automaticamente serviços críticos** (Ollama, Docker) se falharem.
+- **Otimização de Performance:** Scripts para ajustar dinamicamente as configurações do sistema com base no hardware disponível.
+- **Verificação de Saúde:** Um script de diagnóstico completo (`health_check.sh`) para validar toda a instalação.
+- **Biblioteca de Prompts:** Um guia completo com centenas de prompts otimizados para tarefas de desenvolvimento.
+
+---
+
+## 🚀 Guia de Início Rápido (Quick Start)
+
+Siga estes passos para ter seu Cluster AI funcionando em minutos.
+
+### 1. Clonar o Repositório
+```bash
+git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+cd cluster-ai
+```
+
+### 2. Verificar Requisitos do Sistema
+Antes de instalar, execute o verificador de recursos para garantir que seu sistema atende aos requisitos mínimos.
+```bash
+chmod +x scripts/utils/resource_checker.sh
+./scripts/utils/resource_checker.sh full
+```
+
+### 3. Executar o Instalador Principal
+O instalador principal guiará você pela configuração.
+```bash
+chmod +x install_cluster.sh
+./install_cluster.sh
+```
+
+### 4. Configurar o Serviço de Monitoramento
+Para garantir a estabilidade do sistema, configure o serviço de monitoramento para iniciar com o sistema.
+```bash
+chmod +x scripts/deployment/setup_monitor_service.sh
+sudo bash scripts/deployment/setup_monitor_service.sh
+
+# Siga as instruções na tela para habilitar e iniciar o serviço:
+sudo systemctl daemon-reload
+sudo systemctl enable resource-monitor.service
+sudo systemctl start resource-monitor.service
+```
+
+### 5. Validar a Instalação
+Após a instalação, execute o script de verificação de saúde para confirmar que todos os componentes estão funcionando corretamente.
+```bash
+chmod +x scripts/utils/health_check.sh
+./scripts/utils/health_check.sh
+```
+
+---
+
+## 📚 Documentação
+
+Para mais detalhes sobre cada componente, consulte a documentação completa.
+
+- **Guia de Gerenciamento de Recursos**
+- **Manual do OpenWebUI**
+- **Biblioteca de Prompts para Desenvolvedores**
+
+## 🤝 Contribuição
+
+Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou pull requests.
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.

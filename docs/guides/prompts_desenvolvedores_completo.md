@@ -2907,8 +2907,44 @@ Temperatura: Ajuste para valores baixos (0.1-0.3) para código e altos (0.7-0.9)
 
 
 
-consegue melhorar ele insecir mais modelos de prompts, abordar areas faltantes, etc
+📚 Biblioteca de Prompts para Desenvolvedores - Versão Expandida
+================================================================
 
+Para Ollama & Open WebUI
+
+Este documento é um guia completo e organizado de prompts, criado para auxiliar desenvolvedores em todas as fases do ciclo de vida de software, com foco em tarefas técnicas e de gestão.
+
+## 📖 Sumário
+
+1.  [Análise e Revisão de Código](#1-análise-e-revisão-de-código)
+2.  [Refatoração e Reestruturação](#2-refatoração-e-reestruturação)
+3.  [Documentação](#3-documentação)
+4.  [Segurança](#4-segurança)
+5.  [Performance e Escalabilidade](#5-performance-e-escalabilidade)
+6.  [DevOps e Infraestrutura](#6-devops-e-infraestrutura)
+7.  [Bancos de Dados](#7-bancos-de-dados)
+8.  [APIs e Integrações](#8-apis-e-integrações)
+9.  [Cloud e Deploy](#9-cloud-e-deploy)
+10. [Aprendizado e Ensino](#10-aprendizado-e-ensino)
+11. [Planejamento e Gestão](#11-planejamento-e-gestão)
+12. [UI/UX e Frontend](#12-uiux-e-frontend)
+13. [Machine Learning / Data Science](#13-machine-learning--data-science)
+14. [Testes Avançados](#14-testes-avançados)
+15. [Observabilidade e Monitoramento](#15-observabilidade-e-monitoramento)
+16. [Integração com Negócio](#16-integração-com-negócio)
+17. [Microserviços e Arquitetura](#17-microserviços-e-arquitetura)
+18. [Automação e Scripting](#18-automação-e-scripting)
+19. [Internacionalização e Localização](#19-internacionalização-e-localização)
+20. [Git & GitHub](#20-git--github)
+21. [Soft Skills e Carreira](#21-soft-skills-e-carreira)
+22. [Desenvolvimento Mobile (iOS/Android)](#22-desenvolvimento-mobile-iosandroid)
+23. [Data Engineering](#23-data-engineering)
+24. [Web3 e Blockchain](#24-web3-e-blockchain)
+25. [FinOps (Gestão de Custos em Cloud)](#25-finops-gestão-de-custos-em-cloud)
+26. [Troubleshooting Avançado](#26-troubleshooting-avançado)
+27. [Modelos de Prompts Úteis](#27-modelos-de-prompts-úteis)
+
+---
 
 Com certeza. O documento que você forneceu é um excelente ponto de partida. Eu organizei, aprimorei e expandi a lista de prompts para incluir áreas essenciais que estavam faltando ou poderiam ser aprofundadas.
 
@@ -2916,67 +2952,7 @@ A nova versão abrange temas como Machine Learning (MLOps), desenvolvimento mobi
 
 Aqui está o documento aprimorado, pronto para ser usado:
 
-📚 Biblioteca de Prompts para Desenvolvedores - Versão Expandida
-Para Ollama & Open WebUI
-
-Este documento é um guia completo e organizado de prompts, criado para auxiliar desenvolvedores em todas as fases do ciclo de vida de software, com foco em tarefas técnicas e de gestão.
-
-Sumário
-Análise e Revisão de Código
-
-Refatoração e Reestruturação
-
-Documentação
-
-Segurança
-
-Performance e Escalabilidade
-
-DevOps e Infraestrutura
-
-Bancos de Dados
-
-APIs e Integrações
-
-Cloud e Deploy
-
-Aprendizado e Ensino
-
-Planejamento e Gestão
-
-UI/UX e Frontend
-
-Machine Learning / Data Science
-
-Testes Avançados
-
-Observabilidade e Monitoramento
-
-Integração com Negócio
-
-Microserviços e Arquitetura
-
-Automação e Scripting
-
-Internacionalização e Localização
-
-Git & GitHub
-
-Soft Skills e Carreira
-
-Desenvolvimento Mobile (iOS/Android)
-
-Data Engineering
-
-Web3 e Blockchain
-
-FinOps (Gestão de Custos em Cloud)
-
-Troubleshooting Avançado
-
-Modelos de Prompts Úteis
-
-1. Análise e Revisão de Código
+## 1. Análise e Revisão de Código
 Prompt – Code Review Detalhado
 Faça um code review do seguinte trecho de código: [código aqui]
 
@@ -2997,7 +2973,7 @@ Qual é mais legível e fácil de manter?
 
 Qual você recomenda para um ambiente de produção e por quê?
 
-2. Refatoração e Reestruturação
+## 2. Refatoração e Reestruturação
 Prompt – Reestruturar Projeto
 Tenho o seguinte projeto: [cole estrutura de diretórios ou link do repo]
 Sugira uma nova organização de pastas e módulos para:
@@ -3026,7 +3002,7 @@ Quais classes e métodos foram criados.
 
 Como a nova estrutura melhora a manutenibilidade e o reuso.
 
-3. Documentação
+## 3. Documentação
 Prompt – Gerar README Profissional
 Com base neste projeto: [código/descrição]
 Crie um README.md completo, incluindo:
@@ -3052,7 +3028,7 @@ Possíveis códigos de status de resposta.
 
 Exemplos de requisição e resposta.
 
-4. Segurança
+## 4. Segurança
 Prompt – Security Review
 Analise este código e identifique riscos de segurança: [código aqui]
 
@@ -3073,7 +3049,7 @@ Uso de least privilege.
 
 Estratégias de monitoramento de segurança.
 
-5. Performance e Escalabilidade
+## 5. Performance e Escalabilidade
 Prompt – Análise de Performance
 Analise este código: [código aqui]
 
@@ -3095,7 +3071,7 @@ Sharding e replicação de banco de dados.
 
 Uso de filas de mensagem (RabbitMQ, Kafka).
 
-6. DevOps e Infraestrutura
+## 6. DevOps e Infraestrutura
 Prompt – Criar Dockerfile
 Crie um Dockerfile otimizado para este projeto, seguindo as melhores práticas: [código ou estrutura de pastas]
 
@@ -3118,7 +3094,7 @@ Faça deploy automático em um ambiente de staging.
 
 Inclua um processo de aprovação manual para o deploy em produção.
 
-7. Bancos de Dados
+## 7. Bancos de Dados
 Prompt – Modelagem de Banco de Dados
 Crie um modelo de banco de dados (relacional ou NoSQL) para este sistema: [descrição do projeto]
 Liste:
@@ -3141,7 +3117,7 @@ Quais índices seriam úteis.
 
 Alternativas mais eficientes.
 
-8. APIs e Integrações
+## 8. APIs e Integrações
 Prompt – Especificação OpenAPI
 Gere uma especificação OpenAPI (anteriormente Swagger) em YAML para os endpoints abaixo: [descrição ou código]
 
@@ -3151,7 +3127,7 @@ Sugira uma estratégia de versionamento para esta API (/v1/, header, etc.) e exp
 Prompt – Integração Externa
 Explique como integrar este sistema com a API do [serviço X, ex: Stripe, Slack] em [linguagem/framework].
 
-9. Cloud e Deploy
+## 9. Cloud e Deploy
 Prompt – Arquitetura na AWS
 Sugira uma arquitetura na AWS para este projeto: [descrição]
 
@@ -3172,7 +3148,7 @@ Ingress com TLS
 
 ConfigMap e Secret para variáveis de ambiente.
 
-10. Aprendizado e Ensino
+## 10. Aprendizado e Ensino
 Prompt – Explicar Código Complexo
 Explique o seguinte código como se eu fosse um iniciante na área: [código aqui]
 
@@ -3187,7 +3163,7 @@ Explique os princípios (imutabilidade, funções de primeira classe, etc.).
 
 Mostre a diferença com a abordagem imperativa.
 
-11. Planejamento e Gestão
+## 11. Planejamento e Gestão
 Prompt – Roadmap de Projeto
 Crie um roadmap detalhado para este projeto: [descrição]
 
@@ -3201,7 +3177,7 @@ Prompt – Geração de User Stories
 Com base neste sistema: [descrição]
 Escreva user stories no formato: "Como [persona], quero [ação] para [benefício]".
 
-12. UI/UX e Frontend
+## 12. UI/UX e Frontend
 Prompt – Revisão de Acessibilidade
 Analise esta interface web (HTML/CSS/JS): [código aqui]
 
@@ -3216,7 +3192,7 @@ Liste os componentes básicos, como botões e inputs.
 
 Mostre como compor componentes maiores, como um formulário.
 
-13. Machine Learning / Data Science
+## 13. Machine Learning / Data Science
 Prompt – Engenharia de Dados
 Analise este dataset (CSV/JSON): [exemplo de dados]
 
@@ -3233,7 +3209,7 @@ Sugira 3 algoritmos de Machine Learning adequados.
 
 Explique os prós e contras de cada um e qual seria a melhor escolha.
 
-14. Testes Avançados
+## 14. Testes Avançados
 Prompt – Testes End-to-End
 Crie testes E2E (End-to-End) para esta aplicação web usando Playwright ou Cypress: [descrição ou código]
 
@@ -3244,7 +3220,7 @@ Inclua ferramentas recomendadas (JMeter, k6).
 
 Defina métricas a coletar (latência, throughput, taxa de erros).
 
-15. Observabilidade e Monitoramento
+## 15. Observabilidade e Monitoramento
 Prompt – Logs Estruturados
 Transforme este código para usar logs estruturados (JSON): [código aqui]
 
@@ -3261,7 +3237,7 @@ Métricas de aplicação (taxa de erros, latência, throughput).
 
 Recomendações de ferramentas (Prometheus, Grafana, Datadog).
 
-16. Integração com Negócio
+## 16. Integração com Negócio
 Prompt – Geração de Relatórios Executivos
 Gere um relatório executivo a partir destes dados técnicos: [logs, métricas ou código]
 
@@ -3276,7 +3252,7 @@ Identifique pontos de atrito ou frustração.
 
 Sugira melhorias para cada etapa da jornada.
 
-17. Microserviços e Arquitetura
+## 17. Microserviços e Arquitetura
 Prompt – Quebrar em Microserviços
 Tenho este projeto monolítico: [descrição/código]
 
@@ -3293,7 +3269,7 @@ Descreva o conceito de Produtores, Consumers e Filas/Tópicos.
 
 Forneça exemplos de código para enviar e consumir mensagens.
 
-18. Automação e Scripting
+## 18. Automação e Scripting
 Prompt – Automação de Tarefas
 Crie um script em Python que:
 
@@ -3308,7 +3284,7 @@ Explique o conceito de GitOps e como ele pode ser aplicado a este projeto.
 
 Inclua o uso de ferramentas como ArgoCD e Terraform.
 
-19. Internacionalização e Localização
+## 19. Internacionalização e Localização
 Prompt – i18n para Projeto Web
 Adapte este projeto para suportar múltiplos idiomas: [código aqui]
 
@@ -3319,7 +3295,7 @@ Mostre a estrutura de arquivos de tradução (ex: JSON).
 Prompt – L10n
 Sugira como adaptar este projeto para a localização (L10n) de [país] e [idioma], considerando formatos de data, moeda e fuso horário.
 
-20. Git & GitHub
+## 20. Git & GitHub
 Prompt – Estratégia de Branches
 Sugira uma estratégia de branches para este projeto (ex: Git Flow, Trunk-Based Development) e justifique a escolha.
 
@@ -3332,7 +3308,7 @@ Issues relacionadas.
 
 Checklists para testes.
 
-21. Soft Skills e Carreira
+## 21. Soft Skills e Carreira
 Prompt – Otimizar Currículo
 Analise o seguinte trecho de currículo: [texto do currículo]
 
@@ -3351,7 +3327,7 @@ Design de sistemas.
 
 Resolução de problemas.
 
-22. Desenvolvimento Mobile (iOS/Android)
+## 22. Desenvolvimento Mobile (iOS/Android)
 Prompt – Arquitetura Mobile
 Sugira uma arquitetura limpa (Clean Architecture) para um projeto mobile em [plataforma, ex: Android]
 
@@ -3366,7 +3342,7 @@ Inclua testes unitários, de integração e UI.
 
 Sugira frameworks de testes (XCTest para iOS, JUnit para Android).
 
-23. Data Engineering
+## 23. Data Engineering
 Prompt – Pipeline de Dados
 Crie um plano para construir um pipeline de dados que:
 
@@ -3385,7 +3361,7 @@ Inclua tabelas de fatos e dimensões.
 
 Defina as chaves e os relacionamentos.
 
-24. Web3 e Blockchain
+## 24. Web3 e Blockchain
 Prompt – Contrato Inteligente
 Escreva um contrato inteligente em [linguagem, ex: Solidity] para um [tipo de projeto, ex: token ERC-20].
 
@@ -3398,7 +3374,7 @@ Crie um frontend básico em [framework, ex: React] para interagir com um contrat
 
 Use bibliotecas como ethers.js ou web3.js.
 
-25. FinOps (Gestão de Custos em Cloud)
+## 25. FinOps (Gestão de Custos em Cloud)
 Prompt – Otimização de Custos
 Analise esta arquitetura na AWS ([descrição da arquitetura]) e sugira estratégias para otimizar custos.
 
@@ -3409,7 +3385,7 @@ Recomende o uso de instâncias reservadas ou spot instances.
 Prompt – Relatório de Gastos
 Gere um relatório de gastos com base em dados de [plataforma de cloud] e sugira otimizações.
 
-26. Troubleshooting Avançado
+## 26. Troubleshooting Avançado
 Prompt – Diagnóstico de Erros
 Analise este log de erro complexo: [log aqui]
 
@@ -3422,7 +3398,7 @@ Sugira um plano de ação para resolver e prevenir futuras ocorrências.
 Prompt – Decisão de Rollback vs. Rollforward
 Analisando o incidente [descrição] em produção, qual a melhor estratégia: rollback para a versão anterior ou um hotfix (rollforward)? Justifique.
 
-27. Modelos de Prompts Úteis
+## 27. Modelos de Prompts Úteis
 Prompt – Geração de Cheatsheet
 Crie uma cheatsheet com os comandos mais usados de [tecnologia X, ex: Docker, Git, Linux].
 

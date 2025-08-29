@@ -1,0 +1,164 @@
+# Configuração do Cluster AI
+# Este arquivo contém todas as configurações do sistema
+# Copie para cluster.conf e ajuste conforme necessário
+
+# ==================== CONFIGURAÇÕES GERAIS ====================
+
+# Papel da máquina no cluster
+# Opções: server, workstation, worker, convert
+CLUSTER_ROLE="server"
+
+# IP do servidor principal (apenas para workers/estações)
+CLUSTER_SERVER_IP="localhost"
+
+# Nome da máquina (usado para identificação no cluster)
+CLUSTER_MACHINE_NAME="$(hostname)"
+
+# IP atual da máquina
+CLUSTER_CURRENT_IP="$(hostname -I | awk '{print $1}')"
+
+# Diretório raiz do projeto
+CLUSTER_PROJECT_ROOT="$(pwd)"
+
+# Diretório de logs
+CLUSTER_LOG_DIR="${CLUSTER_PROJECT_ROOT}/logs"
+
+# Diretório de backups
+CLUSTER_BACKUP_DIR="${CLUSTER_PROJECT_ROOT}/backups"
+
+# ==================== CONFIGURAÇÕES DO OLLAMA ====================
+
+# Host do Ollama (0.0.0.0 para aceitar conexões externas)
+OLLAMA_HOST="0.0.0.0"
+
+# Porta do Ollama
+OLLAMA_PORT="11434"
+
+# Número de camadas GPU para modelos (ajuste baseado na sua GPU)
+OLLAMA_NUM_GPU_LAYERS="35"
+
+# Número máximo de modelos carregados
+OLLAMA_MAX_LOADED_MODELS="3"
+
+# Tempo de keep-alive para modelos
+OLLAMA_KEEP_ALIVE="24h"
+
+# Modelos padrão para instalação
+OLLAMA_DEFAULT_MODELS=("llama3.1:8b" "llama3:8b" "mixtral:8x7b" "deepseek-coder" "mistral" "llava" "phi3" "gemma2:9b" "codellama")
+
+# ==================== CONFIGURAÇÕES DO DASK ====================
+
+# Porta do scheduler Dask
+DASK_SCHEDULER_PORT="8786"
+
+# Porta do dashboard Dask
+DASK_DASHBOARD_PORT="8787"
+
+# Número de workers por máquina (auto para automático)
+DASK_NUM_WORKERS="auto"
+
+# Número de threads por worker
+DASK_NUM_THREADS="2"
+
+# ==================== CONFIGURAÇÕES DO OPENWEBUI ====================
+
+# Porta do OpenWebUI
+OPENWEBUI_PORT="8080"
+
+# Diretório de dados do OpenWebUI
+OPENWEBUI_DATA_DIR="$HOME/open-webui"
+
+# ==================== CONFIGURAÇÕES DE REDE ====================
+
+# Portas que devem estar abertas no firewall
+FIREWALL_PORTS=("22" "8786" "8787" "8080" "11434")
+
+# ==================== CONFIGURAÇÕES DE AMBIENTE ====================
+
+# Diretório do ambiente virtual Python
+# Prioridade: .venv no projeto > $HOME/venv
+VENV_DIR="${CLUSTER_PROJECT_ROOT}/.venv"
+
+# Versão do Python preferida
+PYTHON_VERSION="python3"
+
+# ==================== CONFIGURAÇÕES DE BACKUP ====================
+
+# Habilitar backups automáticos
+BACKUP_AUTO_ENABLED="true"
+
+# Frequência de backups automáticos
+# Opções: daily, weekly, monthly
+BACKUP_AUTO_FREQUENCY="daily"
+
+# Horário para backups automáticos (formato cron)
+BACKUP_AUTO_TIME="0 2 * * *"  # 2:00 AM daily
+
+# Itens para backup
+BACKUP_ITEMS=(
+    "${CLUSTER_PROJECT_ROOT}/.cluster_config"
+    "${CLUSTER_PROJECT_ROOT}/scripts/runtime"
+    "$HOME/.ollama"
+    "$HOME/open-webui"
+    "$HOME/.ssh"
+    "${VENV_DIR}"
+    "$HOME/.msmtprc"
+    "$HOME/.gmail_pass.gpg"
+)
+
+# ==================== CONFIGURAÇÕES DE SEGURANÇA ====================
+
+# Habilitar verificações de segurança
+SECURITY_CHECKS_ENABLED="true"
+
+# Validar caminhos antes de operações destrutivas
+SECURITY_VALIDATE_PATHS="true"
+
+# Prevenir execução como root
+SECURITY_PREVENT_ROOT="true"
+
+# ==================== CONFIGURAÇÕES DE LOG ====================
+
+# Nível de log (debug, info, warn, error)
+LOG_LEVEL="info"
+
+# Habilitar log em arquivo
+LOG_FILE_ENABLED="true"
+
+# Diretório de logs
+LOG_FILE_DIR="${CLUSTER_LOG_DIR}"
+
+# ==================== CONFIGURAÇÕES DE PERFORMANCE ====================
+
+# Limite de uso de CPU para alertas (percentual)
+CPU_ALERT_THRESHOLD="80"
+
+# Limite de uso de memória para alertas (percentual)
+MEMORY_ALERT_THRESHOLD="80"
+
+# Limite de uso de disco para alertas (percentual)
+DISK_ALERT_THRESHOLD="80"
+
+# ==================== VARIÁVEIS DE SISTEMA ====================
+
+# Não modificar estas variáveis - são geradas automaticamente
+PROJECT_ROOT="${CLUSTER_PROJECT_ROOT}"
+CONFIG_FILE="${CLUSTER_PROJECT_ROOT}/cluster.conf"
+LOG_DIR="${CLUSTER_LOG_DIR}"
+BACKUP_DIR="${CLUSTER_BACKUP_DIR}"
+
+# ==================== INSTRUÇÕES ====================
+
+# 1. Copie este arquivo para cluster.conf:
+#    cp cluster.conf.example cluster.conf
+#
+# 2. Edite as configurações conforme necessário
+#
+# 3. As configurações serão carregadas automaticamente
+#    pelos scripts do Cluster AI
+#
+# 4. Para redefinir para os padrões, delete cluster.conf
+#    e execute novamente o instalador
+
+# Nota: Valores entre aspas devem manter as aspas
+# Valores de array devem ficar entre parênteses
