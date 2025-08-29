@@ -72,72 +72,41 @@ detect_os() {
 }
 
 # Instalar dependências básicas universais
-install_universal_dependencies() {
-    log "Instalando dependências universais..."
-    
-    case $OS in
-        ubuntu|debian)
-            sudo apt update && sudo apt upgrade -y
-            # Verificar se estamos no Debian (que não tem software-properties-common)
-            if [ "$OS" = "debian" ]; then
-                sudo apt install -y curl git wget python3 python3-pip python3-venv \
-                    docker.io docker-compose-plugin openssh-server net-tools \
-                    build-essential ca-certificates gnupg lsb-release apt-transport-https
-            else
-                sudo apt install -y curl git wget python3 python3-pip python3-venv \
-                    docker.io docker-compose-plugin openssh-server net-tools \
-                    build-essential software-properties-common ca-certificates \
-                    gnupg lsb-release apt-transport-https
-            fi
-            ;;
-        manjaro)
-            sudo pacman -Syu --noconfirm
-            sudo pacman -S --noconfirm curl git wget python python-pip python-virtualenv \
-                docker openssh net-tools base-devel which file grep sed awk
-            ;;
-        centos)
-            if command_exists dnf; then
-                sudo dnf update -y
-                sudo dnf install -y curl git wget python3 python3-pip python3-virtualenv \
-                    docker docker-compose openssh-server net-tools \
-                    @development-tools which file grep sed awk
-            else
-                sudo yum update -y
-                sudo yum install -y curl git wget python3 python3-pip python3-virtualenv \
-                    docker docker-compose openssh-server net-tools \
-                    which file grep sed awk
-            fi
-            ;;
-    esac
-    
-    # Configurar Docker
-    if command_exists docker; then
-        sudo systemctl enable docker
-        sudo systemctl start docker
-        sudo usermod -aG docker $USER
-        log "Docker configurado e iniciado"
+install_dependencies() {
+    local setup_script="scripts/installation/setup_dependencies.sh"
+
+    if [ -f "$setup_script" ]; then
+        log "Executando script de configuração de dependências: $setup_script"
+        # Exporta a variável OS para que o script filho possa usá-la
+        export OS
+        bash "$setup_script"
+    else
+        warn "Script de setup de dependências '$setup_script' não encontrado. Pulando esta etapa."
     fi
 }
 
 # Configurar ambiente Python universal
-setup_universal_python() {
-    log "Configurando ambiente Python universal..."
-    
-    if [ ! -d "$HOME/cluster_env" ]; then
-        python3 -m venv ~/cluster_env
-        log "Ambiente virtual criado em ~/cluster_env"
-    else
-        log "Ambiente virtual já existe."
-    fi
+setup_python_environment() {
+    local setup_script="scripts/installation/setup_python_env.sh"
 
-    source ~/cluster_env/bin/activate
-    pip install --upgrade pip
-    pip install "dask[complete]" distributed numpy pandas scipy \
-        jupyterlab requests scikit-learn torch torchvision torchaudio \
-        transformers fastapi uvicorn pytest httpx
-    deactivate
-    
-    log "Ambiente Python configurado com sucesso."
+    if [ -f "$setup_script" ]; then
+        log "Executando script de configuração do ambiente Python: $setup_script"
+        bash "$setup_script"
+    else
+        warn "Script de setup do Python '$setup_script' não encontrado. Pulando esta etapa."
+    fi
+}
+
+# Instala e configura o serviço Ollama
+install_ollama_service() {
+    local setup_script="scripts/installation/setup_ollama.sh"
+
+    if [ -f "$setup_script" ]; then
+        log "Executando script de configuração do Ollama: $setup_script"
+        bash "$setup_script"
+    else
+        warn "Script de setup do Ollama '$setup_script' não encontrado. Pulando esta etapa."
+    fi
 }
 
 # Menu de instalação
@@ -146,29 +115,33 @@ show_menu() {
     echo "1. Instalação Completa (Recomendado)"
     echo "2. Apenas Dependências Básicas"
     echo "3. Apenas Ambiente Python"
-    echo "4. Apenas IDEs e Ferramentas Dev"
-    echo "5. Configurar Papel do Cluster"
-    echo "6. Sair"
+    echo "4. Apenas Ollama e Modelos de IA"
+    echo "5. Apenas IDEs e Ferramentas Dev"
+    echo "6. Configurar Papel do Cluster"
+    echo "7. Sair"
     
-    read -p "Selecione uma opção [1-6]: " choice
+    read -p "Selecione uma opção [1-7]: " choice
     
     case $choice in
         1)
             install_complete
             ;;
         2)
-            install_universal_dependencies
+            install_dependencies
             ;;
         3)
-            setup_universal_python
+            setup_python_environment
             ;;
         4)
-            install_development_tools
+            install_ollama_service
             ;;
         5)
-            configure_cluster_role
+            install_development_tools
             ;;
         6)
+            configure_cluster_role
+            ;;
+        7)
             exit 0
             ;;
         *)
@@ -181,73 +154,54 @@ show_menu() {
 # Instalação completa
 install_complete() {
     log "Iniciando instalação completa..."
-    
-    detect_os
-    install_universal_dependencies
-    setup_universal_python
+    install_dependencies
+    setup_python_environment
+    install_ollama_service
     install_development_tools
     
     echo -e "\n${GREEN}✅ INSTALAÇÃO COMPLETA CONCLUÍDA!${NC}"
     show_post_install_info
 }
 
-# Instalar ferramentas de desenvolvimento
+# Instala as ferramentas de desenvolvimento, orquestrando as instalações individuais.
 install_development_tools() {
-    log "Instalando ferramentas de desenvolvimento..."
-    
-    # Verificar se estamos no diretório do projeto
-    if [ -f "scripts/installation/setup_vscode.sh" ]; then
-        ./scripts/installation/setup_vscode.sh
+    log "Iniciando instalação das ferramentas de desenvolvimento..."
+    local setup_script="scripts/development/setup_vscode.sh"
+
+    if [ -f "$setup_script" ]; then
+        log "Executando script de configuração do ambiente de desenvolvimento: $setup_script"
+        # A variável $OS é detectada no início do install_universal.sh e estará disponível para o script filho.
+        bash "$setup_script"
     else
-        warn "Diretório do projeto não encontrado. Execute este script de dentro do diretório cluster-ai."
-        warn "Instalando VSCode básico..."
-        install_vscode_basic
+        warn "Script de setup de desenvolvimento '$setup_script' não encontrado. Pulando esta etapa."
     fi
-    
-    # Instalar Spyder
-    if ! command_exists spyder; then
-        source ~/cluster_env/bin/activate
-        pip install spyder
-        deactivate
-        log "Spyder instalado."
-    fi
+
+    install_spyder
+
 }
 
-# Instalação básica do VSCode (fallback)
-install_vscode_basic() {
-    if ! command_exists code; then
-        case $OS in
-            ubuntu)
-                wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-                sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
-                sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
-                sudo apt update
-                sudo apt install -y code
-                ;;
-            manjaro)
-                sudo pacman -S --noconfirm code
-                ;;
-            centos)
-                sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-                sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https极速加速器.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/y极速加速器um.repos.d/vscode.repo'
-                if command_exists dnf; then
-                    sudo dnf install -y code
-                else
-                    sudo yum install -y code
-                fi
-                ;;
-        esac
+# Instala a IDE Spyder chamando seu script de setup dedicado.
+install_spyder() {
+    local setup_script="scripts/development/setup_spyder.sh"
+
+    if [ -f "$setup_script" ]; then
+        log "Executando script de configuração do Spyder: $setup_script"
+        bash "$setup_script"
+    else
+        warn "Script de setup do Spyder '$setup_script' não encontrado. Pulando esta etapa."
     fi
 }
 
 # Configurar papel do cluster
 configure_cluster_role() {
     log "Configurando papel do cluster..."
-    
-    if [ -f "scripts/installation/main.sh" ]; then
-        ./scripts/installation/main.sh
+
+    local setup_script="scripts/cluster/setup_cluster_role.sh"
+    if [ -f "$setup_script" ]; then
+        log "Executando script de configuração de papel do cluster: $setup_script"
+        bash "$setup_script"
     else
-        warn "Script principal não encontrado. Execute a instalação completa primeiro."
+        warn "Script de configuração de papel '$setup_script' não encontrado. Pulando esta etapa."
     fi
 }
 
@@ -293,6 +247,9 @@ main() {
         exit 1
     fi
     
+    # Detecta o OS no início para que a variável esteja sempre disponível
+    detect_os
+
     # Mostrar menu
     show_menu
     

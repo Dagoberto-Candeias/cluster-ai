@@ -69,6 +69,24 @@ assert_fail "Testando subdiretório de diretório crítico (/usr/local)" safe_pa
 assert_fail "Testando diretório crítico com barra no final (/etc/)" safe_path_check "/etc/" "operação de teste"
 assert_fail "Testando caminho com espaços para diretório crítico" safe_path_check " /usr " "operação de teste"
 
+# --- Teste da função 'confirm_operation' ---
+echo -e "\n${BLUE}=== INICIANDO TESTE DA FUNÇÃO 'confirm_operation' ===${NC}"
+
+# Exportar a função e variáveis de cor para que sub-shells (bash -c) possam usá-las
+export -f confirm_operation
+export YELLOW NC
+
+# 3. Testes que devem PASSAR (confirmação 's' ou 'S')
+echo -e "\n${CYAN}--> Cenários de Confirmação (devem passar):${NC}"
+assert_pass "Testando confirmação com 's'" bash -c "echo 's' | confirm_operation 'Teste de confirmação'"
+assert_pass "Testando confirmação com 'S'" bash -c "echo 'S' | confirm_operation 'Teste de confirmação'"
+
+# 4. Testes que devem FALHAR (confirmação 'n', 'N', enter, ou qualquer outra tecla)
+echo -e "\n${CYAN}--> Cenários de Negação (devem falhar):${NC}"
+assert_fail "Testando negação com 'n'" bash -c "echo 'n' | confirm_operation 'Teste de negação'"
+assert_fail "Testando negação com Enter (padrão)" bash -c "echo '' | confirm_operation 'Teste de negação'"
+assert_fail "Testando negação com 'qualquer_coisa'" bash -c "echo 'abc' | confirm_operation 'Teste de negação'"
+
 # --- Resumo e Limpeza ---
 echo -e "\n${BLUE}=== RESULTADO DO TESTE DE SEGURANÇA ===${NC}"
 if [ "$FAIL_COUNT" -eq 0 ]; then

@@ -241,57 +241,6 @@ check_venv() {
     fi
 }
 
-
-# Função para verificar Ollama com validação completa
-check_ollama() {
-    subsection "Serviço Ollama"
-    
-    if command_exists ollama; then
-        success "✅ Ollama: Instalado ($(which ollama))"
-        
-        # Verificar serviço Ollama
-        if service_active ollama; then
-            success "✅ Serviço Ollama: Ativo"
-            
-            # Verificar API Ollama
-            local api_response=$(curl -s -w "%{http_code}" http://localhost:11434/api/tags -o /dev/null 2>/dev/null || echo "000")
-            if [ "$api_response" = "200" ]; then
-                success "✅ API Ollama: Respondendo (HTTP 200)"
-                
-                # Listar e validar modelos
-                local models=$(timeout 10 ollama list 2>/dev/null || echo "timeout")
-                if [ "$models" != "timeout" ]; then
-                    local models_count=$(echo "$models" | wc -l)
-                    if [ $models_count -gt 1 ]; then
-                        success "📦 Modelos Ollama: $((models_count-1)) instalado(s)"
-                        echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $1}' | tr '\n' ' ')"
-                    else
-                        warn "⚠️  Modelos Ollama: Nenhum modelo instalado"
-                        echo "   💡 Execute: ollama pull llama2"
-                    fi
-                else
-                    warn "⚠️  Ollama: Timeout ao listar modelos"
-                fi
-            else
-                fail "❌ API Ollama: Não responde (HTTP $api_response)"
-                echo "   💡 Execute: sudo systemctl restart ollama"
-                OVERALL_HEALTH=false
-            fi
-        else
-            fail "❌ Serviço Ollama: Inativo"
-            echo "   💡 Execute: sudo systemctl start ollama"
-            OVERALL_HEALTH=false
-        fi
-        
-        # Verificar diretório de modelos
-        check_directory "$HOME/.ollama" "Diretório de modelos Ollama" false
-        
-    else
-        warn "⚠️  Ollama: Não instalado"
-        echo "   💡 Execute: curl -fsSL https://ollama.ai/install.sh | sh"
-    fi
-}
-
 # Função para verificar Dask com monitoramento
 check_dask() {
     subsection "Cluster Dask"
@@ -459,7 +408,12 @@ main() {
     
     # Verificar Ollama
     section "3. VERIFICAÇÃO DO OLLAMA"
-    check_ollama
+    local check_script="$PROJECT_ROOT/scripts/diagnostics/check_ollama.sh"
+    if [ -f "$check_script" ]; then
+        bash "$check_script" || OVERALL_HEALTH=false
+    else
+        warn "Script de verificação do Ollama não encontrado em $check_script"
+    fi
     
     # Verificar Dask
     section "4. VERIFICAÇÃO DO DASK"
