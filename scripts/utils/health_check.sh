@@ -1,87 +1,156 @@
 #!/bin/bash
 # Sistema de Verificação de Saúde do Cluster AI
+# Versão: 2.0 - Padronizada e Aprimorada
 
-# Security check to prevent running as root
+# ==================== CONFIGURAÇÃO DE SEGURANÇA ====================
+
+# Prevenção de execução como root
 if [ "$EUID" -eq 0 ]; then
-    echo "ERRO: Este script não deve ser executado como root. Por favor, execute como um usuário normal."
+    echo "ERRO CRÍTICO: Este script NÃO deve ser executado como root."
+    echo "Por favor, execute como um usuário normal com privilégios sudo quando necessário."
     exit 1
 fi
 
-# Cores para output
-COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/." && pwd)/common.sh"
+# Validação do contexto de execução
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" && pwd)"
+if [ ! -f "$PROJECT_ROOT/README.md" ]; then
+    echo "ERRO: Script executado fora do contexto do projeto Cluster AI"
+    exit 1
+fi
+
+# Carregar funções comuns
+COMMON_SCRIPT_PATH="$SCRIPT_DIR/common.sh"
 if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
     echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH"
     exit 1
 fi
 source "$COMMON_SCRIPT_PATH"
 
-# Sobrescrever log para adicionar prefixo
-log() { echo -e "${CYAN}[HEALTH-CHECK]${NC} $1"; }
-warn() { echo -e "${YELLOW}[HEALTH-WARN]${NC} $1"; }
-error() { echo -e "${RED}[HEALTH-ERROR]${NC} $1"; }
-
-# Configuração
+# Configurações
 LOG_FILE="/tmp/cluster_ai_health_$(date +%Y%m%d_%H%M%S).log"
 OVERALL_HEALTH=true
+VENV_PRIORITY=(".venv" "$HOME/venv")  # Prioridade: .venv primeiro, depois $HOME/venv
 
-# Função para verificar comando
+# Funções de log aprimoradas
+log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%S')]${NC} $1"; }
+warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
+error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
+section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
+subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
+
+# Função para verificar comando com sugestões de instalação
 check_command() {
     local cmd="$1"
     local description="$2"
+    local install_cmd="${3:-}"
     
     if command_exists "$cmd"; then
-        success "$description: Disponível"
+        success "✅ $description: Disponível ($(which $cmd))"
         return 0
     else
-        fail "$description: Não encontrado"
+        fail "❌ $description: Não encontrado"
+        if [ -n "$install_cmd" ]; then
+            echo "   💡 Execute: $install_cmd"
+        fi
         OVERALL_HEALTH=false
         return 1
     fi
 }
 
-# Função para verificar serviço
+# Função para verificar serviço com opção de restart
 check_service() {
     local service="$1"
     local description="$2"
     
     if service_active "$service"; then
-        success "$description: Ativo"
+        success "✅ $description: Ativo"
         return 0
     else
-        fail "$description: Inativo"
+        fail "❌ $description: Inativo"
+        echo "   💡 Execute: sudo systemctl start $service"
         OVERALL_HEALTH=false
         return 1
     fi
 }
 
-# Função para verificar diretório
+# Função para verificar diretório com permissões
 check_directory() {
     local dir="$1"
     local description="$2"
+    local required="${3:-false}"
     
     if [ -d "$dir" ]; then
-        success "$description: Existe"
+        local perms=$(stat -c "%a %U:%G" "$dir" 2>/dev/null || stat -f "%Sp %u:%g" "$dir")
+        success "✅ $description: Existe ($perms)"
+        
+        # Verificar permissões de escrita
+        if [ ! -w "$dir" ]; then
+            warn "⚠️  $description: Sem permissão de escrita"
+            echo "   💡 Execute: chmod 755 $dir"
+        fi
         return 0
     else
-        fail "$description: Não existe"
-        OVERALL_HEALTH=false
+        if [ "$required" = true ]; then
+            fail "❌ $description: Não existe (OBRIGATÓRIO)"
+            OVERALL_HEALTH=false
+        else
+            warn "⚠️  $description: Não existe"
+        fi
         return 1
     fi
 }
 
-# Função para verificar arquivo
+# Função para verificar arquivo com validação
 check_file() {
     local file="$1"
     local description="$2"
+    local required="${3:-false}"
     
     if [ -f "$file" ]; then
-        success "$description: Existe"
+        local size=$(du -h "$file" 2>/dev/null | cut -f1 || echo "N/A")
+        success "✅ $description: Existe ($size)"
         return 0
     else
-        fail "$description: Não existe"
-        OVERALL_HEALTH=false
+        if [ "$required" = true ]; then
+            fail "❌ $description: Não existe (OBRIGATÓRIO)"
+            OVERALL_HEALTH=false
+        else
+            warn "⚠️  $description: Não existe"
+        fi
         return 1
     fi
+}
+
+# Função para verificar conectividade de rede
+check_network() {
+    subsection "Conectividade de Rede"
+    
+    # Testar conectividade com internet
+    if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
+        success "✅ Internet: Conectado"
+    else
+        warn "⚠️  Internet: Sem conectividade"
+        OVERALL_HEALTH=false
+    fi
+    
+    # Testar DNS
+    if ping -c 1 -W 2 google.com >/dev/null 2>&1; then
+        success "✅ DNS: Funcionando"
+    else
+        warn "⚠️  DNS: Problemas de resolução"
+        OVERALL_HEALTH=false
+    fi
+    
+    # Testar portas locais importantes
+    local ports=("11434" "7860" "8787" "80" "443")
+    for port in "${ports[@]}"; do
+        if nc -z localhost $port 2>/dev/null; then
+            success "✅ Porta $port: Aberta"
+        else
+            echo "   Porta $port: Fechada (esperado para alguns serviços)"
+        fi
+    done
 }
 
 # Função para verificar GPU
@@ -122,117 +191,193 @@ check_pytorch() {
     fi
 }
 
-# Função para verificar ambiente virtual
+# Função para verificar ambiente virtual (padronizada)
 check_venv() {
-    log "Verificando ambiente virtual..."
+    subsection "Ambiente Virtual Python"
+    log "Verificando ambientes virtuais (prioridade: .venv > \$HOME/venv)..."
     
-    # Check for .venv in the project root
-    if [ -d ".venv" ]; then
-        success "Ambiente virtual: .venv Existe"
-        
-        # Verify if it can be activated
-        if source ".venv/bin/activate" 2>/dev/null && python -c "import sys; print(f'Python: {sys.version}')"; then
-            success "Ambiente virtual: Funcional"
-            deactivate
-        else
-            fail "Ambiente virtual: Não funcional"
-            OVERALL_HEALTH=false
+    local venv_found=false
+    local active_venv=""
+    
+    # Verificar ambientes na ordem de prioridade
+    for venv_path in "${VENV_PRIORITY[@]}"; do
+        if [ -d "$venv_path" ]; then
+            venv_found=true
+            active_venv="$venv_path"
+            
+            # Verificar se pode ser ativado
+            if source "$venv_path/bin/activate" 2>/dev/null && python -c "import sys; print(f'Python: {sys.version}')" 2>/dev/null; then
+                success "✅ $venv_path: Funcional ($(python --version 2>&1))"
+                # Verificar pacotes essenciais
+                local missing_packages=()
+                for pkg in "torch" "numpy" "requests"; do
+                    if ! python -c "import $pkg" 2>/dev/null; then
+                        missing_packages+=("$pkg")
+                    fi
+                done
+                
+                if [ ${#missing_packages[@]} -eq 0 ]; then
+                    success "📦 Pacotes essenciais: Todos presentes"
+                else
+                    warn "⚠️  Pacotes ausentes: ${missing_packages[*]}"
+                    echo "   Execute: ./scripts/installation/venv_setup.sh para instalar"
+                fi
+                
+                deactivate
+            else
+                fail "❌ $venv_path: Corrompido ou não funcional"
+                OVERALL_HEALTH=false
+                echo "   Execute: rm -rf $venv_path && ./scripts/installation/venv_setup.sh"
+            fi
+            break
         fi
-        return 0
-    fi
-
-    # Check for $HOME/venv
-    if [ -d "$HOME/venv" ]; then
-        success "Ambiente virtual: $HOME/venv Existe"
-        
-        # Verify if it can be activated
-        if source "$HOME/venv/bin/activate" 2>/dev/null && python -c "import sys; print(f'Python: {sys.version}')"; then
-            success "Ambiente virtual: Funcional"
-            deactivate
-        else
-            fail "Ambiente virtual: Não funcional"
-            OVERALL_HEALTH=false
-        fi
-        return 0
-    else
-        fail "Ambiente virtual: Não existe"
+    done
+    
+    if [ "$venv_found" = false ]; then
+        fail "❌ Nenhum ambiente virtual encontrado"
         OVERALL_HEALTH=false
-        return 1
+        echo "💡 RECOMENDAÇÃO:"
+        echo "   Execute: ./scripts/installation/venv_setup.sh para criar ambiente virtual"
+        echo "   OU: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+    fi
+    
+    # Documentar padrão recomendado
+    if [ "$venv_found" = true ]; then
+        echo "📋 Padrão recomendado: .venv no diretório do projeto (${VENV_PRIORITY[0]})"
     fi
 }
 
 
-# Função para verificar Ollama
+# Função para verificar Ollama com validação completa
 check_ollama() {
-    log "Verificando Ollama..."
+    subsection "Serviço Ollama"
     
     if command_exists ollama; then
-        success "Ollama: Instalado"
+        success "✅ Ollama: Instalado ($(which ollama))"
         
-        # Check if Ollama service is running
+        # Verificar serviço Ollama
         if service_active ollama; then
-            success "Ollama Service: Ativo"
+            success "✅ Serviço Ollama: Ativo"
             
-            # Check if Ollama API is responding
-            if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
-                success "Ollama API: Respondendo"
+            # Verificar API Ollama
+            local api_response=$(curl -s -w "%{http_code}" http://localhost:11434/api/tags -o /dev/null 2>/dev/null || echo "000")
+            if [ "$api_response" = "200" ]; then
+                success "✅ API Ollama: Respondendo (HTTP 200)"
                 
-                # List installed models
-                local models_count=$(ollama list 2>/dev/null | wc -l)
-                if [ $models_count -gt 1 ]; then
-                    success "Modelos Ollama: $((models_count-1)) instalado(s)"
+                # Listar e validar modelos
+                local models=$(timeout 10 ollama list 2>/dev/null || echo "timeout")
+                if [ "$models" != "timeout" ]; then
+                    local models_count=$(echo "$models" | wc -l)
+                    if [ $models_count -gt 1 ]; then
+                        success "📦 Modelos Ollama: $((models_count-1)) instalado(s)"
+                        echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $1}' | tr '\n' ' ')"
+                    else
+                        warn "⚠️  Modelos Ollama: Nenhum modelo instalado"
+                        echo "   💡 Execute: ollama pull llama2"
+                    fi
                 else
-                    warn "Modelos Ollama: Nenhum modelo instalado"
+                    warn "⚠️  Ollama: Timeout ao listar modelos"
                 fi
             else
-                fail "Ollama API: Não responde"
+                fail "❌ API Ollama: Não responde (HTTP $api_response)"
+                echo "   💡 Execute: sudo systemctl restart ollama"
                 OVERALL_HEALTH=false
             fi
         else
-            fail "Ollama Service: Inativo"
+            fail "❌ Serviço Ollama: Inativo"
+            echo "   💡 Execute: sudo systemctl start ollama"
             OVERALL_HEALTH=false
         fi
+        
+        # Verificar diretório de modelos
+        check_directory "$HOME/.ollama" "Diretório de modelos Ollama" false
+        
     else
-        warn "Ollama: Não instalado"
+        warn "⚠️  Ollama: Não instalado"
+        echo "   💡 Execute: curl -fsSL https://ollama.ai/install.sh | sh"
     fi
 }
 
-# Função para verificar Dask
+# Função para verificar Dask com monitoramento
 check_dask() {
-    log "Verificando Dask..."
+    subsection "Cluster Dask"
     
-    # Check Dask scheduler
+    # Verificar scheduler
     if process_running "dask-scheduler"; then
-        success "Dask Scheduler: Executando"
+        local scheduler_pid=$(pgrep -f "dask-scheduler")
+        success "✅ Dask Scheduler: Executando (PID: $scheduler_pid)"
     else
-        warn "Dask Scheduler: Não está executando"
+        warn "⚠️  Dask Scheduler: Não está executando"
+        echo "   💡 Execute: dask scheduler --port 8786 &"
     fi
     
-    # Check Dask workers
+    # Verificar workers
     local workers_count=$(pgrep -f "dask-worker" | wc -l)
     if [ $workers_count -gt 0 ]; then
-        success "Dask Workers: $workers_count executando"
+        success "✅ Dask Workers: $workers_count executando"
+        # Mostrar informações dos workers
+        pgrep -f "dask-worker" | xargs ps -o pid,pcpu,pmem,cmd -p 2>/dev/null | head -$((workers_count+1))
     else
-        warn "Dask Workers: Nenhum worker executando"
+        warn "⚠️  Dask Workers: Nenhum worker executando"
+        echo "   💡 Execute: dask worker tcp://localhost:8786 --nworkers 4 &"
+    fi
+    
+    # Verificar dashboard
+    if nc -z localhost 8787 2>/dev/null; then
+        success "✅ Dashboard Dask: Acessível em http://localhost:8787"
+    else
+        echo "   Dashboard Dask: Porta 8787 fechada"
     fi
 }
 
-# Função para verificar containers Docker do projeto
+# Função para verificar containers Docker com health check
 check_docker_containers() {
-    log "Verificando containers Docker do projeto..."
+    subsection "Containers Docker do Projeto"
     
-    # Check for OpenWebUI container
-    if docker ps --format '{{.Names}}' | grep -q "open-webui"; then
-        success "Container OpenWebUI: Executando"
-    else
-        warn "Container OpenWebUI: Não está executando"
+    if ! command_exists docker; then
+        warn "⚠️  Docker: Não instalado - pulando verificação de containers"
+        return
     fi
     
-    # Check for OpenWebUI Nginx container
-    if docker ps --format '{{.Names}}' | grep -q "openwebui-nginx"; then
-        success "Container OpenWebUI Nginx: Executando"
-    else
-        warn "Container OpenWebUI Nginx: Não está executando"
+    # Verificar se Docker está rodando
+    if ! docker info >/dev/null 2>&1; then
+        fail "❌ Docker: Daemon não está rodando"
+        echo "   💡 Execute: sudo systemctl start docker"
+        OVERALL_HEALTH=false
+        return
+    fi
+    
+    local containers=("open-webui" "openwebui-nginx")
+    local container_found=false
+    
+    for container in "${containers[@]}"; do
+        local container_info=$(docker ps --filter "name=$container" --format "{{.Names}}|{{.Status}}|{{.Ports}}" 2>/dev/null)
+        
+        if [ -n "$container_info" ]; then
+            container_found=true
+            IFS='|' read -r name status ports <<< "$container_info"
+            
+            if [[ "$status" == *"Up"* ]]; then
+                success "✅ Container $name: $status"
+                echo "   Portas: $ports"
+                
+                # Verificar health status se disponível
+                local health=$(docker inspect --format='{{.State.Health.Status}}' "$name" 2>/dev/null || echo "N/A")
+                if [ "$health" != "N/A" ]; then
+                    echo "   Saúde: $health"
+                fi
+            else
+                warn "⚠️  Container $name: $status"
+                echo "   💡 Execute: docker start $name"
+            fi
+        else
+            echo "   Container $container: Não encontrado"
+        fi
+    done
+    
+    if [ "$container_found" = false ]; then
+        echo "💡 Nenhum container do projeto encontrado"
+        echo "   Execute: docker-compose -f configs/docker/compose-basic.yml up -d"
     fi
 }
 
