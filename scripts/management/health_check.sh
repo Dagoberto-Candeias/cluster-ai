@@ -384,6 +384,51 @@ check_dask() {
     fi
 }
 
+# Função para verificar a conectividade dos workers remotos com o scheduler
+check_remote_dask_connectivity() {
+    subsection "Conectividade dos Workers Dask Remotos"
+    local nodes_file="$HOME/.cluster_config/nodes_list.conf"
+
+    if [ ! -f "$nodes_file" ] || [ ! -s "$nodes_file" ]; then
+        info "Nenhum nó remoto configurado em '$nodes_file'. Pulando verificação."
+        return
+    fi
+
+    local scheduler_ip
+    scheduler_ip=$(hostname -I | awk '{print $1}')
+    if [ -z "$scheduler_ip" ]; then
+        fail "❌ Não foi possível determinar o IP do Scheduler local. Não é possível testar a conectividade remota."
+        report_issue "FAIL" "Dask Remote" "IP do Scheduler local não encontrado" "Verifique a configuração de rede do nó principal."
+        OVERALL_HEALTH=false
+        return
+    fi
+
+    log "Verificando conectividade dos nós remotos com o Scheduler em: $scheduler_ip:8786"
+
+    while read -r hostname ip user; do
+        if [ -z "$hostname" ]; then continue; fi # Pular linhas vazias
+
+        log "   Testando nó: $user@$hostname ($ip)..."
+        
+        # 1. Testar conectividade SSH
+        if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$user@$hostname" "echo 'SSH OK'" >/dev/null 2>&1; then
+            fail "   - Conexão SSH com '$hostname': FALHOU"
+            report_issue "FAIL" "Dask Remote ($hostname)" "Conexão SSH falhou" "Verifique a configuração de chaves SSH."
+            OVERALL_HEALTH=false
+            continue
+        fi
+
+        # 2. Testar conectividade de rede do worker para o scheduler
+        if ssh "$user@$hostname" "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/$scheduler_ip/8786'" >/dev/null 2>&1; then
+            success "   - Conectividade de rede com Scheduler: OK"
+        else
+            fail "   - Conectividade de rede com Scheduler: FALHOU"
+            report_issue "FAIL" "Dask Remote ($hostname)" "Não consegue alcançar a porta 8786 do Scheduler" "Verifique o firewall no nó principal e no remoto."
+            OVERALL_HEALTH=false
+        fi
+    done < <(grep -vE '^\s*(#|$)' "$nodes_file")
+}
+
 # Função para verificar containers Docker com health check
 check_docker_containers() {
     subsection "Containers Docker do Projeto"
@@ -602,6 +647,59 @@ check_monitor_service() {
     fi
 }
 
+# Função para verificar se as extensões recomendadas do VSCode estão instaladas
+check_vscode_extensions() {
+    subsection "Extensões do Visual Studio Code"
+
+    if ! command_exists code; then
+        warn "⚠️  VSCode: Comando 'code' não encontrado. Pulando verificação de extensões."
+        # Não reporta como problema crítico, pois o VSCode pode não ser o editor principal.
+        return
+    fi
+
+    # Lista de extensões recomendadas (baseada em setup_vscode.sh)
+    local recommended_extensions=(
+        "ms-python.python"
+        "ms-python.vscode-pylance"
+        "ms-toolsai.jupyter"
+        "github.copilot"
+        "github.copilot-chat"
+        "blackboxapp.blackbox"
+        "sourcegraph.cody-ai"
+        "eamodio.gitlens"
+        "ms-azuretools.vscode-docker"
+        "streetsidesoftware.code-spell-checker"
+        "streetsidesoftware.code-spell-checker-portuguese-brazilian"
+        "usernamehw.errorlens"
+        "aaron-bond.better-comments"
+        "yzhang.markdown-all-in-one"
+        "dracula-theme.theme-dracula"
+        "pkief.material-icon-theme"
+        "ms-vsliveshare.vsliveshare"
+    )
+
+    log "Verificando ${#recommended_extensions[@]} extensões recomendadas..."
+    local installed_extensions; installed_extensions=$(code --list-extensions 2>/dev/null)
+    local missing_extensions=()
+
+    for ext in "${recommended_extensions[@]}"; do
+        if ! echo "$installed_extensions" | grep -qix "$ext"; then
+            missing_extensions+=("$ext")
+        fi
+    done
+
+    if [ ${#missing_extensions[@]} -eq 0 ]; then
+        success "✅ Todas as extensões recomendadas do VSCode estão instaladas."
+    else
+        fail "❌ Extensões recomendadas ausentes: ${#missing_extensions[@]}"
+        report_issue "FAIL" "VSCode Extensions" "${#missing_extensions[@]} extensões ausentes" "Execute 'code --install-extension <nome>' para cada uma."
+        for missing in "${missing_extensions[@]}"; do
+            echo "   - $missing"
+        done
+        OVERALL_HEALTH=false
+    fi
+}
+
 # Função para imprimir o relatório final em formato de tabela
 print_summary_report() {
     if [ ${#ISSUES_FOUND[@]} -eq 0 ]; then
@@ -649,6 +747,10 @@ main() {
     echo -e "\n${CYAN}4. VERIFICAÇÃO DO DASK${NC}"
     check_dask
 
+    # Verificar conectividade dos workers remotos
+    echo -e "\n${BLUE}5. VERIFICAÇÃO DOS WORKERS REMOTOS${NC}"
+    check_remote_dask_connectivity
+
     # Verificar containers Docker
     echo -e "\n${BLUE}5. VERIFICAÇÃO DE CONTAINERS DOCKER${NC}"
     check_docker_containers
@@ -662,15 +764,19 @@ main() {
     check_pytorch
 
     # Verificar ambiente virtual
-    echo -e "\n${CYAN}8. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
+    echo -e "\n${BLUE}8. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
     check_venv
 
+    # Verificar ambiente de desenvolvimento
+    echo -e "\n${CYAN}9. AMBIENTE DE DESENVOLVIMENTO (IDEs)${NC}"
+    check_vscode_extensions
+
     # Verificar recursos
-    echo -e "\n${CYAN}9. RECURSOS DO SISTEMA${NC}"
+    echo -e "\n${BLUE}10. RECURSOS DO SISTEMA${NC}"
     check_resources
 
     # Verificar diretórios importantes
-    echo -e "\n${BLUE}10. ESTRUTURA DE DIRETÓRIOS${NC}"
+    echo -e "\n${CYAN}11. ESTRUTURA DE DIRETÓRIOS${NC}"
     check_directory "$HOME/venv" "Diretório do ambiente virtual"
     check_directory "$HOME/cluster_scripts" "Diretório de scripts do cluster"
     check_directory "$HOME/.ollama" "Diretório do Ollama"

@@ -159,6 +159,30 @@ determine_node_role() {
     echo "$suggested_role"
 }
 
+register_node_with_server() {
+    subsection "Registro do Nó no Servidor Principal"
+    if ! confirm_operation "Deseja registrar este nó no servidor principal do cluster?"; then
+        warn "Registro pulado. Você pode adicionar este nó manualmente mais tarde."
+        return 0
+    fi
+
+    read -p "Digite o endereço IP do servidor principal: " server_ip
+    read -p "Digite o nome de usuário no servidor principal: " server_user
+
+    if [ -z "$server_ip" ] || [ -z "$server_user" ]; then
+        error "IP e usuário do servidor são necessários. Registro falhou."
+        return 1
+    fi
+
+    local node_hostname; node_hostname=$(hostname)
+    local node_ip; node_ip=$(hostname -I | awk '{print $1}')
+    local node_user; node_user=$(whoami)
+    local node_entry="$node_hostname $node_ip $node_user"
+
+    log "Tentando adicionar a entrada '$node_entry' ao servidor $server_user@$server_ip..."
+    ssh "$server_user@$server_ip" "mkdir -p ~/.cluster_config && echo '$node_entry' >> ~/.cluster_config/nodes_list.conf && echo 'Nó registrado com sucesso!'" || { error "Falha ao registrar nó. Verifique a conectividade SSH e as permissões."; return 1; }
+}
+
 run_full_installation() {
     # Limpar status de instalações anteriores
     INSTALL_STEPS_SUCCESS=()
@@ -196,11 +220,13 @@ run_full_installation() {
         "Apenas Worker")
             log "Instalando como Worker Dedicado (foco em processamento)..."
             run_install_step "Configurando drivers de GPU (Crítico para este papel)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" true || { print_installation_summary; return 1; }
+            register_node_with_server
             ;;
         "Estação de Trabalho")
             log "Instalando como Estação de Trabalho (desenvolvimento e processamento)..."
             run_install_step "Configurando drivers de GPU (Opcional)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
             run_install_step "Instalando IDEs de desenvolvimento (Recomendado)" "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
+            register_node_with_server
             ;;
         "Worker (CPU-Limitado)")
             log "Instalando como Worker (CPU)..."

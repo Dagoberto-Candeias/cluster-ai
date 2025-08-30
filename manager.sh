@@ -34,19 +34,22 @@ show_menu() {
     echo "1. 🚀 Iniciar TODOS os serviços"
     echo "2. 🛑 Parar TODOS os serviços"
     echo "3. 🔄 Reiniciar TODOS os serviços"
-    echo "--- Gerenciamento e Diagnóstico ---"
-    echo "4. 🧩 Gerenciar serviços individuais"
-    echo "5. 📊 Mostrar status geral"
-    echo "6. 🩺 Executar verificação de saúde (Health Check)"
-    echo "7. 🛠️  Otimizador de Recursos"
-    echo "8. 💾 Gerenciar Configurações de Otimização (Backup/Restore)"
-    echo "9. ⚙️  Acessar instalador/configurador"
-    echo "10. 📜 Ver log de auditoria"
-    echo "11. 🗄️ Rotacionar logs de auditoria"
-    echo "12. ⏰ Agendar rotação de logs (Cron)"
-    echo "13. 📺 Configurar serviço de monitoramento"
     echo "---"
-    echo "14. 🚪 Sair"
+    echo "4. 🧩 Gerenciar serviços locais individuais"
+    echo "5. 🌐 Gerenciar Workers Remotos (SSH)"
+    echo "--- Diagnóstico e Manutenção ---"
+    echo "6. 📊 Mostrar status geral"
+    echo "7. 🩺 Executar verificação de saúde (Health Check)"
+    echo "8. 🛠️  Otimizador de Recursos"
+    echo "9. 💾 Gerenciar Configurações de Otimização (Backup/Restore)"
+    echo "10. ⚙️  Acessar instalador/configurador"
+    echo "11. 📜 Ver log de auditoria"
+    echo "12. 📡 Descobrir nós remotos na rede"
+    echo "13. 🗄️ Rotacionar logs de auditoria"
+    echo "14. ⏰ Agendar rotação de logs (Cron)"
+    echo "15. 📺 Configurar serviço de monitoramento"
+    echo "---"
+    echo "16. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -123,7 +126,7 @@ stop_openwebui() {
 # --- Funções de Ações em Massa (Orquestradores) ---
 
 start_all_services() {
-    section "Iniciando TODOS os Serviços"
+    section "Iniciando TODOS os Serviços Locais"
     
     subsection "Iniciando serviço Ollama..."
     start_ollama || { error "Falha ao iniciar Ollama. Abortando."; return 1; }
@@ -134,12 +137,12 @@ start_all_services() {
     subsection "Iniciando container OpenWebUI..."
     start_openwebui || { error "Falha ao iniciar OpenWebUI. Abortando."; return 1; }
 
-    success "Todos os serviços foram iniciados."
+    success "Todos os serviços locais foram iniciados."
 }
 
 stop_all_services() {
     local any_failed=false
-    section "Parando TODOS os Serviços"
+    section "Parando TODOS os Serviços Locais"
     # Ordem de parada otimizada: dependentes primeiro
     subsection "Parando container OpenWebUI"
     stop_openwebui || any_failed=true
@@ -152,13 +155,13 @@ stop_all_services() {
         warn "Um ou mais serviços não puderam ser parados corretamente. Verifique os logs."
         return 1
     else
-        success "Todos os serviços foram parados."
+        success "Todos os serviços locais foram parados."
         return 0
     fi
 }
 
 restart_all_services() {
-    section "Reiniciando todos os serviços"
+    section "Reiniciando todos os serviços locais"
     stop_all_services || warn "Alguns serviços não puderam ser parados corretamente, mas a inicialização continuará."
     echo ""
     start_all_services || error "Falha ao reiniciar um ou mais serviços."
@@ -167,7 +170,7 @@ restart_all_services() {
 # --- Funções de Sub-Menu ---
 
 show_service_management_menu() {
-    subsection "Gerenciamento de Serviços Individuais"
+    subsection "Gerenciamento de Serviços Locais Individuais"
     
     # Status do Ollama
     if service_active "$OLLAMA_SERVICE_NAME"; then
@@ -259,6 +262,53 @@ run_service_management_menu() {
     done
 }
 
+run_remote_worker_menu() {
+    local remote_manager_script="${SCRIPTS_DIR}/management/remote_worker_manager.sh"
+    if [ ! -f "$remote_manager_script" ]; then
+        error "Script de gerenciamento remoto não encontrado em $remote_manager_script"
+        return 1
+    fi
+
+    while true; do
+        clear
+        section "Gerenciamento de Workers Remotos (SSH)"
+        echo "1. Iniciar workers em TODOS os nós remotos"
+        echo "2. Parar workers em TODOS os nós remotos"
+        echo "3. Mostrar status dos workers remotos"
+        echo "4. Verificar conectividade SSH com os nós"
+        echo "---"
+        echo "5. Voltar ao menu principal"
+
+        read -p "Selecione uma opção [1-5]: " choice
+        case $choice in
+            1)
+                read -p "Digite o IP do Dask Scheduler (este nó): " scheduler_ip
+                if [ -n "$scheduler_ip" ]; then
+                    audit_log "remote_worker_start" "ATTEMPT"
+                    bash "$remote_manager_script" start "$scheduler_ip"
+                else
+                    warn "IP do Scheduler é necessário."
+                fi
+                ;;
+            2)
+                audit_log "remote_worker_stop" "ATTEMPT"
+                bash "$remote_manager_script" stop
+                ;;
+            3)
+                audit_log "remote_worker_status" "EXECUTE"
+                bash "$remote_manager_script" status
+                ;;
+            4)
+                audit_log "remote_worker_check_ssh" "EXECUTE"
+                bash "$remote_manager_script" check-ssh
+                ;;
+            5) break ;;
+            *) warn "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
 # --- Funções Principais ---
 show_status() {
     section "Status Geral do Cluster"
@@ -287,6 +337,14 @@ show_status() {
         success "Dask Workers: $worker_count ativos"
     else
         warn "Dask Workers: Nenhum ativo"
+    fi
+
+    subsection "Workers Dask Remotos"
+    local remote_manager_script="${SCRIPTS_DIR}/management/remote_worker_manager.sh"
+    if [ -f "$remote_manager_script" ] && [ -f "$HOME/.cluster_config/nodes.conf" ]; then
+        bash "$remote_manager_script" status
+    else
+        log "Nenhum nó remoto configurado. Pule esta verificação."
     fi
 
     subsection "Containers Docker"
@@ -356,16 +414,17 @@ main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
         show_menu
-        read -p "Selecione uma opção [1-14]: " choice
+        read -p "Selecione uma opção [1-15]: " choice
         case $choice in
             1) audit_log "start_all" "ATTEMPT"; start_all_services && audit_log "start_all" "SUCCESS" || audit_log "start_all" "FAIL" ;;
             2) audit_log "stop_all" "ATTEMPT"; stop_all_services && audit_log "stop_all" "SUCCESS" || audit_log "stop_all" "FAIL" ;;
             3) audit_log "restart_all" "ATTEMPT"; restart_all_services && audit_log "restart_all" "SUCCESS" || audit_log "restart_all" "FAIL" ;;
-            4) audit_log "manage_individual" "ENTER"; run_service_management_menu; audit_log "manage_individual" "EXIT" ;;
-            5) audit_log "show_status" "EXECUTE"; show_status ;;
-            6) audit_log "run_health_check" "EXECUTE"; run_health_check ;;
-            7) audit_log "run_optimizer" "EXECUTE"; run_optimizer ;;
-            8) 
+            4) audit_log "manage_local_individual" "ENTER"; run_service_management_menu; audit_log "manage_local_individual" "EXIT" ;;
+            5) audit_log "manage_remote_workers" "ENTER"; run_remote_worker_menu; audit_log "manage_remote_workers" "EXIT" ;;
+            6) audit_log "show_status" "EXECUTE"; show_status ;;
+            7) audit_log "run_health_check" "EXECUTE"; run_health_check ;;
+            8) audit_log "run_optimizer" "EXECUTE"; run_optimizer ;;
+            9) 
                subsection "Gerenciador de Configurações"
                echo "Opções disponíveis: backup, restore, list"
                read -p "Digite o comando desejado: " config_cmd
@@ -376,15 +435,16 @@ main() {
                    audit_log "config_manager" "FAIL" "Command: $config_cmd"
                fi
                ;;
-            9) 
+            10) 
                audit_log "run_installer" "EXECUTE"
                run_installer; break 
                ;;
-            10) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
-            11) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
-            12) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
-            13) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;
-            14) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            11) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
+            12) audit_log "discover_nodes" "EXECUTE"; run_node_discovery ;;
+            13) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
+            14) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
+            15) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;
+            16) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""
