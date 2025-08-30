@@ -301,17 +301,28 @@ ollama pull deepseek-coder-v2:16b
 
 ## 7. Boas práticas e checklist de produção
 
-**Ambientes**
+**Ambientes:**
+-   **Isolamento:** Use ambientes virtuais (`.venv`) distintos para cada projeto para evitar conflitos de dependências.
+-   **Reprodutibilidade:** Sempre gere e versione arquivos `requirements.txt` (pip) ou `environment.yml` (conda).
+-   **Produção vs. Desenvolvimento:** Mantenha configurações separadas para cada ambiente. Use o `manager.sh` para controlar os serviços e evite executar scripts de instalação em produção.
 
--
+**Modelos / IA:**
+-   **Versionamento:** Especifique a versão do modelo ao fazer o download (ex: `llama3:8b` em vez de `llama3`) para garantir consistência.
+-   **Otimização:** Use modelos quantizados (ex: `q4_0`) em produção para balancear performance e uso de recursos.
+-   **Backup:** Inclua o diretório `~/.ollama` nos backups regulares para não perder modelos e seus dados.
 
-**Modelos / IA**
+**Código & Segurança:**
+-   **Linting:** Use `shellcheck` para validar scripts bash antes de commitar. O projeto já inclui um script para isso no `manager.sh`.
+-   **Secrets:** Nunca versione senhas ou chaves de API. Use variáveis de ambiente ou um gerenciador de segredos.
+-   **Acesso Mínimo:** Execute serviços com usuários não-root sempre que possível. O OpenWebUI já roda em um container isolado.
+-   **Firewall:** Configure o firewall (`ufw`) para expor apenas as portas estritamente necessárias (8080, 8787, 11434, 22).
 
--
-
-**Código & segurança**
-
--
+**Checklist Rápido para Produção:**
+-   [ ] Otimizador de recursos foi executado (`resource_optimizer.sh`).
+-   [ ] Backup completo foi realizado e testado.
+-   [ ] Acesso SSH está configurado com chaves, não senhas.
+-   [ ] Logs de auditoria estão sendo rotacionados.
+-   [ ] Acesso ao Dask Dashboard (8787) e outras interfaces administrativas está restrito pela rede.
 
 ---
 
@@ -396,4 +407,3 @@ fi
 - *Exporto para PDF;*
 - *Mesclo este conteúdo com o README do seu repositório;*
 - *Gero scripts adicionais (Dockerfile, Compose, GitHub Actions).*
-
