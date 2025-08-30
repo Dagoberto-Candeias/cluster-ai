@@ -118,15 +118,22 @@ show_install_menu() {
 
 detect_hardware_for_role() {
     local cpu_cores; cpu_cores=$(nproc 2>/dev/null || echo 4)
-    local total_memory_mb; total_memory_mb=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}' 2>/dev/null || echo 4096)
+    local total_memory_mb; total_memory_mb=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}' 2>/dev/null || echo 4096) # Use LC_ALL=C for consistent output
     local gpu_count=0
     local primary_gpu_vram_mb=0
 
     if command_exists nvidia-smi; then
         gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader 2>/dev/null || echo 0)
         primary_gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1 2>/dev/null || echo 0)
+    elif command_exists rocm-smi; then
+        # Basic detection for AMD, can be expanded
+        gpu_count=$(rocm-smi --showid | grep -c "GPU" 2>/dev/null || echo 0)
+        # rocm-smi output for VRAM is more complex, this is a simplification
+        primary_gpu_vram_mb=$(rocm-smi --showmeminfo vram | grep 'Total' | head -n 1 | awk '{print $3 / 1024 / 1024}' | cut -d. -f1 2>/dev/null || echo 0)
+        # Convert from bytes to MB
+        primary_gpu_vram_mb=$((primary_gpu_vram_mb * 1024))
     fi
-    
+
     echo "CPU_CORES=$cpu_cores"
     echo "TOTAL_MEMORY_MB=$total_memory_mb"
     echo "GPU_COUNT=$gpu_count"
@@ -142,20 +149,27 @@ determine_node_role() {
     local gpu_count; gpu_count=$(echo "$resources" | grep "GPU_COUNT" | cut -d= -f2)
     local primary_gpu_vram_mb; primary_gpu_vram_mb=$(echo "$resources" | grep "PRIMARY_GPU_VRAM_MB" | cut -d= -f2)
 
-    log "Recursos detectados: ${cpu_cores} Cores, ${total_memory_mb}MB RAM, ${gpu_count} GPU(s) (${primary_gpu_vram_mb}MB VRAM primária)"
+    subsection "Recursos Detectados"
+    info "  - CPU Cores: $cpu_cores"
+    info "  - Memória RAM: ${total_memory_mb} MB"
+    info "  - GPUs: $gpu_count"
+    info "  - VRAM da GPU Primária: ${primary_gpu_vram_mb} MB"
 
-    local suggested_role="Worker (CPU-Limitado)" # Papel padrão
+    local suggested_role="Nó Limitado" # Papel padrão
 
-    # Lógica de decisão para sugerir o papel
+    # Lógica de decisão hierárquica e mais clara
     if [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 12000 ] && [ "$total_memory_mb" -ge 32000 ] && [ "$cpu_cores" -ge 8 ]; then
         suggested_role="Servidor Principal"
-    elif [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 8000 ]; then
-        suggested_role="Apenas Worker"
-    elif [ "$total_memory_mb" -ge 16000 ] && [ "$cpu_cores" -ge 6 ]; then
+    elif [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 6000 ]; then
+        suggested_role="Worker (GPU)"
+    elif [ "$total_memory_mb" -ge 16000 ] && [ "$cpu_cores" -ge 6 ] && [ "$gpu_count" -eq 0 ]; then
         suggested_role="Estação de Trabalho"
+    elif [ "$total_memory_mb" -ge 8000 ] && [ "$cpu_cores" -ge 4 ] && [ "$gpu_count" -eq 0 ]; then
+        suggested_role="Worker (CPU)"
     fi
     
-    info "Papel sugerido para este nó: ${YELLOW}${suggested_role}${NC}"
+    subsection "Análise e Sugestão de Papel"
+    info "Com base no hardware, o papel sugerido para este nó é: ${YELLOW}${suggested_role}${NC}"
     echo "$suggested_role"
 }
 
@@ -184,20 +198,25 @@ register_node_with_server() {
 }
 
 run_full_installation() {
+    local auto_accept_role=false
+    if [[ "$1" == "--auto-role" ]]; then
+        auto_accept_role=true
+        warn "Modo de instalação automática ativado. O papel sugerido será aceito sem confirmação."
+    fi
+
     # Limpar status de instalações anteriores
     INSTALL_STEPS_SUCCESS=()
     INSTALL_STEPS_WARNING=()
     INSTALL_STEPS_FAILED=()
 
     section "Iniciando Instalação Completa e Automática"
-
     local node_role; node_role=$(determine_node_role)
     if [ -z "$node_role" ]; then
         error "Não foi possível determinar o papel do nó. Abortando."
         return 1
     fi
 
-    if ! confirm_operation "O papel sugerido é '${node_role}'. Deseja prosseguir com esta configuração?"; then
+    if [ "$auto_accept_role" = false ] && ! confirm_operation "Deseja prosseguir com a instalação usando o papel sugerido '${node_role}'?"; then
         log "Instalação cancelada pelo usuário."
         return 0
     fi
@@ -219,20 +238,24 @@ run_full_installation() {
             run_install_step "Configurando OpenWebUI com limites otimizados" \
                 "bash '${INSTALL_DIR}/setup_openwebui.sh'" true || { print_installation_summary; return 1; }
             ;;
-        "Apenas Worker")
-            log "Instalando como Worker Dedicado (foco em processamento)..."
+        "Worker (GPU)")
+            log "Instalando como Worker Dedicado (foco em processamento GPU)..."
             run_install_step "Configurando drivers de GPU (Crítico para este papel)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" true || { print_installation_summary; return 1; }
             register_node_with_server
             ;;
         "Estação de Trabalho")
-            log "Instalando como Estação de Trabalho (desenvolvimento e processamento)..."
+            log "Instalando como Estação de Trabalho (desenvolvimento e processamento CPU)..."
             run_install_step "Configurando drivers de GPU (Opcional)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
             run_install_step "Instalando IDEs de desenvolvimento (Recomendado)" "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
             register_node_with_server
             ;;
-        "Worker (CPU-Limitado)")
+        "Worker (CPU)")
             log "Instalando como Worker (CPU)..."
+            register_node_with_server
+            ;;
+        "Nó Limitado")
             warn "Este nó tem recursos limitados. A performance pode ser baixa."
+            info "Apenas os componentes básicos (dependências, python, ollama) serão instalados."
             ;;
     esac
 
@@ -306,7 +329,7 @@ run_components_installation_menu() {
 process_menu_choice() {
     local choice="$1"
     case $choice in
-        1) run_full_installation ;;
+        1) run_full_installation "$2" ;; # Passa argumentos extras
         2) run_components_installation_menu ;;
         3) bash "${UTILS_DIR}/health_check.sh" || warn "Health check encontrou problemas." ;;
         4) 
@@ -324,13 +347,19 @@ process_menu_choice() {
 }
 
 main() {
+    # Verifica se o modo automático foi passado como argumento para o script principal
+    if [[ "$1" == "--auto-role" ]]; then
+        run_full_installation "--auto-role"
+        exit $?
+    fi
+
     show_banner
     check_requirements
 
     while true; do
         show_install_menu
         read -p "Selecione uma opção [1-5]: " choice
-        if process_menu_choice "$choice"; then
+        if process_menu_choice "$choice" ""; then
             success "Operação concluída."
         else
             warn "Operação falhou ou foi cancelada."

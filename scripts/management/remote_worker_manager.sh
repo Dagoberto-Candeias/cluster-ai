@@ -30,6 +30,7 @@ show_help() {
     echo "  stop                  - Para todos os workers em todos os nós remotos."
     echo "  status                - Verifica o status dos workers em todos os nós remotos."
     echo "  check-ssh             - Verifica a conectividade SSH sem senha para todos os nós."
+    echo "  exec \"<command>\"      - Executa um comando arbitrário em todos os nós remotos."
     echo "  help                  - Mostra esta ajuda."
 }
 
@@ -179,6 +180,25 @@ do_status() {
     done < <(get_nodes)
 }
 
+# Executa um comando arbitrário em todos os nós
+do_exec() {
+    local command_to_run="$1"
+    if [ -z "$command_to_run" ]; then
+        error "Nenhum comando fornecido para execução."
+        show_help
+        return 1
+    fi
+
+    section "Executando Comando Remoto em Todos os Nós"
+    info "Comando: $command_to_run"
+    if ! check_nodes_file; then return 1; fi
+
+    while read -r hostname ip user; do
+        subsection "Executando em: $user@$hostname ($ip)"
+        ssh -o ConnectTimeout=10 "$user@$hostname" "$command_to_run" || error "  -> Falha ao executar comando em $hostname."
+    done < <(get_nodes)
+}
+
 # --- Menu Principal ---
 main() {
     case "${1:-help}" in
@@ -186,6 +206,7 @@ main() {
         stop) do_stop ;;
         status) do_status ;;
         check-ssh) check_ssh_connectivity ;;
+        exec) do_exec "${*:2}" ;; # Passa todos os argumentos a partir do segundo como um único comando
         *) show_help ;;
     esac
 }

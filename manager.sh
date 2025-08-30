@@ -52,8 +52,9 @@ show_menu() {
     echo "17.  Lint (verificar qualidade do código)"
     echo "18. 🔄 Atualizar o Cluster AI (via Git)"
     echo "19. 🗄️ Gerenciar Backups"
+    echo "20. 📊 Gerar relatório de performance"
     echo "---"
-    echo "20. 🚪 Sair"
+    echo "21. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -280,11 +281,12 @@ run_remote_worker_menu() {
         echo "2. Parar workers em TODOS os nós remotos"
         echo "3. Mostrar status dos workers remotos"
         echo "4. ➕ Adicionar e configurar um novo worker"
-        echo "5. 🔗 Verificar conectividade SSH com os nós"
+        echo "5. 🚀 Executar comando em TODOS os nós"
+        echo "6. 🔗 Verificar conectividade SSH com os nós"
         echo "---"
-        echo "6. Voltar ao menu principal"
+        echo "7. Voltar ao menu principal"
 
-        read -p "Selecione uma opção [1-6]: " choice
+        read -p "Selecione uma opção [1-7]: " choice
         case $choice in
             1)
                 read -p "Digite o IP do Dask Scheduler (este nó): " scheduler_ip
@@ -308,10 +310,19 @@ run_remote_worker_menu() {
                 bash "${SCRIPTS_DIR}/deployment/setup_new_worker.sh"
                 ;;
             5)
+                read -p "Digite o comando a ser executado remotamente: " cmd_to_run
+                if [ -n "$cmd_to_run" ]; then
+                    audit_log "remote_worker_exec" "ATTEMPT" "Command: $cmd_to_run"
+                    bash "$remote_manager_script" exec "$cmd_to_run"
+                else
+                    warn "Comando não pode ser vazio."
+                fi
+                ;;
+            6)
                 audit_log "remote_worker_check_ssh" "EXECUTE"
                 bash "$remote_manager_script" check-ssh
                 ;;
-            6) break ;;
+            7) break ;;
             *) warn "Opção inválida." ;;
         esac
         read -p "Pressione Enter para continuar..."
@@ -531,11 +542,16 @@ run_backup_manager() {
     done
 }
 
+run_performance_reporter() {
+    section "Gerando Relatório de Performance"
+    bash "${SCRIPTS_DIR}/reporting/generate_performance_report.sh"
+}
+
 main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
         show_menu
-        read -p "Selecione uma opção [1-20]: " choice
+        read -p "Selecione uma opção [1-21]: " choice
         case $choice in
             1) audit_log "start_all" "ATTEMPT"; start_all_services && audit_log "start_all" "SUCCESS" || audit_log "start_all" "FAIL" ;;
             2) audit_log "stop_all" "ATTEMPT"; stop_all_services && audit_log "stop_all" "SUCCESS" || audit_log "stop_all" "FAIL" ;;
@@ -569,7 +585,8 @@ main() {
             17) audit_log "run_linter" "EXECUTE"; run_linter ;;
             18) audit_log "run_updater" "EXECUTE"; run_auto_updater ;;
             19) audit_log "backup_manager" "ENTER"; run_backup_manager; audit_log "backup_manager" "EXIT" ;;
-            20) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            20) audit_log "run_perf_report" "EXECUTE"; run_performance_reporter ;;
+            21) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""
