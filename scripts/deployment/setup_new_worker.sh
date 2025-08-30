@@ -68,7 +68,7 @@ add_node_to_list() {
     if grep -q -E "($hostname|$ip)" "$NODES_LIST_FILE"; then
         info "Nó '$hostname' ($ip) já existe na lista."
     else
-        echo "$hostname $ip $user" >> "$NODES_LIST_FILE"
+        echo "$hostname $ip $user 22" >> "$NODES_LIST_FILE" # Adiciona com a porta padrão 22
         success "Nó '$hostname' ($ip) adicionado a $NODES_LIST_FILE."
     fi
 }

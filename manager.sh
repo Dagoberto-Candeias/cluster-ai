@@ -282,11 +282,12 @@ run_remote_worker_menu() {
         echo "3. Mostrar status dos workers remotos"
         echo "4. ➕ Adicionar e configurar um novo worker"
         echo "5. 🚀 Executar comando em TODOS os nós"
-        echo "6. 🔗 Verificar conectividade SSH com os nós"
+        echo "6. 📱 Configurar um worker Android (Termux)"
+        echo "7. 🔗 Verificar conectividade SSH com os nós"
         echo "---"
-        echo "7. Voltar ao menu principal"
+        echo "8. Voltar ao menu principal"
 
-        read -p "Selecione uma opção [1-7]: " choice
+        read -p "Selecione uma opção [1-8]: " choice
         case $choice in
             1)
                 read -p "Digite o IP do Dask Scheduler (este nó): " scheduler_ip
@@ -319,10 +320,26 @@ run_remote_worker_menu() {
                 fi
                 ;;
             6)
+                audit_log "setup_android_worker" "GUIDE"
+                subsection "Passo 1: Guia para Configurar Worker Android (Termux)"
+                info "Para configurar seu dispositivo Android como um worker, siga estes passos:"
+                echo "1. Instale o aplicativo 'Termux' da F-Droid ou Play Store no seu Android."
+                echo "2. Abra o Termux e execute o seguinte comando para baixar e rodar o script de configuração:"
+                echo ""
+                warn "   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash"
+                echo ""
+                info "3. O script irá guiá-lo pelo resto do processo no seu dispositivo. Copie a chave SSH pública ao final."
+                
+                if confirm_operation "Você completou os passos acima e copiou a chave SSH? Deseja registrar o worker agora?"; then
+                    subsection "Passo 2: Registrando o Worker no Servidor"
+                    bash "${SCRIPTS_DIR}/deployment/register_worker_node.sh"
+                fi
+                ;;
+            7)
                 audit_log "remote_worker_check_ssh" "EXECUTE"
                 bash "$remote_manager_script" check-ssh
                 ;;
-            7) break ;;
+            8) break ;;
             *) warn "Opção inválida." ;;
         esac
         read -p "Pressione Enter para continuar..."

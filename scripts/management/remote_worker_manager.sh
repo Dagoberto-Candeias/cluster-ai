@@ -115,9 +115,9 @@ do_stop() {
     section "Parando Workers Dask Remotos"
     if ! check_nodes_file; then return 1; fi
 
-    while read -r hostname ip user; do
+    while read -r hostname ip user port; do
         log "Parando worker em: $user@$hostname ($ip)"
-        if ssh -o ConnectTimeout=5 "$user@$hostname" "pkill -f dask-worker"; then
+        if ssh -p "${port:-22}" -o ConnectTimeout=5 "$user@$hostname" "pkill -f dask-worker"; then
             success "  -> Comando de parada enviado para $hostname."
         else
             warn "  -> Falha ao parar worker em $hostname (ou nenhum worker estava rodando)."
@@ -134,13 +134,13 @@ do_status() {
     printf "%-25s | %-15s | %-18s | %-15s | %-12s\n" "Hostname" "IP" "Worker Status" "Node CPU Load" "Node Mem %"
     printf "%s\n" "--------------------------|-----------------|--------------------|-----------------|-------------"
 
-    while read -r hostname ip user; do
+    while read -r hostname ip user port; do
         if [ -z "$hostname" ]; then continue; fi
 
         # 1. Verificar status do worker Dask
         local worker_check_cmd="pgrep -fc dask-worker"
         local worker_count
-        worker_count=$(ssh -o ConnectTimeout=5 "$user@$hostname" "$worker_check_cmd" 2>/dev/null || echo 0)
+        worker_count=$(ssh -p "${port:-22}" -o ConnectTimeout=5 "$user@$hostname" "$worker_check_cmd" 2>/dev/null || echo 0)
 
         local worker_status
         if [ "$worker_count" -gt 0 ]; then
@@ -152,7 +152,7 @@ do_status() {
         # 2. Obter métricas gerais do nó (CPU Load e Memória)
         local node_metrics_cmd="uptime | awk -F'load average: ' '{print \$2}' | awk '{print \$1}' | tr -d ','; echo '|'; free -m | awk '/Mem:/ {printf \"%d\", \$3/\$2 * 100}'"
         local metrics_output
-        metrics_output=$(ssh -o ConnectTimeout=5 "$user@$hostname" "$node_metrics_cmd" 2>/dev/null)
+        metrics_output=$(ssh -p "${port:-22}" -o ConnectTimeout=5 "$user@$hostname" "$node_metrics_cmd" 2>/dev/null)
 
         local node_cpu_load="N/A"
         local node_mem_perc_raw="N/A"
@@ -193,9 +193,9 @@ do_exec() {
     info "Comando: $command_to_run"
     if ! check_nodes_file; then return 1; fi
 
-    while read -r hostname ip user; do
+    while read -r hostname ip user port; do
         subsection "Executando em: $user@$hostname ($ip)"
-        ssh -o ConnectTimeout=10 "$user@$hostname" "$command_to_run" || error "  -> Falha ao executar comando em $hostname."
+        ssh -p "${port:-22}" -o ConnectTimeout=10 "$user@$hostname" "$command_to_run" || error "  -> Falha ao executar comando em $hostname."
     done < <(get_nodes)
 }
 
