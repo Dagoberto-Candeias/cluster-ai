@@ -540,26 +540,28 @@ run_backup_manager() {
         echo "2. ⚙️ Fazer Backup apenas das Configurações"
         echo "3. 🧠 Fazer Backup apenas dos Modelos Ollama"
         echo "4. 🐳 Fazer Backup apenas dos Dados Docker"
-        echo "5. 🔄 Restaurar a partir de um backup"
+        echo "5. 🖧 Fazer Backup Apenas dos Workers Remotos"
+        echo "6. 🔄 Restaurar a partir de um backup"
         echo "---"
-        echo "6. 📋 Listar Backups existentes"
-        echo "7. 🗑️ Limpar Backups antigos"
+        echo "7. 📋 Listar Backups existentes"
+        echo "8. 🗑️ Limpar Backups antigos"
         echo "---"
-        echo "8. ↩️ Voltar ao menu principal"
-        read -p "Selecione uma opção [1-8]: " choice
+        echo "9. ↩️ Voltar ao menu principal"
+        read -p "Selecione uma opção [1-9]: " choice
 
         case $choice in
             1) audit_log "backup_full" "EXECUTE"; bash "$backup_script" full ;;
             2) audit_log "backup_config" "EXECUTE"; bash "$backup_script" config ;;
             3) audit_log "backup_models" "EXECUTE"; bash "$backup_script" models ;;
             4) audit_log "backup_docker" "EXECUTE"; bash "$backup_script" docker-data ;;
-            5) 
+            5) audit_log "backup_remote" "EXECUTE"; bash "$backup_script" remote-workers ;;
+            6) 
                audit_log "restore_start" "EXECUTE"
                bash "${SCRIPTS_DIR}/maintenance/restore_manager.sh"
                ;;
-            6) audit_log "backup_list" "EXECUTE"; bash "$backup_script" list ;;
-            7) audit_log "backup_cleanup" "EXECUTE"; bash "$backup_script" cleanup ;;
-            8) break ;;
+            7) audit_log "backup_list" "EXECUTE"; bash "$backup_script" list ;;
+            8) audit_log "backup_cleanup" "EXECUTE"; bash "$backup_script" cleanup ;;
+            9) break ;;
             *) warn "Opção inválida." ;;
         esac
         read -p "Pressione Enter para continuar..."

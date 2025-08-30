@@ -498,6 +498,7 @@ REMOTE_EOF
         local disk_usage; disk_usage=$(echo "$remote_output" | grep "DISK_USAGE" | cut -d= -f2)
         local dask_workers; dask_workers=$(echo "$remote_output" | grep "DASK_WORKERS" | cut -d= -f2)
         local ollama_status; ollama_status=$(echo "$remote_output" | grep "OLLAMA_STATUS" | cut -d= -f2)
+        local battery_level; battery_level=$(echo "$remote_output" | grep "BATTERY_LEVEL" | cut -d= -f2)
 
         # Exibir status
         if [ "$dask_workers" -gt 0 ]; then
@@ -506,7 +507,7 @@ REMOTE_EOF
             warn "   - Dask Workers: INATIVO"
         fi
 
-        if [[ "$ollama_status" == "ATIVO" || "$ollama_status" == "ATIVO (processo)" ]]; then
+        if [[ "$ollama_status" == "ATIVO"* ]]; then
             success "   - Ollama: $ollama_status"
         else
             warn "   - Ollama: $ollama_status"
@@ -529,7 +530,16 @@ REMOTE_EOF
         
         success "   - Carga de CPU: $cpu_load"
 
-    done < <(grep -vE '^\s*(#|$)' "$nodes_file")
+        # Exibir status da bateria para Android
+        if [[ "$node_type" == "Android" ]]; then
+            if [[ "$battery_level" != "N/A" ]]; then
+                success "   - Bateria: ${battery_level}%"
+            else
+                warn "   - Bateria: Não foi possível obter o status (verifique se a API do Termux está instalada)"
+            fi
+        fi
+
+    done < <(grep -vE '^\s*(#|$)' "$nodes_file") # Lê o arquivo de nós, incluindo a porta
 }
 
 # Função para verificar containers Docker com health check

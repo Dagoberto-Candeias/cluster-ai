@@ -68,6 +68,11 @@ run_security_tests() {
     run_test "Teste de Funções de Segurança" "scripts/validation/test_security_functions.sh"
 }
 
+run_optimizer_tests() {
+    section "Testes do Otimizador de Recursos"
+    run_test "Teste do Otimizador Android" "scripts/validation/test_android_optimizer.sh"
+}
+
 run_installation_tests() {
     section "Testes de Instalação"
     run_test "Teste de Instaladores" "scripts/validation/test_installer_distros.sh"
@@ -156,6 +161,7 @@ main() {
     run_syntax_check
     run_security_tests
     run_installation_tests
+    run_optimizer_tests
     run_logging_tests
     run_validation_tests
     run_health_check

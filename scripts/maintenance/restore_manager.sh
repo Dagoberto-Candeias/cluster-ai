@@ -1,12 +1,13 @@
 #!/bin/bash
 # Gerenciador de Restauração para o Cluster AI
-# Descrição: Restaura configurações, modelos Ollama e dados de containers a partir de um backup.
+# Descrição: Restaura backups de configurações, modelos e workers remotos.
 
 set -euo pipefail
 
 # --- Configuração Inicial ---
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
+BACKUP_DIR="${PROJECT_ROOT}/backups"
 
 # Carregar funções comuns
 if [ ! -f "${UTILS_DIR}/common.sh" ]; then
@@ -15,27 +16,27 @@ if [ ! -f "${UTILS_DIR}/common.sh" ]; then
 fi
 source "${UTILS_DIR}/common.sh"
 
-# --- Configurações ---
-BACKUP_BASE_DIR="${PROJECT_ROOT}/backups"
-OPENWEBUI_CONTAINER_NAME="open-webui"
-
 # --- Funções ---
 
 show_help() {
     echo "Uso: $0"
-    echo "Inicia um assistente interativo para restaurar o sistema a partir de um backup."
+    echo "Gerencia a restauração de backups para o Cluster AI."
 }
 
-list_backups() {
-    section "Backups Disponíveis em $BACKUP_BASE_DIR"
-    if [ ! -d "$BACKUP_BASE_DIR" ] || [ -z "$(ls -A "$BACKUP_BASE_DIR"/*.tar.gz 2>/dev/null)" ]; then
-        warn "Nenhum backup encontrado."
+# Função para listar backups disponíveis por tipo
+list_backups_by_type() {
+    local type_prefix="$1" # ex: "backup_worker_"
+    local description="$2" # ex: "Worker Remoto"
+    
+    section "Backups de $description Disponíveis"
+    if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR"/${type_prefix}*.tar.gz 2>/dev/null)" ]; then
+        warn "Nenhum backup de '$description' encontrado."
         return 1
     fi
     
     local i=1
-    # Usa mapfile para ler arquivos em um array, ls -1t ordena por tempo (mais novo primeiro)
-    mapfile -t backups < <(ls -1t "$BACKUP_BASE_DIR"/*.tar.gz)
+    # Use mapfile para ler os arquivos em um array, ordenados pelo mais recente
+    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/${type_prefix}*.tar.gz)
     for backup in "${backups[@]}"; do
         echo "  $i) $(basename "$backup")"
         ((i++))
@@ -43,119 +44,90 @@ list_backups() {
     return 0
 }
 
-# Para os serviços que serão afetados pela restauração
-stop_services_for_restore() {
-    subsection "Parando serviços necessários para a restauração"
-    if command_exists docker && docker ps --format '{{.Names}}' | grep -q "^${OPENWEBUI_CONTAINER_NAME}$"; then
-        log "Parando container OpenWebUI..."
-        sudo docker stop "$OPENWEBUI_CONTAINER_NAME" >/dev/null
-        success "Container OpenWebUI parado."
+# Função para restaurar um backup de worker remoto
+do_restore_remote_worker() {
+    if ! list_backups_by_type "backup_worker_" "Worker Remoto"; then
+        return 1
     fi
-    if service_active ollama; then
-        log "Parando serviço Ollama..."
-        sudo systemctl stop ollama
-        success "Serviço Ollama parado."
-    fi
-}
-
-# Reinicia os serviços após a restauração
-start_services_after_restore() {
-    subsection "Reiniciando serviços após a restauração"
-    if command_exists docker && docker ps -a --format '{{.Names}}' | grep -q "^${OPENWEBUI_CONTAINER_NAME}$"; then
-        log "Iniciando container OpenWebUI..."
-        sudo docker start "$OPENWEBUI_CONTAINER_NAME" >/dev/null
-        success "Container OpenWebUI iniciado."
-    fi
-    if ! service_active ollama; then
-        log "Iniciando serviço Ollama..."
-        sudo systemctl start ollama
-        success "Serviço Ollama iniciado."
-    fi
-}
-
-# Função para obter o caminho de um volume Docker
-get_docker_volume_path() {
-    local volume_name="$1"
-    if ! command_exists docker; then return 1; fi
-    if command_exists jq; then
-        sudo docker volume inspect "$volume_name" | jq -r '.[0].Mountpoint' 2>/dev/null
-    else
-        sudo docker volume inspect "$volume_name" | grep "Mountpoint" | awk -F'"' '{print $4}' 2>/dev/null
-    fi
-}
-
-# Função principal de restauração
-do_restore() {
-    section "Assistente de Restauração do Cluster AI"
-    
-    if ! list_backups; then return 1; fi
     
     echo ""
-    read -p "Digite o número do backup que deseja restaurar (ou 'q' para cancelar): " choice
-
-    if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
-        log "Restauração cancelada."
-        return 0
-    fi
-
-    mapfile -t backups < <(ls -1t "$BACKUP_BASE_DIR"/*.tar.gz)
+    read -p "Digite o número do backup que deseja restaurar: " choice
+    
+    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/backup_worker_*.tar.gz)
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#backups[@]} ]; then
         error "Seleção inválida."
         return 1
     fi
-
+    
     local backup_to_restore="${backups[$((choice-1))]}"
-    log "Restaurando a partir de: $(basename "$backup_to_restore")"
-
-    if ! confirm_operation "Esta ação irá SOBRESCREVER dados atuais com o conteúdo do backup. Deseja continuar?"; then
+    
+    subsection "Restaurando Backup de Worker Remoto"
+    log "Backup selecionado: $(basename "$backup_to_restore")"
+    
+    echo ""
+    info "Agora, forneça os detalhes do NOVO dispositivo worker para onde o backup será restaurado."
+    read -p "Digite o nome de usuário do novo worker: " remote_user
+    read -p "Digite o hostname ou IP do novo worker: " remote_host
+    read -p "Digite a porta SSH do worker (padrão: 22 para Linux, 8022 para Android): " remote_port
+    remote_port=${remote_port:-22}
+    
+    if [ -z "$remote_user" ] || [ -z "$remote_host" ]; then
+        error "Usuário e host são obrigatórios. Abortando."
+        return 1
+    fi
+    
+    if ! confirm_operation "Restaurar '$(basename "$backup_to_restore")' para '$remote_user@$remote_host:$remote_port'?"; then
         log "Restauração cancelada."
         return 0
     fi
-
-    local staging_dir; staging_dir=$(mktemp -d); trap 'rm -rf "$staging_dir"' EXIT
-    log "Extraindo backup para um diretório temporário..."
-    tar -xzf "$backup_to_restore" -C "$staging_dir"
-
-    stop_services_for_restore
-
-    # Restaurar arquivos do HOME do usuário (inclui .ollama, .ssh, .cluster_config, etc.)
-    if [ -d "$staging_dir/user_home" ]; then
-        subsection "Restaurando configurações e dados do usuário"
-        rsync -av --chown=$(whoami):$(whoami) "$staging_dir/user_home/" "$HOME/"
-        success "Configurações e dados do usuário restaurados."
+    
+    local remote_tmp_file="/tmp/$(basename "$backup_to_restore")"
+    
+    log "1. Enviando arquivo de backup para $remote_host..."
+    if scp -P "$remote_port" "$backup_to_restore" "$remote_user@$remote_host:$remote_tmp_file" >/dev/null; then
+        success "  -> Arquivo de backup enviado com sucesso."
+    else
+        error "  -> Falha ao enviar o arquivo de backup. Verifique a conexão e as permissões."
+        return 1
     fi
-
-    # Restaurar dados do Docker
-    if [ -d "$staging_dir/docker_volumes_data" ]; then
-        subsection "Restaurando dados de volumes Docker"
-        local webui_volume_path; webui_volume_path=$(get_docker_volume_path "open-webui")
-        if [ -n "$webui_volume_path" ] && [ -d "$webui_volume_path" ]; then
-            log "Restaurando dados para o volume 'open-webui' em $webui_volume_path..."
-            sudo rsync -av --delete "$staging_dir/docker_volumes_data/" "$webui_volume_path/"
-            success "Dados do volume 'open-webui' restaurados."
-        else
-            warn "Volume Docker 'open-webui' não encontrado no sistema. Pulando restauração de dados Docker."
-        fi
+    
+    log "2. Extraindo backup no dispositivo remoto..."
+    # O comando tar extrai os arquivos no diretório HOME do usuário remoto
+    local remote_cmd="tar -xzf '$remote_tmp_file' -C '$HOME' && rm '$remote_tmp_file'"
+    
+    if ssh -p "$remote_port" "$remote_user@$remote_host" "$remote_cmd"; then
+        success "  -> Backup extraído e arquivo temporário removido com sucesso."
+    else
+        error "  -> Falha ao extrair o backup no dispositivo remoto."
+        warn "  -> O arquivo temporário '$remote_tmp_file' pode não ter sido removido."
+        return 1
     fi
-
-    start_services_after_restore
-
+    
     echo ""
-    success "🎉 Restauração concluída com sucesso!"
-    info "Verifique se os serviços estão funcionando como esperado."
+    success "🎉 Restauração do worker concluída!"
+    info "O novo worker '$remote_host' agora tem os dados (modelos, configs) do backup."
+    info "Lembre-se de registrar este novo nó no 'nodes_list.conf' se ainda não o fez."
 }
 
-# --- Execução ---
+# --- Menu Principal ---
 main() {
-    if [[ "${1:-}" == "help" ]]; then
-        show_help
-    else
-        if [[ $EUID -eq 0 ]]; then
-            error "Este script não deve ser executado como root. Use sudo quando solicitado."
-            return 1
-        fi
-        do_restore
-    fi
+    while true; do
+        clear
+        section "Gerenciador de Restauração - Cluster AI"
+        echo "1. 🖧 Restaurar um Worker Remoto para um novo dispositivo"
+        echo "2. 🖥️ Restaurar Backup Local (Configurações, Modelos, etc.)"
+        echo "---"
+        echo "3. ↩️ Voltar ao menu principal"
+        read -p "Selecione uma opção [1-3]: " choice
+
+        case $choice in
+            1) do_restore_remote_worker ;;
+            2) warn "Funcionalidade de restauração local ainda em desenvolvimento." ;;
+            3) break ;;
+            *) warn "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
 }
 
 main "$@"
