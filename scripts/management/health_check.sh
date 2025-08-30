@@ -700,6 +700,45 @@ check_vscode_extensions() {
     fi
 }
 
+# Função para verificar se o README.md está atualizado
+check_readme_freshness() {
+    subsection "Documentação (README.md)"
+    local readme_file="${PROJECT_ROOT}/README.md"
+
+    if ! check_file "$readme_file" "Arquivo README.md" true; then
+        # A função check_file já reporta o erro e atualiza OVERALL_HEALTH
+        return
+    fi
+
+    # 1. Verificar se o README foi gerado pelo script de documentação
+    if ! grep -q "Este README foi gerado automaticamente" "$readme_file"; then
+        fail "❌ README.md: Não parece ter sido gerado dinamicamente."
+        report_issue "FAIL" "Documentation" "README.md não foi gerado pelo script" "Use a opção 'Gerar README.md' no manager.sh"
+        OVERALL_HEALTH=false
+        return
+    fi
+
+    # 2. Verificar se o README está desatualizado em relação aos scripts do projeto
+    local readme_mtime
+    readme_mtime=$(stat -c %Y "$readme_file")
+    
+    # Encontrar o script .sh modificado mais recentemente no projeto
+    local latest_script_mtime
+    latest_script_mtime=$(find "$PROJECT_ROOT" -name "*.sh" -printf '%T@\n' | sort -nr | head -1 | cut -d. -f1)
+
+    if [ "$latest_script_mtime" -gt "$readme_mtime" ]; then
+        local last_mod_script
+        last_mod_script=$(find "$PROJECT_ROOT" -name "*.sh" -printf '%T@ %p\n' | sort -nr | head -1 | awk '{print $2}')
+        last_mod_script=$(realpath --relative-to="$PROJECT_ROOT" "$last_mod_script")
+
+        fail "❌ README.md: Desatualizado. O script '$last_mod_script' foi modificado mais recentemente."
+        report_issue "FAIL" "Documentation" "README.md está desatualizado" "Use a opção 'Gerar README.md' no manager.sh"
+        OVERALL_HEALTH=false
+    else
+        success "✅ README.md: Atualizado e sincronizado com os scripts do projeto."
+    fi
+}
+
 # Função para imprimir o relatório final em formato de tabela
 print_summary_report() {
     if [ ${#ISSUES_FOUND[@]} -eq 0 ]; then
@@ -781,6 +820,10 @@ main() {
     check_directory "$HOME/cluster_scripts" "Diretório de scripts do cluster"
     check_directory "$HOME/.ollama" "Diretório do Ollama"
     check_directory ".venv" "Diretório .venv do projeto"
+
+    # Verificar documentação
+    echo -e "\n${BLUE}12. DOCUMENTAÇÃO DO PROJETO${NC}"
+    check_readme_freshness
 
     # Imprimir tabela de problemas
     print_summary_report

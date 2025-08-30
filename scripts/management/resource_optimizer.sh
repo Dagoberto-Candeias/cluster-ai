@@ -15,6 +15,7 @@ fi
 CONFIG_DIR="$HOME/.cluster_optimization"
 CLUSTER_CONFIG_DIR="$HOME/.cluster_config"
 LOG_FILE="$CONFIG_DIR/optimization.log"
+OPENWEBUI_CONTAINER_NAME="open-webui"
 CHECK_INTERVAL=60  # Verificação a cada 60 segundos
 export CLUSTER_AI_LOG_FILE="$LOG_FILE"
 
@@ -64,6 +65,10 @@ calculate_optimized_settings() {
     local ollama_num_gpu_layers=0
     local ollama_max_loaded_models=1
     local reserved_mem_for_os=2048 # Reservar 2GB para o SO
+
+    # Limites para o container Docker (OpenWebUI)
+    local docker_openwebui_cpus="1.0"
+    local docker_openwebui_memory="1g"
 
     # Perfil de Otimização: GPU vs CPU
     if [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 4000 ]; then
@@ -124,6 +129,8 @@ calculate_optimized_settings() {
     echo "DASK_WORKER_CLASS=$dask_worker_class"
     echo "OLLAMA_NUM_GPU_LAYERS=$ollama_num_gpu_layers"
     echo "OLLAMA_MAX_LOADED_MODELS=$ollama_max_loaded_models"
+    echo "DOCKER_OPENWEBUI_CPUS=$docker_openwebui_cpus"
+    echo "DOCKER_OPENWEBUI_MEMORY=$docker_openwebui_memory"
 }
 
 # Função para aplicar configurações otimizadas
@@ -137,6 +144,8 @@ apply_optimized_settings() {
     local dask_worker_class=$(echo "$settings" | grep "DASK_WORKER_CLASS=" | cut -d= -f2)
     local ollama_num_gpu_layers=$(echo "$settings" | grep "OLLAMA_NUM_GPU_LAYERS=" | cut -d= -f2)
     local ollama_max_loaded_models=$(echo "$settings" | grep "OLLAMA_MAX_LOADED_MODELS=" | cut -d= -f2)
+    local docker_cpus=$(echo "$settings" | grep "DOCKER_OPENWEBUI_CPUS=" | cut -d= -f2)
+    local docker_memory=$(echo "$settings" | grep "DOCKER_OPENWEBUI_MEMORY=" | cut -d= -f2)
     
     log "Aplicando configurações otimizadas:"
     log "  Dask Workers: $dask_workers"
@@ -145,6 +154,8 @@ apply_optimized_settings() {
     log "  Dask Worker Class: $dask_worker_class"
     log "  Ollama GPU Layers: $ollama_num_gpu_layers"
     log "  Ollama Max Loaded Models: $ollama_max_loaded_models"
+    log "  OpenWebUI Docker CPUs: $docker_cpus"
+    log "  OpenWebUI Docker Memory: $docker_memory"
     
     # Atualizar configuração do Dask
     update_dask_config "$dask_workers" "$dask_threads" "$memory_limit" "$dask_worker_class"
@@ -155,6 +166,9 @@ apply_optimized_settings() {
     else
         warn "A atualização da configuração do Ollama foi pulada."
     fi
+
+    # Atualizar limites do container Docker
+    update_docker_container_limits "$OPENWEBUI_CONTAINER_NAME" "$docker_cpus" "$docker_memory"
 }
 
 # Função para atualizar a configuração do Dask
@@ -210,6 +224,32 @@ EOL
         log "Configuração do Ollama atualizada e serviço reiniciado"
     else
         log "Configuração do Ollama atualizada. Inicie o serviço para aplicar."
+    fi
+}
+
+# Função para atualizar os limites de um container Docker
+update_docker_container_limits() {
+    local container_name="$1"
+    local cpus="$2"
+    local memory="$3"
+
+    subsection "Atualizando Limites do Container Docker: $container_name"
+
+    if ! command_exists docker; then
+        warn "Comando 'docker' não encontrado. Pulando atualização de container."
+        return 1
+    fi
+
+    if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        warn "Container '$container_name' não encontrado. Pulando atualização."
+        return 1
+    fi
+
+    log "Aplicando limites: --cpus $cpus --memory $memory para o container '$container_name'..."
+    if sudo docker update --cpus "$cpus" --memory "$memory" "$container_name" > /dev/null; then
+        success "Limites de recursos para o container '$container_name' atualizados."
+    else
+        error "Falha ao atualizar os limites do container '$container_name'."
     fi
 }
 
