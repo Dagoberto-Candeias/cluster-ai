@@ -114,13 +114,32 @@ do_stop() {
 do_status() {
     section "Status dos Workers Dask Remotos"
     if ! check_nodes_file; then return 1; fi
+    
+    # Cabeçalho da tabela
+    printf "%-25s | %-15s | %-12s | %-8s | %-8s\n" "Hostname" "IP" "Status" "CPU %" "Mem %"
+    printf "%s\n" "--------------------------|-----------------|--------------|----------|----------"
 
     while read -r hostname ip user; do
-        # Usamos pgrep para verificar se o processo está rodando
-        if ssh -o ConnectTimeout=5 "$user@$hostname" "pgrep -f dask-worker" >/dev/null 2>&1; then
-            success "  - $hostname ($ip): ATIVO"
+        if [ -z "$hostname" ]; then continue; fi
+
+        # Comando para obter o uso de CPU e Memória dos processos dask-worker
+        local remote_cmd="ps -C dask-worker -o %cpu,%mem --no-headers"
+        local status_output
+        status_output=$(ssh -o ConnectTimeout=5 "$user@$hostname" "$remote_cmd" 2>/dev/null)
+
+        if [ -n "$status_output" ]; then
+            # Agrega os valores se houver múltiplos workers no mesmo nó
+            local total_cpu=0
+            local total_mem=0
+            local worker_count=0
+            while read -r cpu mem; do
+                total_cpu=$(echo "$total_cpu + $cpu" | bc)
+                total_mem=$(echo "$total_mem + $mem" | bc)
+                ((worker_count++))
+            done <<< "$status_output"
+            printf "%-25s | %-15s | ${GREEN}%-12s${NC} | %-8.1f | %-8.1f\n" "$hostname" "$ip" "ATIVO ($worker_count)" "$total_cpu" "$total_mem"
         else
-            warn "  - $hostname ($ip): INATIVO"
+            printf "%-25s | %-15s | ${RED}%-12s${NC} | %-8s | %-8s\n" "$hostname" "$ip" "INATIVO" "N/A" "N/A"
         fi
     done < <(get_nodes)
 }
