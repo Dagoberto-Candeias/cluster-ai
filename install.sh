@@ -7,7 +7,7 @@ set -euo pipefail
 # ==================== CONFIGURAÇÃO INICIAL ====================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$SCRIPT_DIR"
 COMMON_SCRIPT="${PROJECT_ROOT}/scripts/lib/common.sh"
 INSTALL_FUNCTIONS="${PROJECT_ROOT}/scripts/lib/install_functions.sh"
 
@@ -48,28 +48,44 @@ show_banner() {
 check_requirements() {
     section "Verificando Requisitos do Sistema"
     check_root
-    local os
-    os=$(detect_os)
-    info "Sistema operacional detectado: $os"
+    
+    # Executar verificação pré-instalação completa
+    local pre_check_script="${PROJECT_ROOT}/scripts/installation/pre_install_check.sh"
+    if [ -f "$pre_check_script" ]; then
+        info "Executando verificação pré-instalação completa..."
+        if ! bash "$pre_check_script"; then
+            warn "Verificação pré-instalação encontrou problemas"
+            if ! confirm "Deseja continuar mesmo com os problemas detectados?" "n"; then
+                info "Instalação cancelada pelo usuário"
+                exit 0
+            fi
+        fi
+    else
+        warn "Script de verificação pré-instalação não encontrado, usando verificação básica"
+        
+        local os
+        os=$(detect_os)
+        info "Sistema operacional detectado: $os"
 
-    check_command "curl" "cURL" "sudo apt install curl / sudo yum install curl"
-    check_command "git" "Git" "sudo apt install git / sudo yum install git"
-    check_command "python3" "Python 3" "sudo apt install python3 / sudo yum install python3"
-    check_command "pip" "PIP" "sudo apt install python3-pip / sudo yum install python3-pip"
+        check_command "curl" "cURL" "sudo apt install curl / sudo yum install curl"
+        check_command "git" "Git" "sudo apt install git / sudo yum install git"
+        check_command "python3" "Python 3" "sudo apt install python3 / sudo yum install python3"
+        check_command "pip" "PIP" "sudo apt install python3-pip / sudo yum install python3-pip"
 
-    local mem_total
-    mem_total=$(free -h | awk '/Mem:/ {print $2}')
-    local disk_free
-    disk_free=$(df -h . | awk 'NR==2 {print $4}')
-    info "Memória total: $mem_total"
-    info "Espaço livre em disco: $disk_free"
+        local mem_total
+        mem_total=$(free -h | awk '/Mem:/ {print $2}')
+        local disk_free
+        disk_free=$(df -h . | awk 'NR==2 {print $4}')
+        info "Memória total: $mem_total"
+        info "Espaço livre em disco: $disk_free"
 
-    if [ "$(echo "$mem_total" | sed 's/G//')" -lt 8 ]; then
-        warn "Memória RAM baixa (mínimo recomendado: 8GB)"
-    fi
+        if [ "$(echo "$mem_total" | sed 's/G//')" -lt 8 ]; then
+            warn "Memória RAM baixa (mínimo recomendado: 8GB)"
+        fi
 
-    if [ "$(echo "$disk_free" | sed 's/G//')" -lt 50 ]; then
-        warn "Espaço em disco baixo (mínimo recomendado: 50GB)"
+        if [ "$(echo "$disk_free" | sed 's/G//')" -lt 50 ]; then
+            warn "Espaço em disco baixo (mínimo recomendado: 50GB)"
+        fi
     fi
 }
 
@@ -115,6 +131,7 @@ install_complete() {
     install_system_dependencies
     setup_python_environment
     setup_ollama
+    install_ollama_models
     setup_docker
     setup_cluster_role
     setup_services

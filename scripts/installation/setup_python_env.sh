@@ -32,7 +32,17 @@ main() {
     pip install --upgrade pip > /dev/null
 
     log "Instalando pacotes Python (dask, torch, fastapi, etc.)... Isso pode levar vários minutos."
-    pip install "dask[complete]" distributed numpy pandas scipy jupyterlab requests scikit-learn torch torchvision torchaudio transformers fastapi uvicorn pytest httpx > /dev/null
+    if ! pip install "dask[complete]" distributed numpy pandas scipy jupyterlab requests scikit-learn torch torchvision torchaudio transformers fastapi uvicorn pytest httpx > /dev/null 2>&1; then
+        warn "Falha na instalação de alguns pacotes Python. Tentando instalar pacotes individualmente..."
+        packages=("dask[complete]" distributed numpy pandas scipy jupyterlab requests scikit-learn torch torchvision torchaudio transformers fastapi uvicorn pytest httpx)
+        for pkg in "${packages[@]}"; do
+            if ! pip install "$pkg" > /dev/null 2>&1; then
+                warn "Falha ao instalar pacote Python: $pkg"
+            else
+                success "Pacote Python instalado: $pkg"
+            fi
+        done
+    fi
 
     deactivate
     success "Ambiente Python configurado com sucesso."

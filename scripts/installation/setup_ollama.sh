@@ -57,7 +57,35 @@ EOL
     success "Serviço Ollama configurado e reiniciado."
 }
 
-# Baixa os modelos de IA definidos na lista
+# Verifica espaço em disco disponível
+check_disk_space() {
+    local required_gb="$1"
+    local available_gb
+    
+    available_gb=$(df -BG ~ | awk 'NR==2 {print $4}' | sed 's/G//')
+    
+    if [ "$available_gb" -lt "$required_gb" ]; then
+        warn "Espaço em disco insuficiente. Disponível: ${available_gb}GB, Necessário: ${required_gb}GB"
+        return 1
+    fi
+    return 0
+}
+
+# Verifica memória disponível
+check_memory() {
+    local required_gb="$1"
+    local available_gb
+    
+    available_gb=$(free -g | awk '/Mem:/ {print $7}')
+    
+    if [ "$available_gb" -lt "$required_gb" ]; then
+        warn "Memória RAM insuficiente. Disponível: ${available_gb}GB, Recomendado: ${required_gb}GB"
+        return 1
+    fi
+    return 0
+}
+
+# Baixa modelos com verificação de recursos
 download_models() {
     if ! command_exists ollama; then
         error "Comando 'ollama' não encontrado. Não é possível baixar modelos."
@@ -65,12 +93,60 @@ download_models() {
     fi
 
     log "Iniciando download dos modelos essenciais do Ollama..."
+    
+    local failed_models=()
+    local skipped_models=()
+    
     for model in "${OLLAMA_MODELS[@]}"; do
         log "Verificando modelo: $model..."
-        ollama pull "$model"
+        
+        # Verificar requisitos antes de baixar
+        case $model in
+            *8b*|*7b*)
+                if ! check_disk_space 20 || ! check_memory 8; then
+                    warn "Pulando modelo $model devido a recursos insuficientes"
+                    skipped_models+=("$model")
+                    continue
+                fi
+                ;;
+            *13b*|*large*)
+                if ! check_disk_space 40 || ! check_memory 16; then
+                    warn "Pulando modelo $model devido a recursos insuficientes"
+                    skipped_models+=("$model")
+                    continue
+                fi
+                ;;
+            *)
+                if ! check_disk_space 10 || ! check_memory 4; then
+                    warn "Pulando modelo $model devido a recursos insuficientes"
+                    skipped_models+=("$model")
+                    continue
+                fi
+                ;;
+        esac
+        
+        # Tentar baixar o modelo
+        if ollama pull "$model"; then
+            success "Modelo $model baixado com sucesso"
+        else
+            error "Falha ao baixar modelo $model"
+            failed_models+=("$model")
+        fi
     done
 
-    success "Download de modelos concluído."
+    # Relatório final
+    if [ ${#failed_models[@]} -eq 0 ] && [ ${#skipped_models[@]} -eq 0 ]; then
+        success "Download de todos os modelos concluído com sucesso."
+    else
+        if [ ${#skipped_models[@]} -gt 0 ]; then
+            warn "Modelos pulados devido a recursos insuficientes: ${skipped_models[*]}"
+        fi
+        if [ ${#failed_models[@]} -gt 0 ]; then
+            error "Modelos que falharam no download: ${failed_models[*]}"
+        fi
+        info "Alguns modelos podem não estar disponíveis devido a limitações do sistema"
+    fi
+    
     ollama list
 }
 
