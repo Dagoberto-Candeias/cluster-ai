@@ -32,13 +32,29 @@ LOG_FILE="/tmp/cluster_ai_health_$(date +%Y%m%d_%H%M%S).log"
 OVERALL_HEALTH=true
 VENV_PRIORITY=("$PROJECT_ROOT/.venv" "$HOME/venv")  # Prioridade: .venv no projeto, depois $HOME/venv
 
+# Array para armazenar problemas encontrados
+ISSUES_FOUND=()
 
 # Funções de log aprimoradas
 log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%S')]${NC} $1"; }
-warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
-error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
 section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
+
+# Função para registrar e reportar um problema
+report_issue() {
+    local type="$1"      # "FAIL" or "WARN"
+    local component="$2"
+    local problem="$3"
+    local suggestion="$4"
+
+    # Adicionar ao array para o relatório final
+    ISSUES_FOUND+=("$type|$component|$problem|$suggestion")
+
+    # Exibir no console imediatamente
+    [ "$type" = "FAIL" ] && fail "❌ $component: $problem"
+    [ "$type" = "WARN" ] && warn "⚠️  $component: $problem"
+    [ -n "$suggestion" ] && echo "   💡 $suggestion"
+}
 
 # Função para verificar comando com sugestões de instalação
 check_command() {
@@ -50,10 +66,7 @@ check_command() {
         success "✅ $description: Disponível ($(which $cmd))"
         return 0
     else
-        fail "❌ $description: Não encontrado"
-        if [ -n "$install_cmd" ]; then
-            echo "   💡 Execute: $install_cmd"
-        fi
+        report_issue "FAIL" "$description" "Não encontrado" "Execute: $install_cmd"
         OVERALL_HEALTH=false
         return 1
     fi
@@ -68,9 +81,15 @@ check_service() {
         success "✅ $description: Ativo"
         return 0
     else
-        fail "❌ $description: Inativo"
-        echo "   💡 Execute: sudo systemctl start $service"
+        report_issue "FAIL" "$description" "Inativo" "Execute: sudo systemctl start $service_name"
         OVERALL_HEALTH=false
+        if confirm_operation "Tentar reiniciar o serviço $service_name?"; then
+            if sudo systemctl restart "$service_name"; then
+                success "✅ Serviço $service_name reiniciado com sucesso."
+            else
+                error "❌ Falha ao reiniciar o serviço $service_name."
+            fi
+        fi
         return 1
     fi
 }
@@ -87,16 +106,15 @@ check_directory() {
 
         # Verificar permissões de escrita
         if [ ! -w "$dir" ]; then
-            warn "⚠️  $description: Sem permissão de escrita"
-            echo "   💡 Execute: chmod 755 $dir"
+            report_issue "WARN" "$description" "Sem permissão de escrita" "Execute: chmod u+w $dir"
         fi
         return 0
     else
         if [ "$required" = true ]; then
-            fail "❌ $description: Não existe (OBRIGATÓRIO)"
+            report_issue "FAIL" "$description" "Não existe (OBRIGATÓRIO)" "Verifique a instalação ou crie o diretório."
             OVERALL_HEALTH=false
         else
-            warn "⚠️  $description: Não existe"
+            report_issue "WARN" "$description" "Não existe" "Este diretório é opcional ou será criado."
         fi
         return 1
     fi
@@ -114,10 +132,10 @@ check_file() {
         return 0
     else
         if [ "$required" = true ]; then
-            fail "❌ $description: Não existe (OBRIGATÓRIO)"
+            report_issue "FAIL" "$description" "Não existe (OBRIGATÓRIO)" "Verifique a instalação ou crie o arquivo."
             OVERALL_HEALTH=false
         else
-            warn "⚠️  $description: Não existe"
+            report_issue "WARN" "$description" "Não existe" "Este arquivo é opcional."
         fi
         return 1
     fi
@@ -131,7 +149,7 @@ check_network() {
     if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
         success "✅ Internet: Conectado"
     else
-        warn "⚠️  Internet: Sem conectividade"
+        report_issue "WARN" "Rede" "Sem conectividade com a internet" "Verifique o cabo de rede ou a conexão Wi-Fi."
         OVERALL_HEALTH=false
     fi
 
@@ -139,7 +157,7 @@ check_network() {
     if ping -c 1 -W 2 google.com >/dev/null 2>&1; then
         success "✅ DNS: Funcionando"
     else
-        warn "⚠️  DNS: Problemas de resolução"
+        report_issue "WARN" "Rede" "Problemas de resolução de DNS" "Verifique as configurações de DNS em /etc/resolv.conf."
         OVERALL_HEALTH=false
     fi
 
@@ -174,7 +192,7 @@ check_gpu() {
         return 0
     fi
     
-    warn "⚠️  GPU: Não detectada - Modo CPU"
+    report_issue "WARN" "GPU" "Não detectada" "O sistema usará o modo CPU. Para melhor performance, instale uma GPU e drivers."
     return 1
 }
 
@@ -186,8 +204,7 @@ check_pytorch() {
         success "✅ PyTorch: Funcionando"
         return 0
     else
-        fail "❌ PyTorch: Erro na importação"
-        echo "   💡 Execute: pip install torch torchvision torchaudio"
+        report_issue "FAIL" "PyTorch" "Erro na importação" "Ative o venv e execute: pip install torch torchvision torchaudio"
         OVERALL_HEALTH=false
         return 1
     fi
@@ -221,28 +238,31 @@ check_venv() {
                 if [ ${#missing_packages[@]} -eq 0 ]; then
                     success "📦 Pacotes essenciais: Todos presentes"
                 else
-                    warn "⚠️  Pacotes ausentes: ${missing_packages[*]}"
-                    echo "   💡 Execute: pip install ${missing_packages[*]}"
+                    report_issue "WARN" "Ambiente Python" "Pacotes ausentes: ${missing_packages[*]}" "Execute: pip install ${missing_packages[*]}"
+                    if confirm_operation "Deseja instalar os pacotes ausentes?"; then
+                        if python -m pip install "${missing_packages[@]}"; then
+                            success "✅ Pacotes instalados com sucesso."
+                        fi
+                    fi
                 fi
 
                 deactivate
             else
-                fail "❌ $venv_path: Corrompido ou não funcional"
+                report_issue "FAIL" "Ambiente Python" "$venv_path: Corrompido ou não funcional" "Remova o diretório e recrie com 'setup_python_env.sh'."
                 OVERALL_HEALTH=false
-                echo "   💡 Para remover o ambiente corrompido, execute o comando seguro abaixo:"
-                echo "      VENV_TO_DELETE=\"$venv_path\"; if [ -n \"\$VENV_TO_DELETE\" ] && [[ \"\$VENV_TO_DELETE\" == *\"$PROJECT_ROOT\"* || \"\$VENV_TO_DELETE\" == *\"$HOME\"* ]]; then rm -rf \"\$VENV_TO_DELETE\"; else echo 'Caminho inseguro, remoção abortada.'; fi"
-                echo "   Depois, recrie com: ./scripts/installation/venv_setup.sh"
             fi
             break
         fi
     done
     
     if [ "$venv_found" = false ]; then
-        fail "❌ Nenhum ambiente virtual encontrado"
+        report_issue "FAIL" "Ambiente Python" "Nenhum ambiente virtual encontrado" "Execute: ./scripts/installation/setup_python_env.sh"
         OVERALL_HEALTH=false
-        echo "💡 RECOMENDAÇÃO:"
-        echo "   Execute: ./scripts/installation/venv_setup.sh para criar ambiente virtual"
-        echo "   OU: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+        if [ -f "$PROJECT_ROOT/scripts/installation/setup_python_env.sh" ]; then
+            if confirm_operation "Deseja criar o ambiente virtual agora?"; then
+                bash "$PROJECT_ROOT/scripts/installation/setup_python_env.sh"
+            fi
+        fi
     fi
 
     # Documentar padrão recomendado
@@ -275,20 +295,22 @@ check_ollama() {
                         success "📦 Modelos Ollama: $((models_count - 1)) instalado(s)"
                         echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $1}' | tr '\n' ' ')"
                     else
-                        warn "⚠️  Modelos Ollama: Nenhum modelo instalado"
-                        echo "   💡 Execute: ollama pull llama2"
+                        report_issue "WARN" "Ollama" "Nenhum modelo instalado" "Execute: ollama pull llama3.1:8b"
+                        if confirm_operation "Deseja baixar um modelo padrão (llama3.1:8b)?"; then
+                            if ollama pull llama3.1:8b; then
+                                success "✅ Modelo padrão baixado com sucesso."
+                            fi
+                        fi
                     fi
                 else
-                    warn "⚠️  Ollama: Timeout ao listar modelos"
+                    report_issue "WARN" "Ollama API" "Timeout ao listar modelos" "Verifique a carga do sistema ou reinicie o serviço Ollama."
                 fi
             else
-                fail "❌ API Ollama: Não responde (HTTP $api_response)"
-                echo "   💡 Execute: sudo systemctl restart ollama"
+                report_issue "FAIL" "Ollama API" "Não responde (HTTP $api_response)" "Execute: sudo systemctl restart ollama"
                 OVERALL_HEALTH=false
             fi
         else
-            fail "❌ Serviço Ollama: Inativo"
-            echo "   💡 Execute: sudo systemctl start ollama"
+            report_issue "FAIL" "Ollama" "Serviço inativo" "Execute: sudo systemctl start ollama"
             OVERALL_HEALTH=false
         fi
 
@@ -296,8 +318,12 @@ check_ollama() {
         check_directory "$HOME/.ollama" "Diretório de modelos Ollama" false
 
     else
-        warn "⚠️  Ollama: Não instalado"
-        echo "   💡 Execute: curl -fsSL https://ollama.ai/install.sh | sh"
+        report_issue "WARN" "Ollama" "Não instalado" "Execute: curl -fsSL https://ollama.com/install.sh | sh"
+        if confirm_operation "Deseja tentar instalar o Ollama agora?"; then
+            if curl -fsSL https://ollama.com/install.sh | sh; then
+                success "✅ Ollama instalado. Execute o health check novamente para configurar."
+            fi
+        fi
     fi
 }
 
@@ -310,8 +336,7 @@ check_dask() {
         local scheduler_pid=$(pgrep -f "dask-scheduler")
         success "✅ Dask Scheduler: Executando (PID: $scheduler_pid)"
     else
-        warn "⚠️  Dask Scheduler: Não está executando"
-        echo "   💡 Execute: dask scheduler --port 8786 &"
+        report_issue "WARN" "Dask" "Scheduler não está executando" "Execute: ./manager.sh (opção 1)"
     fi
 
     # Verificar workers
@@ -321,8 +346,7 @@ check_dask() {
         # Mostrar informações dos workers
         pgrep -f "dask-worker" | xargs ps -o pid,pcpu,pmem,cmd -p 2>/dev/null | head -$((workers_count+1))
     else
-        warn "⚠️  Dask Workers: Nenhum worker executando"
-        echo "   💡 Execute: dask worker tcp://localhost:8786 --nworkers 4 &"
+        report_issue "WARN" "Dask" "Nenhum worker executando" "Execute: ./scripts/runtime/start_worker.sh <IP_DO_SCHEDULER>"
     fi
 
     # Verificar dashboard
@@ -338,14 +362,13 @@ check_docker_containers() {
     subsection "Containers Docker do Projeto"
     
     if ! command_exists docker; then
-        warn "⚠️  Docker: Não instalado - pulando verificação de containers"
+        report_issue "WARN" "Docker" "Não instalado" "Execute o script de instalação de dependências."
         return
     fi
 
     # Verificar se Docker está rodando
     if ! docker info >/dev/null 2>&1; then
-        fail "❌ Docker: Daemon não está rodando"
-        echo "   💡 Execute: sudo systemctl start docker"
+        report_issue "FAIL" "Docker" "Daemon não está rodando" "Execute: sudo systemctl start docker"
         OVERALL_HEALTH=false
         return
     fi
@@ -370,8 +393,12 @@ check_docker_containers() {
                     echo "   Saúde: $health"
                 fi
             else
-                warn "⚠️  Container $name: $status"
-                echo "   💡 Execute: docker start $name"
+                report_issue "WARN" "Container $name" "Status: $status" "Execute: docker start $name"
+                if confirm_operation "Tentar iniciar o container $name?"; then
+                    if docker start "$name"; then
+                        success "✅ Container $name iniciado."
+                    fi
+                fi
             fi
         else
             echo "   Container $container: Não encontrado"
@@ -401,12 +428,10 @@ check_resources() {
 
     # Alertas de memória
     if [ $mem_used_percent -gt 90 ]; then
-        error "🚨 ALERTA CRÍTICO: Uso de memória: ${mem_used_percent}%"
-        echo "   💡 Execute: ./scripts/utils/memory_manager.sh --optimize"
+        report_issue "FAIL" "Recursos" "Uso de memória crítico: ${mem_used_percent}%" "Execute: ./scripts/management/resource_optimizer.sh free-memory"
         OVERALL_HEALTH=false
     elif [ $mem_used_percent -gt 80 ]; then
-        warn "⚠️  AVISO: Uso de memória alto: ${mem_used_percent}%"
-        echo "   💡 Monitor: ./scripts/utils/memory_manager.sh --monitor"
+        report_issue "WARN" "Recursos" "Uso de memória alto: ${mem_used_percent}%" "Monitore os processos com 'top' ou 'htop'."
     fi
 
     # CPU
@@ -418,11 +443,10 @@ check_resources() {
 
     # Alertas de CPU
     if (( $(echo "$cpu_load_per_core > 2.0" | bc -l 2>/dev/null || echo "0") )); then
-        error "🚨 ALERTA CRÍTICO: Carga de CPU: ${cpu_load_per_core}/núcleo"
-        echo "   💡 Execute: ./scripts/optimization/performance_optimizer.sh"
+        report_issue "FAIL" "Recursos" "Carga de CPU crítica: ${cpu_load_per_core}/núcleo" "Verifique processos com 'top' ou 'htop'."
         OVERALL_HEALTH=false
     elif (( $(echo "$cpu_load_per_core > 1.5" | bc -l 2>/dev/null || echo "0") )); then
-        warn "⚠️  AVISO: Carga de CPU alta: ${cpu_load_per_core}/núcleo"
+        report_issue "WARN" "Recursos" "Carga de CPU alta: ${cpu_load_per_core}/núcleo" "Monitore os processos com 'top' ou 'htop'."
     fi
 
     # Disco
@@ -436,12 +460,10 @@ check_resources() {
 
     # Alertas de disco
     if [ $disk_usage_percent -gt 90 ]; then
-        error "🚨 ALERTA CRÍTICO: Uso de disco: ${disk_usage_percent}%"
-        echo "   💡 Execute: ./scripts/maintenance/clean-cache.sh"
+        report_issue "FAIL" "Recursos" "Uso de disco crítico: ${disk_usage_percent}%" "Execute: ./scripts/management/resource_optimizer.sh clean-disk"
         OVERALL_HEALTH=false
     elif [ $disk_usage_percent -gt 80 ]; then
-        warn "⚠️  AVISO: Uso de disco alto: ${disk_usage_percent}%"
-        echo "   💡 Execute: find ~ -name \"*.log\" -size +100M -exec ls -lh {} \\;"
+        report_issue "WARN" "Recursos" "Uso de disco alto: ${disk_usage_percent}%" "Considere limpar caches ou logs antigos."
     fi
 
     # GPU Memory (se disponível)
@@ -465,8 +487,7 @@ check_gpu_memory() {
             echo "🎮 GPU Memory: ${used}MB/${total}MB usado (${used_percent}%), Livre: ${free}MB"
 
             if [ $used_percent -gt 90 ]; then
-                warn "⚠️  Uso de memória GPU alto: ${used_percent}%"
-                echo "   💡 Execute: nvidia-smi para ver processos usando GPU"
+                report_issue "WARN" "GPU" "Uso de memória alto: ${used_percent}%" "Execute 'nvidia-smi' para ver processos que usam a GPU."
             fi
         fi
     fi
@@ -481,11 +502,10 @@ check_temperature() {
         echo "🌡️  Temperatura CPU: ${temp_c}°C"
 
         if [ $temp_c -gt 85 ]; then
-            error "🚨 ALERTA: Temperatura crítica: ${temp_c}°C"
-            echo "   💡 Verifique ventilação e limpeza do sistema"
+            report_issue "FAIL" "Hardware" "Temperatura da CPU crítica: ${temp_c}°C" "Verifique a ventilação e a limpeza do sistema."
             OVERALL_HEALTH=false
         elif [ $temp_c -gt 75 ]; then
-            warn "⚠️  Temperatura alta: ${temp_c}°C"
+            report_issue "WARN" "Hardware" "Temperatura da CPU alta: ${temp_c}°C" "Monitore a temperatura sob carga."
         fi
     # macOS
     elif command_exists osx-cpu-temp; then
@@ -525,8 +545,7 @@ check_io_performance() {
     fi
 
     if [[ "$speed" != "N/A" ]] && (( $(echo "$speed < 50" | bc -l) )); then
-        warn "⚠️  Performance de I/O baixa: ${speed} MB/s"
-        echo "   💡 Verifique saúde do disco: smartctl -a /dev/sda"
+        report_issue "WARN" "Hardware" "Performance de I/O baixa: ${speed} MB/s" "Verifique a saúde do disco com 'smartctl -a /dev/sdX'."
     fi
 }
 
@@ -538,10 +557,33 @@ check_monitor_service() {
     if systemctl is-active --quiet "$service_name"; then
         success "✅ Serviço de Monitoramento ($service_name): Ativo e protegendo o sistema."
     else
-        warn "⚠️  Serviço de Monitoramento ($service_name): Inativo."
-        echo "   💡 Recomenda-se fortemente ativá-lo para prevenir instabilidade:"
-        echo "      sudo systemctl enable --now $service_name"
+        report_issue "WARN" "Monitoramento" "Serviço de monitoramento inativo" "Execute: sudo bash ./scripts/deployment/setup_monitor_service.sh"
+        if [ -f "$PROJECT_ROOT/scripts/deployment/setup_monitor_service.sh" ]; then
+            if confirm_operation "Deseja configurar e ativar o serviço de monitoramento agora?"; then
+                sudo bash "$PROJECT_ROOT/scripts/deployment/setup_monitor_service.sh"
+            fi
+        fi
     fi
+}
+
+# Função para imprimir o relatório final em formato de tabela
+print_summary_report() {
+    if [ ${#ISSUES_FOUND[@]} -eq 0 ]; then
+        return
+    fi
+
+    section "Relatório de Problemas Encontrados"
+    
+    # Print table header
+    printf "%-25s | %-15s | %-45s | %s\n" "Componente" "Status" "Problema Detectado" "Sugestão de Correção"
+    printf "%s\n" "--------------------------|-----------------|-----------------------------------------------|--------------------------------------------------"
+
+    # Print table rows
+    for issue in "${ISSUES_FOUND[@]}"; do
+        IFS='|' read -r type component problem suggestion <<< "$issue"
+        [ "$type" = "FAIL" ] && color="$RED" || color="$YELLOW"
+        printf "%-25s | ${color}%-15s${NC} | %-45s | %s\n" "$component" "$type" "$problem" "$suggestion"
+    done
 }
 
 # Função principal
@@ -597,6 +639,9 @@ main() {
     check_directory "$HOME/cluster_scripts" "Diretório de scripts do cluster"
     check_directory "$HOME/.ollama" "Diretório do Ollama"
     check_directory ".venv" "Diretório .venv do projeto"
+
+    # Imprimir tabela de problemas
+    print_summary_report
 
     # Resumo final
     echo -e "\n${BLUE}=== RESUMO DA SAÚDE DO SISTEMA ===${NC}"

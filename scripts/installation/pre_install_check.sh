@@ -18,9 +18,9 @@ check_sudo_privileges() {
         success "Privilégios sudo disponíveis"
         return 0
     else
-        warn "Privilégios sudo não disponíveis"
-        info "Alguns pacotes do sistema podem não ser instalados"
-        return 1
+        warn "A senha de sudo pode ser solicitada durante a instalação."
+        # Isso não é um erro, apenas um aviso para sessões interativas.
+        return 0
     fi
 }
 
@@ -36,28 +36,29 @@ check_disk_space() {
         return 0
     else
         warn "Espaço em disco limitado: ${available_gb}GB disponíveis (mínimo recomendado: ${required_gb}GB)"
-        return 1
+        return 1 # É um problema potencial, então falha a verificação.
     fi
 }
 
 # Verifica memória RAM
 check_memory() {
-    local required_gb=8
-    local total_gb
-    
-    total_gb=$(free -g | awk '/Mem:/ {print $2}')
-    
+    local required_mb=8000 # 8GB
+    local total_mb
+
+    # Usar LC_ALL=C para garantir um formato de saída padrão e -m para MB.
+    total_mb=$(LC_ALL=C free -m | awk '/Mem:/ {print $2}')
+
     # Verificar se o valor é numérico
-    if ! [[ "$total_gb" =~ ^[0-9]+$ ]]; then
-        warn "Não foi possível determinar a memória RAM disponível"
-        return 0
+    if ! [[ "$total_mb" =~ ^[0-9]+$ ]]; then
+        warn "Não foi possível determinar a memória RAM total."
+        return 1 # É uma falha se não conseguirmos verificar.
     fi
-    
-    if [ "$total_gb" -ge "$required_gb" ]; then
-        success "Memória RAM suficiente: ${total_gb}GB disponíveis"
+
+    if [ "$total_mb" -ge "$required_mb" ]; then
+        success "Memória RAM suficiente: $((total_mb / 1024))GB disponíveis"
         return 0
     else
-        warn "Memória RAM limitada: ${total_gb}GB disponíveis (mínimo recomendado: ${required_gb}GB)"
+        warn "Memória RAM limitada: $((total_mb / 1024))GB disponíveis (mínimo recomendado: $((required_mb / 1024))GB)"
         return 1
     fi
 }
@@ -78,7 +79,7 @@ check_internet_connectivity() {
 
 # Verifica repositórios do sistema
 check_system_repositories() {
-    case $(detect_os 2>/dev/null) in
+    case $(detect_os) in
         ubuntu|debian)
             if apt-get update >/dev/null 2>&1; then
                 success "Repositórios do sistema acessíveis"

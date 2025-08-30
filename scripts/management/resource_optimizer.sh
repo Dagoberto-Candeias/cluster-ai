@@ -1,9 +1,9 @@
 #!/bin/bash
 # Otimizador de Recursos para Cluster AI - Versão Segura
-# Evita sobrecarga e falta de memória através de ajustes automáticos
+# Evita sobrecarga e falta de memória através de ajustes automáticos e inteligentes.
 
 # Carregar funções comuns com segurança
-COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/common.sh"
+COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../utils" && pwd)/common.sh"
 if [ -f "$COMMON_SCRIPT_PATH" ]; then
     source "$COMMON_SCRIPT_PATH"
 else
@@ -13,6 +13,7 @@ fi
 
 # Configurações
 CONFIG_DIR="$HOME/.cluster_optimization"
+CLUSTER_CONFIG_DIR="$HOME/.cluster_config"
 LOG_FILE="$CONFIG_DIR/optimization.log"
 CHECK_INTERVAL=60  # Verificação a cada 60 segundos
 export CLUSTER_AI_LOG_FILE="$LOG_FILE"
@@ -20,69 +21,96 @@ export CLUSTER_AI_LOG_FILE="$LOG_FILE"
 # Função para detectar recursos do sistema
 detect_system_resources() {
     local cpu_cores=$(nproc)
-    # Usar LC_ALL=C para garantir saída em inglês (igual ao resource_checker.sh)
     local total_memory=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}')
     local total_disk=$(df -h / | awk 'NR==2{print $2}')
-    local disk_type=$(lsblk -d -o rota | awk 'NR==2{print $1}')
-    
-    # Garantir que as variáveis tenham valores numéricos
+
+    # Atualizar informações da GPU
+    local gpu_detection_script="${PROJECT_ROOT}/scripts/utils/gpu_detection.sh"
+    if [ -f "$gpu_detection_script" ]; then
+        bash "$gpu_detection_script" >/dev/null 2>&1
+    fi
+
+    # Carregar informações da GPU
+    local gpu_vram_mb=0
+    [ -f "$HOME/.cluster_gpu_config" ] && source "$HOME/.cluster_gpu_config"
+
     cpu_cores=${cpu_cores:-0}
     total_memory=${total_memory:-0}
     
     echo "CPU_CORES=$cpu_cores"
     echo "TOTAL_MEMORY=$total_memory"
     echo "TOTAL_DISK=$total_disk"
-    echo "DISK_TYPE=$disk_type"  # 0=SSD, 1=HDD
+    echo "GPU_VRAM_MB=${GPU_VRAM_MB:-0}"
 }
 
 # Função para calcular configurações otimizadas
 calculate_optimized_settings() {
     local cpu_cores=$1
     local total_memory=$2
-    local disk_type=$3
+    local gpu_vram_mb=$3
     
-    # Configurações baseadas nos recursos
-    local dask_workers=$((cpu_cores > 4 ? cpu_cores - 2 : 2))
-    local dask_threads=$((cpu_cores > 8 ? 2 : 1))
-    local memory_limit=""
-    
-    # Calcular limite de memória por worker (80% da memória total dividido pelos workers)
-    local memory_per_worker=$((total_memory * 80 / 100 / dask_workers))
-    if [ "$memory_per_worker" -ge 1024 ]; then
-        memory_limit="$((memory_per_worker / 1024))GB"
+    # --- Configurações Dinâmicas ---
+    local dask_workers=0
+    local dask_threads=0
+    local memory_limit="1GB"
+    local ollama_num_gpu_layers=0
+    local ollama_max_loaded_models=1
+    local reserved_mem_for_os=2048 # Reservar 2GB para o SO
+
+    # Perfil de Otimização: GPU vs CPU
+    if [ "$gpu_vram_mb" -ge 4000 ]; then # Considera-se um nó de GPU se tiver >= 4GB VRAM
+        log "Perfil de otimização: GPU-Focused"
+        # --- Configuração OLLAMA (baseada em VRAM) ---
+        if [ "$gpu_vram_mb" -ge 20000 ]; then # 20GB+
+            ollama_num_gpu_layers=99; ollama_max_loaded_models=3
+        elif [ "$gpu_vram_mb" -ge 10000 ]; then # 10GB+
+            ollama_num_gpu_layers=43; ollama_max_loaded_models=2
+        elif [ "$gpu_vram_mb" -ge 6000 ]; then # 6GB+
+            ollama_num_gpu_layers=33; ollama_max_loaded_models=1
+        else # 4-6GB
+            ollama_num_gpu_layers=25; ollama_max_loaded_models=1
+        fi
+
+        # --- Configuração DASK (conservadora para dar espaço à GPU) ---
+        dask_workers=$((cpu_cores / 2))
+        [ "$dask_workers" -lt 1 ] && dask_workers=1
+        dask_threads=2
+        
+        # Reservar memória RAM para Ollama e SO
+        local reserved_mem_for_ollama=8192 # 8GB
+        local available_mem_for_dask=$((total_memory - reserved_mem_for_os - reserved_mem_for_ollama))
+
     else
-        memory_limit="${memory_per_worker}MB"
+        log "Perfil de otimização: CPU-Focused"
+        # --- Configuração OLLAMA (modo CPU) ---
+        ollama_num_gpu_layers=0
+        ollama_max_loaded_models=1
+
+        # --- Configuração DASK (agressiva, pois é o consumidor principal) ---
+        dask_workers=$((cpu_cores - 1))
+        [ "$dask_workers" -lt 1 ] && dask_workers=1
+        dask_threads=2
+
+        # Reservar memória RAM para Ollama (CPU) e SO
+        local reserved_mem_for_ollama=4096 # 4GB
+        local available_mem_for_dask=$((total_memory - reserved_mem_for_os - reserved_mem_for_ollama))
     fi
-    
-    # Configurações Ollama baseadas em memória
-    local ollama_layers=""
-    local ollama_models=""
-    
-    if [ "$total_memory" -ge 32000 ]; then  # 32GB+
-        ollama_layers="35"
-        ollama_models="3"
-    elif [ "$total_memory" -ge 16000 ]; then  # 16GB+
-        ollama_layers="20"
-        ollama_models="2"
-    else  # Menos de 16GB
-        ollama_layers="10"
-        ollama_models="1"
-    fi
-    
-    # Ajustes para tipo de disco
-    local swap_size=""
-    if [ "$disk_type" = "0" ]; then  # SSD
-        swap_size="16G"
-    else  # HDD
-        swap_size="8G"
+
+    # --- Cálculo do Limite de Memória do Dask ---
+    if [ "$dask_workers" -gt 0 ] && [ "$available_mem_for_dask" -gt 1024 ]; then
+        local memory_per_worker=$((available_mem_for_dask / dask_workers))
+        if [ "$memory_per_worker" -ge 1024 ]; then
+            memory_limit="$((memory_per_worker / 1024))GB"
+        else
+            memory_limit="${memory_per_worker}MB"
+        fi
     fi
     
     echo "DASK_WORKERS=$dask_workers"
     echo "DASK_THREADS=$dask_threads"
     echo "MEMORY_LIMIT=$memory_limit"
-    echo "OLLAMA_LAYERS=$ollama_layers"
-    echo "OLLAMA_MODELS=$ollama_models"
-    echo "SWAP_SIZE=$swap_size"
+    echo "OLLAMA_NUM_GPU_LAYERS=$ollama_num_gpu_layers"
+    echo "OLLAMA_MAX_LOADED_MODELS=$ollama_max_loaded_models"
 }
 
 # Função para aplicar configurações otimizadas
@@ -93,93 +121,78 @@ apply_optimized_settings() {
     local dask_workers=$(echo "$settings" | grep "DASK_WORKERS=" | cut -d= -f2)
     local dask_threads=$(echo "$settings" | grep "DASK_THREADS=" | cut -d= -f2)
     local memory_limit=$(echo "$settings" | grep "MEMORY_LIMIT=" | cut -d= -f2)
-    local ollama_layers=$(echo "$settings" | grep "OLLAMA_LAYERS=" | cut -d= -f2)
-    local ollama_models=$(echo "$settings" | grep "OLLAMA_MODELS=" | cut -d= -f2)
-    local swap_size=$(echo "$settings" | grep "SWAP_SIZE=" | cut -d= -f2)
+    local ollama_num_gpu_layers=$(echo "$settings" | grep "OLLAMA_NUM_GPU_LAYERS=" | cut -d= -f2)
+    local ollama_max_loaded_models=$(echo "$settings" | grep "OLLAMA_MAX_LOADED_MODELS=" | cut -d= -f2)
     
     log "Aplicando configurações otimizadas:"
     log "  Dask Workers: $dask_workers"
     log "  Dask Threads: $dask_threads"
     log "  Memory Limit: $memory_limit"
-    log "  Ollama Layers: $ollama_layers"
-    log "  Ollama Models: $ollama_models"
-    log "  Swap Size: $swap_size"
+    log "  Ollama GPU Layers: $ollama_num_gpu_layers"
+    log "  Ollama Max Loaded Models: $ollama_max_loaded_models"
     
-    # Atualizar script do worker
-    update_worker_script "$dask_workers" "$dask_threads" "$memory_limit"
+    # Atualizar configuração do Dask
+    update_dask_config "$dask_workers" "$dask_threads" "$memory_limit"
     
     # Atualizar configuração Ollama
-    update_ollama_config "$ollama_layers" "$ollama_models"
-    
-    # Configurar swap
-    configure_swap "$swap_size"
+    if confirm_operation "As configurações do Ollama exigem privilégios de root para serem aplicadas. Continuar?"; then
+        sudo bash -c "$(declare -f log success error info section subsection; declare -f update_ollama_config); update_ollama_config '$ollama_num_gpu_layers' '$ollama_max_loaded_models'"
+    else
+        warn "A atualização da configuração do Ollama foi pulada."
+    fi
 }
 
-# Função para atualizar script do worker
-update_worker_script() {
+# Função para atualizar a configuração do Dask
+update_dask_config() {
     local workers=$1
     local threads=$2
     local memory_limit=$3
-    
-    if [ -f "$HOME/cluster_scripts/start_worker.sh" ]; then
-        # Backup do script original
-        cp "$HOME/cluster_scripts/start_worker.sh" "$HOME/cluster_scripts/start_worker.sh.backup"
-        
-        # Atualizar com novas configurações
-        sed -i "s/--nworkers auto/--nworkers $workers/" "$HOME/cluster_scripts/start_worker.sh"
-        sed -i "s/--nthreads [0-9]\+/--nthreads $threads/" "$HOME/cluster_scripts/start_worker.sh"
-        
-        # Adicionar limite de memória se não existir
-        if ! grep -q "--memory-limit" "$HOME/cluster_scripts/start_worker.sh"; then
-            sed -i "s/dask-worker.*\$/dask-worker \$SERVER_IP:8786 --nworkers $workers --nthreads $threads --memory-limit \"$memory_limit\" --name \$MACHINE_NAME/" "$HOME/cluster_scripts/start_worker.sh"
-        else
-            sed -i "s/--memory-limit \"[^\"]*\"/--memory-limit \"$memory_limit\"/" "$HOME/cluster_scripts/start_worker.sh"
-        fi
-        
-        log "Script do worker atualizado com configurações otimizadas"
-    fi
+    local dask_config_file="$CLUSTER_CONFIG_DIR/dask.conf"
+
+    mkdir -p "$CLUSTER_CONFIG_DIR"
+
+    # Backup da configuração anterior
+    [ -f "$dask_config_file" ] && cp "$dask_config_file" "${dask_config_file}.bak"
+
+    log "Atualizando configuração do Dask em $dask_config_file"
+    cat > "$dask_config_file" << EOL
+# Configuração do Dask Worker gerada pelo otimizador
+DASK_WORKERS=${workers}
+DASK_THREADS=${threads}
+DASK_MEMORY_LIMIT=${memory_limit}
+EOL
+    success "Configuração do Dask Worker atualizada."
+    info "Reinicie os workers Dask para aplicar as mudanças."
 }
 
 # Função para atualizar configuração Ollama
 update_ollama_config() {
-    local layers=$1
+    local num_gpu_layers=$1
     local max_models=$2
-    
-    mkdir -p ~/.ollama
-    
-    # Criar ou atualizar configuração
-    cat > ~/.ollama/config.json << EOL
-{
-    "environment": {
-        "OLLAMA_NUM_GPU_LAYERS": "$layers",
-        "OLLAMA_MAX_LOADED_MODELS": "$max_models",
-        "OLLAMA_KEEP_ALIVE": "6h"
-    }
-}
+    local ollama_config_dir="/etc/systemd/system/ollama.service.d"
+    local ollama_config_file="$ollama_config_dir/override.conf"
+
+    # Esta função deve ser chamada com sudo
+    mkdir -p "$ollama_config_dir"
+    # Backup da configuração anterior
+    [ -f "$ollama_config_file" ] && cp "$ollama_config_file" "${ollama_config_file}.bak"
+
+    log "Atualizando configuração do serviço Ollama em $ollama_config_file"
+    tee "$ollama_config_file" > /dev/null << EOL
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+Environment="OLLAMA_NUM_GPU=${num_gpu_layers}"
+Environment="OLLAMA_MAX_LOADED_MODELS=${max_models}"
 EOL
     
     # Reiniciar Ollama se estiver rodando
     if systemctl is-active --quiet ollama; then
-        sudo systemctl restart ollama
+        log "Recarregando daemon e reiniciando serviço Ollama..."
+        systemctl daemon-reload
+        systemctl restart ollama
         log "Configuração do Ollama atualizada e serviço reiniciado"
     else
-        log "Configuração do Ollama atualizada"
-    fi
-}
-
-# Função para configurar swap
-configure_swap() {
-    local size=$1
-    
-    # Usar o memory manager para configurar swap
-    local memory_manager_path="scripts/utils/memory_manager.sh"
-    
-    if [ -f "$memory_manager_path" ]; then
-        bash "$memory_manager_path" clean
-        bash "$memory_manager_path" start
-        log "Swap configurado usando memory manager"
-    else
-        warn "Memory manager não encontrado. Configuração de swap manual necessária."
+        log "Configuração do Ollama atualizada. Inicie o serviço para aplicar."
     fi
 }
 
@@ -197,7 +210,7 @@ monitor_resource_usage() {
         
         # Verificar condições críticas
     if [ "$cpu_usage" -gt 90 ]; then
-        warn "Uso de CPU crítico (${cpu_usage}%). Considerando redução de carga..."
+        warn "Uso de CPU crítico (${cpu_usage}%). Ação de redução de carga recomendada."
             reduce_workload
         fi
         
@@ -217,20 +230,10 @@ monitor_resource_usage() {
 
 # Função para reduzir carga de trabalho
 reduce_workload() {
-    # Reduzir número de workers temporariamente
-    if [ -f "$HOME/cluster_scripts/start_worker.sh" ]; then
-        local current_workers=$(grep -oP '--nworkers \K[0-9]+' "$HOME/cluster_scripts/start_worker.sh")
-        if [ -n "$current_workers" ] && [ $current_workers -gt 1 ]; then
-            local new_workers=$((current_workers / 2))
-            sed -i "s/--nworkers $current_workers/--nworkers $new_workers/" "$HOME/cluster_scripts/start_worker.sh"
-            warn "Workers reduzidos de $current_workers para $new_workers devido a alta carga de CPU"
-            
-            # Reiniciar workers
-            pkill -f "dask-worker"
-            sleep 2
-            nohup bash "$HOME/cluster_scripts/start_worker.sh" > /dev/null 2>&1 &
-        fi
-    fi
+    warn "Carga de CPU alta detectada."
+    info "Recomendação: Reduza o número de Dask workers ou a intensidade das tarefas."
+    info "Para ajustar, execute: ./manager.sh, pare os serviços, execute o otimizador e reinicie."
+    # A lógica de redução automática foi removida para evitar instabilidade. A ação agora é manual.
 }
 
 # Função para liberar memória
@@ -241,17 +244,18 @@ free_memory() {
         return 1
     fi
     
-    # Liberar cache de memória com validação
-    warn "Liberando cache de memória do sistema..."
-    sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-    
     # Limpar cache do Ollama se estiver usando muita memória
     if command_exists ollama; then
-        warn "Limpando cache do Ollama..."
+        warn "Uso de memória alto. Descarregando modelos Ollama não utilizados..."
         ollama ps | grep -v "NAME" | awk '{print $1}' | xargs -I {} ollama rm {} 2>/dev/null
+        success "Modelos Ollama descarregados."
     fi
-    
-    warn "Memória liberada através de limpeza de cache"
+
+    if confirm_operation "O uso de memória ainda está crítico. Deseja limpar os caches de página do sistema (pode impactar a performance de I/O temporariamente)?"; then
+        warn "Liberando cache de memória do sistema..."
+        sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+        success "Caches de página do sistema limpos."
+    fi
 }
 
 # Função para limpar espaço em disco
@@ -298,22 +302,22 @@ show_status() {
     
     # Configurações atuais
     echo -e "\n${CYAN}Configurações Atuais:${NC}"
-    if [ -f "$HOME/cluster_scripts/start_worker.sh" ]; then
-        echo "  Dask Workers: $(grep -oP '--nworkers \K[0-9]+' "$HOME/cluster_scripts/start_worker.sh" || echo "auto")"
-        echo "  Dask Threads: $(grep -oP '--nthreads \K[0-9]+' "$HOME/cluster_scripts/start_worker.sh" || echo "2")"
-        echo "  Memory Limit: $(grep -oP '--memory-limit \"\K[^\"]+' "$HOME/cluster_scripts/start_worker.sh" || echo "Não configurado")"
+    if [ -f "$CLUSTER_CONFIG_DIR/dask.conf" ]; then
+        source "$CLUSTER_CONFIG_DIR/dask.conf"
+        echo "  Dask Workers: ${DASK_WORKERS:-Padrão}"
+        echo "  Dask Threads: ${DASK_THREADS:-Padrão}"
+        echo "  Memory Limit: ${DASK_MEMORY_LIMIT:-Padrão}"
     fi
     
-    if [ -f ~/.ollama/config.json ]; then
-        echo "  Ollama Layers: $(jq -r '.environment.OLLAMA_NUM_GPU_LAYERS' ~/.ollama/config.json 2>/dev/null || echo "Padrão")"
-        echo "  Ollama Models: $(jq -r '.environment.OLLAMA_MAX_LOADED_MODELS' ~/.ollama/config.json 2>/dev/null || echo "Padrão")"
+    if [ -f "/etc/systemd/system/ollama.service.d/override.conf" ]; then
+        echo "  Ollama GPU Layers: $(grep "OLLAMA_NUM_GPU" /etc/systemd/system/ollama.service.d/override.conf | cut -d'=' -f2 || echo "Padrão")"
+        echo "  Ollama Max Loaded Models: $(grep "OLLAMA_MAX_LOADED_MODELS" /etc/systemd/system/ollama.service.d/override.conf | cut -d'=' -f2 || echo "Padrão")"
     fi
     
     # Uso atual - corrigido para garantir valores sempre exibidos
     echo -e "\n${CYAN}Uso Atual:${NC}"
     
-    # CPU usage - usando método compatível com saída em português
-    local cpu_line=$(top -bn1 | grep "%CPU(s)")
+    local cpu_line=$(LC_ALL=C top -bn1 | grep "Cpu(s)")
     local cpu_idle=$(echo "$cpu_line" | awk '{print $8}' | cut -d'.' -f1)
     local cpu_usage=$((100 - cpu_idle))
     cpu_usage=${cpu_usage:-0}
@@ -339,6 +343,20 @@ show_status() {
     echo "  Disco: $(df -h / | awk 'NR==2{print $5}' || echo "0%") usado"
 }
 
+# Função para restaurar configurações de backup
+restore_settings() {
+    section "Restaurando Configurações Anteriores"
+    local dask_config_file="$CLUSTER_CONFIG_DIR/dask.conf"
+    local ollama_config_file="/etc/systemd/system/ollama.service.d/override.conf"
+
+    [ -f "${dask_config_file}.bak" ] && mv "${dask_config_file}.bak" "$dask_config_file" && success "Configuração do Dask restaurada."
+    if [ -f "${ollama_config_file}.bak" ]; then
+        sudo mv "${ollama_config_file}.bak" "$ollama_config_file" && success "Configuração do Ollama restaurada."
+        log "Recarregando daemon e reiniciando Ollama..."
+        sudo systemctl daemon-reload && sudo systemctl restart ollama
+    fi
+}
+
 # Menu principal
 main() {
     # Criar diretório de configuração
@@ -351,13 +369,20 @@ main() {
     
     case "$1" in
         "optimize")
+            # A otimização do Ollama requer sudo, então verificamos no início.
+            if [[ $EUID -ne 0 ]]; then
+                warn "A otimização completa requer privilégios de root para configurar o serviço Ollama."
+                warn "Executando novamente com 'sudo'..."
+                sudo -E "$0" "$@"
+                exit $?
+            fi
             log "Otimizando configurações baseadas nos recursos do sistema..."
             local resources=$(detect_system_resources)
             local cpu_cores=$(echo "$resources" | grep "CPU_CORES=" | cut -d= -f2)
-            local total_memory=$(echo "$resources" | grep "TOTAL_MEMORY=" | cut -d= -f2 | sed 's/MB//')
-            local disk_type=$(echo "$resources" | grep "DISK_TYPE=" | cut -d= -f2)
+            local total_memory=$(echo "$resources" | grep "TOTAL_MEMORY=" | cut -d= -f2)
+            local gpu_vram_mb=$(echo "$resources" | grep "GPU_VRAM_MB=" | cut -d= -f2)
             
-            local optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory" "$disk_type")
+            local optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory" "$gpu_vram_mb")
             apply_optimized_settings "$optimized_settings"
             ;;
         "monitor")
@@ -373,11 +398,15 @@ main() {
         "clean-disk")
             cleanup_disk
             ;;
+        "restore")
+            restore_settings
+            ;;
         *)
             echo -e "${BLUE}Uso: $0 [comando]${NC}"
             echo "Comandos:"
             echo "  optimize     - Otimizar configurações baseadas nos recursos"
             echo "  monitor      - Iniciar monitoramento contínuo"
+            echo "  restore      - Restaurar configurações anteriores ao último 'optimize'"
             echo "  status       - Mostrar status atual"
             echo "  free-memory  - Liberar memória imediatamente"
             echo "  clean-disk   - Limpar espaço em disco"

@@ -273,6 +273,17 @@ install_fira_font() {
 main() {
     echo -e "${BLUE}=== INSTALAÇÃO OTIMIZADA DO VS CODE ===${NC}"
     
+    # Executar verificação pré-instalação
+    log "Executando verificação pré-instalação..."
+    PRE_INSTALL_CHECK_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pre_install_check.sh"
+    if [ -f "$PRE_INSTALL_CHECK_PATH" ]; then
+        if ! bash "$PRE_INSTALL_CHECK_PATH"; then
+            warn "Alguns requisitos não foram atendidos, mas prosseguindo com a instalação..."
+        fi
+    else
+        warn "Script de verificação pré-instalação não encontrado, prosseguindo sem verificação..."
+    fi
+    
     # Instalar VSCode
     if ! install_vscode; then
         error "Falha na instalação do VSCode. Abortando."

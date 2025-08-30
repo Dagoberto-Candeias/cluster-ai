@@ -63,6 +63,17 @@ subsection() {
     echo -e "\n${CYAN}➤ $message${NC}"
 }
 
+# Função para detectar sistema operacional
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        # shellcheck source=/dev/null
+        . /etc/os-release
+        echo "$ID"
+    else
+        echo "unknown"
+    fi
+}
+
 # Função para verificar se um comando existe
 command_exists() {
     command -v "$1" >/dev/null 2>&1

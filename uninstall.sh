@@ -43,10 +43,14 @@ stop_services() {
     pkill -f "dask-worker" 2>/dev/null || log "Dask Worker não estava em execução."
 
     # Parar Ollama (se iniciado pelo script)
-    # Nota: Isso não desinstala o serviço Ollama do sistema, apenas para o processo.
-    pkill -f "ollama serve" 2>/dev/null || log "Serviço Ollama não estava em execução."
+    if command_exists ollama && service_active ollama; then
+        log "Parando serviço Ollama do sistema..."
+        sudo systemctl stop ollama
+    else
+        pkill -f "ollama serve" 2>/dev/null || log "Processo 'ollama serve' não estava em execução."
+    fi
 
-    # Parar e remover container do OpenWebUI
+    # Parar e remover containers Docker relacionados
     if sudo docker ps -a --format '{{.Names}}' | grep -q '^open-webui$'; then
         log "Parando e removendo container Docker 'open-webui'..."
         sudo docker stop open-webui >/dev/null 2>&1
@@ -55,55 +59,87 @@ stop_services() {
     else
         log "Container Docker 'open-webui' não encontrado."
     fi
-
-    log "Serviços parados com sucesso."
 }
 
 # --- Função para Remover Artefatos ---
 remove_artifacts() {
-    log "Os seguintes arquivos e diretórios gerados pelo projeto serão removidos:"
-    echo -e "  - Ambiente Virtual: ${YELLOW}$VENV_DIR${NC}"
-    echo -e "  - Scripts de Runtime: ${YELLOW}$RUNTIME_SCRIPTS_DIR${NC}"
-    echo -e "  - Logs: ${YELLOW}$LOG_DIR${NC}"
-    echo -e "  - Arquivo de Configuração: ${YELLOW}$CONFIG_FILE${NC}"
-    echo ""
+    subsection "Removendo artefatos do projeto"
 
-    read -p "Você tem certeza que deseja continuar? Esta ação não pode ser desfeita. (s/n): " confirmation
+    local paths_to_remove=(
+        "$VENV_DIR"
+        "$RUNTIME_SCRIPTS_DIR"
+        "$LOG_DIR"
+        "$BACKUP_DIR"
+    )
 
-    if [[ "$confirmation" != "s" && "$confirmation" != "S" ]]; then
-        error "Desinstalação cancelada pelo usuário."
-        exit 1
+    for path in "${paths_to_remove[@]}"; do
+        if [ -e "$path" ]; then
+            if confirm_operation "Remover o diretório '$path'?"; then
+                if safe_path_check "$path" "remoção"; then
+                    rm -rf "$path" && success "Diretório '$path' removido."
+                else
+                    error "Remoção de '$path' abortada por segurança."
+                fi
+            else
+                warn "Remoção de '$path' pulada."
+            fi
+        fi
+    done
+
+    subsection "Removendo artefatos no diretório HOME"
+    warn "As operações a seguir afetam arquivos fora do diretório do projeto."
+
+    if [ -d "$HOME_VENV_DIR" ]; then
+        if confirm_operation "Remover ambiente virtual em '$HOME_VENV_DIR'?"; then
+            if safe_path_check "$HOME_VENV_DIR" "remoção"; then
+                rm -rf "$HOME_VENV_DIR" && success "Diretório '$HOME_VENV_DIR' removido."
+            else
+                error "Remoção de '$HOME_VENV_DIR' abortada por segurança."
+            fi
+        else
+            warn "Remoção de '$HOME_VENV_DIR' pulada."
+        fi
     fi
 
-    log "Iniciando a remoção dos artefatos..."
+    if [ -f "$GPU_CONFIG_FILE" ]; then
+        if confirm_operation "Remover arquivo de configuração de GPU em '$GPU_CONFIG_FILE'?"; then
+            rm -f "$GPU_CONFIG_FILE" && success "Arquivo '$GPU_CONFIG_FILE' removido."
+        else
+            warn "Remoção de '$GPU_CONFIG_FILE' pulada."
+        fi
+    fi
 
-    # Remover diretórios
-    [ -d "$VENV_DIR" ] && rm -rf "$VENV_DIR" && log "Ambiente virtual removido."
-    [ -d "$RUNTIME_SCRIPTS_DIR" ] && rm -rf "$RUNTIME_SCRIPTS_DIR" && log "Scripts de runtime removidos."
-    [ -d "$LOG_DIR" ] && rm -rf "$LOG_DIR" && log "Diretório de logs removido."
-
-    # Remover arquivo de configuração
-    [ -f "$CONFIG_FILE" ] && rm -f "$CONFIG_FILE" && log "Arquivo de configuração removido."
-
-    log "Limpeza concluída."
+    subsection "Ações Manuais Recomendadas"
+    warn "As seguintes ações não são automáticas para evitar perda de dados:"
+    echo "  - Modelos Ollama: Os modelos de IA estão em '$OLLAMA_DATA_DIR'."
+    echo "    Para removê-los, execute: 'rm -rf $OLLAMA_DATA_DIR'"
+    echo "  - Dependências de Sistema: Pacotes como 'docker', 'python3', 'nvidia-drivers' não são removidos."
+    echo "    Use o gerenciador de pacotes do seu sistema (apt, pacman, dnf) para removê-los se desejar."
 }
 
 # --- Script Principal ---
 main() {
-    echo -e "${BLUE}--- Desinstalador do Cluster AI ---${NC}"
+    section "Desinstalador do Cluster AI"
+    warn "Este script removerá os artefatos gerados pelo projeto e parará os serviços."
+    warn "Ele NÃO removerá dependências de sistema (como Docker) ou modelos de IA baixados."
+    echo ""
 
-    if [ ! -f "$CONFIG_FILE" ] && [ ! -d "$VENV_DIR" ]; then
-        warn "Nenhum artefato de instalação encontrado. O projeto parece já estar limpo."
+    if [ ! -d "$VENV_DIR" ] && [ ! -d "$LOG_DIR" ] && [ ! -d "$HOME_VENV_DIR" ]; then
+        warn "Nenhum artefato de instalação comum encontrado. O projeto parece já estar limpo."
         exit 0
     fi
 
-    stop_services
-    echo ""
-    remove_artifacts
+    if confirm_operation "Você tem certeza que deseja iniciar o processo de desinstalação?"; then
+        stop_services
+        echo ""
+        remove_artifacts
 
-    echo ""
-    log "✅ Desinstalação concluída com sucesso!"
-    log "As dependências de sistema (como Docker, Python) e os modelos do Ollama (~/.ollama) não foram removidos."
+        echo ""
+        success "✅ Processo de desinstalação concluído!"
+    else
+        error "Desinstalação cancelada pelo usuário."
+        exit 1
+    fi
 }
 
 # Executa o script principal

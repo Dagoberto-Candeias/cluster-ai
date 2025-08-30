@@ -98,6 +98,7 @@ generate_gpu_config() {
     local has_nvidia=$(lspci -nn | grep -i "nvidia" | wc -l)
     local has_amd=$(lspci -nn | grep -i "amd" | grep -i "vga\|display" | wc -l)
     local has_cuda=$(command -v nvcc >/dev/null 2>&1 && echo "true" || echo "false")
+    local gpu_vram_mb=0
     local has_rocm=$([ -f "/opt/rocm/bin/rocminfo" ] && echo "true" || echo "false")
     
     echo "GPU_TYPE=none" > "$GPU_CONFIG_FILE"
@@ -107,11 +108,16 @@ generate_gpu_config() {
     echo "DETECTION_DATE=$(date '+%Y-%m-%d %H:%M:%S')" >> "$GPU_CONFIG_FILE"
     
     if [ "$has_nvidia" -gt 0 ]; then
+        if command_exists nvidia-smi; then
+            # Get VRAM in MiB from the first GPU
+            gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
+        fi
         echo "GPU_TYPE=nvidia" >> "$GPU_CONFIG_FILE"
         echo "GPU_COUNT=$has_nvidia" >> "$GPU_CONFIG_FILE"
         echo "CUDA_AVAILABLE=$has_cuda" >> "$GPU_CONFIG_FILE"
-        log "Configuração NVIDIA gerada: $has_nvidia GPU(s), CUDA: $has_cuda"
+        log "Configuração NVIDIA gerada: $has_nvidia GPU(s), CUDA: $has_cuda, VRAM: ${gpu_vram_mb}MB"
     elif [ "$has_amd" -gt 0 ]; then
+        # VRAM detection for AMD can be more complex, using a placeholder for now
         echo "GPU_TYPE=amd" >> "$GPU_CONFIG_FILE"
         echo "GPU_COUNT=$has_amd" >> "$GPU_CONFIG_FILE"
         echo "ROCm_AVAILABLE=$has_rocm" >> "$GPU_CONFIG_FILE"
@@ -119,6 +125,8 @@ generate_gpu_config() {
     else
         warn "Nenhuma GPU dedicada detectada - usando CPU apenas"
     fi
+
+    echo "GPU_VRAM_MB=${gpu_vram_mb:-0}" >> "$GPU_CONFIG_FILE"
 }
 
 # Função para verificar compatibilidade
