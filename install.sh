@@ -62,6 +62,47 @@ check_requirements() {
     fi
 }
 
+# --- Funções de Orquestração da Instalação ---
+
+INSTALL_STEPS_SUCCESS=()
+INSTALL_STEPS_WARNING=()
+INSTALL_STEPS_FAILED=()
+
+# Função para executar um passo da instalação e registrar o resultado
+# Argumentos: 1:Descrição do Passo, 2:Comando a ser executado, 3:É um passo crítico? (true/false)
+run_install_step() {
+    local description="$1"
+    local command="$2"
+    local is_critical="${3:-true}"
+
+    subsection "$description"
+    if eval "$command"; then
+        success "✅ Concluído: $description"
+        INSTALL_STEPS_SUCCESS+=("$description")
+        return 0
+    else
+        if [ "$is_critical" = true ]; then
+            error "❌ Falha Crítica: $description. A instalação não pode continuar."
+            INSTALL_STEPS_FAILED+=("$description")
+            return 1
+        else
+            warn "⚠️  Aviso: $description falhou ou foi pulado. Continuando a instalação."
+            INSTALL_STEPS_WARNING+=("$description")
+            return 0 # Não é crítico, então não retorna falha para o orquestrador
+        fi
+    fi
+}
+
+print_installation_summary() {
+    section "Resumo da Instalação"
+    log "Passos concluídos com sucesso: ${#INSTALL_STEPS_SUCCESS[@]}"
+    [ ${#INSTALL_STEPS_SUCCESS[@]} -gt 0 ] && printf "  - %s\n" "${INSTALL_STEPS_SUCCESS[@]}"
+    warn "Passos com avisos ou pulados: ${#INSTALL_STEPS_WARNING[@]}"
+    [ ${#INSTALL_STEPS_WARNING[@]} -gt 0 ] && printf "  - %s\n" "${INSTALL_STEPS_WARNING[@]}"
+    error "Passos que falharam: ${#INSTALL_STEPS_FAILED[@]}"
+    [ ${#INSTALL_STEPS_FAILED[@]} -gt 0 ] && printf "  - %s\n" "${INSTALL_STEPS_FAILED[@]}"
+}
+
 show_install_menu() {
     section "Menu de Instalação - Cluster AI"
     echo "1. 🚀 Instalação Completa (Recomendado)"
@@ -74,45 +115,49 @@ show_install_menu() {
 }
 
 run_full_installation() {
+    # Limpar status de instalações anteriores
+    INSTALL_STEPS_SUCCESS=()
+    INSTALL_STEPS_WARNING=()
+    INSTALL_STEPS_FAILED=()
+
     section "Iniciando Instalação Completa"
 
-    log "Passo 1: Instalando dependências do sistema..."
-    bash "${INSTALL_DIR}/setup_dependencies.sh" || { error "Falha ao instalar dependências do sistema."; return 1; }
+    run_install_step "Instalando dependências do sistema" \
+        "bash '${INSTALL_DIR}/setup_dependencies.sh'" true || { print_installation_summary; return 1; }
 
-    log "Passo 2: Configurando ambiente Python..."
-    bash "${INSTALL_DIR}/setup_python_env.sh" || { error "Falha ao configurar ambiente Python."; return 1; }
+    run_install_step "Configurando ambiente Python" \
+        "bash '${INSTALL_DIR}/setup_python_env.sh'" true || { print_installation_summary; return 1; }
 
-    log "Passo 3: Configurando Ollama e baixando modelos..."
-    bash "${INSTALL_DIR}/setup_ollama.sh" || { error "Falha ao configurar Ollama."; return 1; }
+    run_install_step "Configurando Ollama e baixando modelos" \
+        "bash '${INSTALL_DIR}/setup_ollama.sh'" true || { print_installation_summary; return 1; }
 
-    log "Passo 4: Configurando drivers de GPU (Opcional)..."
     if confirm_operation "Deseja tentar configurar os drivers de GPU (NVIDIA/AMD)?"; then
-        sudo bash "${INSTALL_DIR}/gpu_setup.sh" || warn "Configuração de GPU falhou ou foi pulada. Continuando..."
+        run_install_step "Configurando drivers de GPU" \
+            "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
     fi
 
-    log "Passo 5: Instalando IDEs de desenvolvimento (Opcional)..."
     if confirm_operation "Deseja instalar as IDEs recomendadas (VSCode, PyCharm, Spyder)?"; then
-        bash "${DEV_DIR}/setup_vscode.sh" || warn "Falha ao instalar VSCode."
-        bash "${DEV_DIR}/setup_pycharm.sh" || warn "Falha ao instalar PyCharm."
-        bash "${DEV_DIR}/setup_spyder.sh" || warn "Falha ao instalar Spyder."
+        run_install_step "Instalando IDEs de desenvolvimento" \
+            "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
     fi
 
-    log "Passo 6: Configurando scripts de runtime..."
-    local runtime_dir="${PROJECT_ROOT}/scripts/runtime"
-    local target_dir="$HOME/cluster_scripts"
-    mkdir -p "$target_dir"
-    cp "${runtime_dir}/start_worker.sh" "$target_dir/"
-    chmod +x "${target_dir}/start_worker.sh"
-    success "Scripts de runtime configurados em $target_dir"
+    run_install_step "Configurando scripts de runtime" \
+        "mkdir -p '$HOME/cluster_scripts' && cp '${PROJECT_ROOT}/scripts/runtime/start_worker.sh' '$HOME/cluster_scripts/' && chmod +x '$HOME/cluster_scripts/start_worker.sh'" true || { print_installation_summary; return 1; }
 
-    log "Passo 7: Otimização Automática de Recursos (Opcional)..."
     local optimizer_script="${SCRIPTS_DIR}/management/resource_optimizer.sh"
     if [ -f "$optimizer_script" ] && confirm_operation "Deseja executar o otimizador de recursos para ajustar as configurações de performance (Ollama, Dask) ao seu hardware?"; then
-        bash "$optimizer_script" optimize || warn "Otimizador de recursos encontrou um problema. Verifique os logs."
-        success "Otimização de recursos concluída."
+        run_install_step "Otimização Automática de Recursos" \
+            "bash '$optimizer_script' optimize" false
     fi
 
-    success "Instalação completa finalizada com sucesso!"
+    print_installation_summary
+    
+    if [ ${#INSTALL_STEPS_FAILED[@]} -gt 0 ]; then
+        error "A instalação completa falhou."
+        return 1
+    else
+        success "Instalação completa finalizada com sucesso!"
+    fi
 }
 
 show_components_menu() {

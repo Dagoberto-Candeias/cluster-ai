@@ -65,6 +65,22 @@ cd cluster-ai
 
 **💡 Nota**: O projeto agora inclui um script wrapper `install_cluster.sh` no diretório raiz para facilitar o acesso. Consulte [INSTALACAO_LOCAL.md](../INSTALACAO_LOCAL.md) para mais detalhes.
 
+## 🛠️ Painel de Controle (`manager.sh`)
+
+O script `manager.sh` na raiz do projeto é a principal ferramenta para gerenciar seu cluster. Ele oferece um menu interativo para controlar todos os serviços.
+
+**Uso:**
+```bash
+# A partir do diretório raiz do projeto
+./manager.sh
+```
+
+**Funcionalidades do Gerenciador:**
+- Iniciar, parar e reiniciar todos os serviços de uma só vez.
+- Gerenciar cada serviço (Ollama, Dask, OpenWebUI) individualmente.
+- Visualizar o status geral do cluster.
+- Acessar scripts de diagnóstico (Health Check) e otimização.
+
 ## 🏗️ Arquitetura do Sistema
 
 ### Diagrama de Arquitetura
