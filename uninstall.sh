@@ -6,25 +6,15 @@
 
 set -e
 
-# --- Configuração de Cores ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# --- Carregar Funções Comuns ---
+PROJECT_ROOT=$(pwd)
+UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
 
-# --- Funções de Log ---
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+if [ ! -f "${UTILS_DIR}/common.sh" ]; then
+    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
+    exit 1
+fi
+source "${UTILS_DIR}/common.sh"
 
 # --- Definição de Caminhos ---
 # O script deve estar na raiz do projeto para funcionar corretamente.
@@ -58,6 +48,27 @@ stop_services() {
         log "Container 'open-webui' removido."
     else
         log "Container Docker 'open-webui' não encontrado."
+    fi
+}
+
+remove_desktop_shortcuts() {
+    subsection "Removendo atalhos de menu"
+    local shortcuts_to_remove=(
+        "$HOME/.local/share/applications/cluster-ai-vscode.desktop"
+        "$HOME/.local/share/applications/cluster-ai-pycharm.desktop"
+        "$HOME/.local/share/applications/cluster-ai-spyder.desktop"
+    )
+
+    for shortcut in "${shortcuts_to_remove[@]}"; do
+        if [ -f "$shortcut" ]; then
+            rm -f "$shortcut" && success "Atalho removido: $(basename "$shortcut")"
+        fi
+    done
+
+    # Atualiza o banco de dados de atalhos do menu para refletir as mudanças imediatamente
+    if command_exists update-desktop-database; then
+        log "Atualizando o banco de dados de atalhos do menu..."
+        update-desktop-database ~/.local/share/applications >/dev/null 2>&1
     fi
 }
 
@@ -108,6 +119,9 @@ remove_artifacts() {
             warn "Remoção de '$GPU_CONFIG_FILE' pulada."
         fi
     fi
+
+    # Remover atalhos
+    remove_desktop_shortcuts
 
     subsection "Ações Manuais Recomendadas"
     warn "As seguintes ações não são automáticas para evitar perda de dados:"

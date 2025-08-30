@@ -49,8 +49,10 @@ show_menu() {
     echo "14. ⏰ Agendar rotação de logs (Cron)"
     echo "15. 📺 Configurar serviço de monitoramento"
     echo "16. 📜 Gerar README.md dinâmico"
+    echo "17.  Lint (verificar qualidade do código)"
+    echo "18. 🔄 Atualizar o Cluster AI (via Git)"
     echo "---"
-    echo "17. 🚪 Sair"
+    echo "19. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -416,11 +418,21 @@ run_readme_generator() {
     bash "${SCRIPTS_DIR}/documentation/generate_readme.sh"
 }
 
+run_linter() {
+    section "Verificando Qualidade do Código com ShellCheck"
+    bash "${SCRIPTS_DIR}/maintenance/run_linter.sh"
+}
+
+run_auto_updater() {
+    section "Atualizando o Projeto via Git"
+    bash "${SCRIPTS_DIR}/maintenance/auto_updater.sh"
+}
+
 main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
         show_menu
-        read -p "Selecione uma opção [1-17]: " choice
+        read -p "Selecione uma opção [1-19]: " choice
         case $choice in
             1) audit_log "start_all" "ATTEMPT"; start_all_services && audit_log "start_all" "SUCCESS" || audit_log "start_all" "FAIL" ;;
             2) audit_log "stop_all" "ATTEMPT"; stop_all_services && audit_log "stop_all" "SUCCESS" || audit_log "stop_all" "FAIL" ;;
@@ -451,7 +463,9 @@ main() {
             14) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
             15) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;
             16) audit_log "generate_readme" "EXECUTE"; run_readme_generator ;;
-            17) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            17) audit_log "run_linter" "EXECUTE"; run_linter ;;
+            18) audit_log "run_updater" "EXECUTE"; run_auto_updater ;;
+            19) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""

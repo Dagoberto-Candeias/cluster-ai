@@ -449,6 +449,17 @@ main() {
             log "Iniciando monitoramento contínuo..."
             monitor_resource_usage
             ;;
+        "get-settings")
+            # Apenas calcula e imprime as configurações, não as aplica.
+            # Útil para outros scripts que precisam dos valores.
+            local resources=$(detect_system_resources)
+            local cpu_cores=$(echo "$resources" | grep "CPU_CORES" | cut -d= -f2)
+            local total_memory_mb=$(echo "$resources" | grep "TOTAL_MEMORY_MB" | cut -d= -f2)
+            local gpu_count=$(echo "$resources" | grep "GPU_COUNT" | cut -d= -f2)
+            local total_gpu_vram_mb=$(echo "$resources" | grep "TOTAL_GPU_VRAM_MB" | cut -d= -f2)
+            local primary_gpu_vram_mb=$(echo "$resources" | grep "PRIMARY_GPU_VRAM_MB" | cut -d= -f2)
+            calculate_optimized_settings "$cpu_cores" "$total_memory_mb" "$gpu_count" "$total_gpu_vram_mb" "$primary_gpu_vram_mb"
+            ;;
         "status")
             show_status
             ;;
@@ -466,6 +477,7 @@ main() {
             echo "Comandos:"
             echo "  optimize     - Otimizar configurações baseadas nos recursos"
             echo "  monitor      - Iniciar monitoramento contínuo"
+            echo "  get-settings - Obter configurações calculadas sem aplicar"
             echo "  restore      - Restaurar configurações anteriores ao último 'optimize'"
             echo "  status       - Mostrar status atual"
             echo "  free-memory  - Liberar memória imediatamente"

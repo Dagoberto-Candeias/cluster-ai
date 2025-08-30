@@ -216,6 +216,8 @@ run_full_installation() {
             log "Instalando como Servidor Principal (todos os componentes)..."
             run_install_step "Configurando drivers de GPU (Opcional)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
             run_install_step "Instalando IDEs de desenvolvimento (Opcional)" "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
+            run_install_step "Configurando OpenWebUI com limites otimizados" \
+                "bash '${INSTALL_DIR}/setup_openwebui.sh'" true || { print_installation_summary; return 1; }
             ;;
         "Apenas Worker")
             log "Instalando como Worker Dedicado (foco em processamento)..."

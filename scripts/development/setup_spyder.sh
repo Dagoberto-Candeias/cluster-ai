@@ -20,6 +20,32 @@ fi
 # --- Variáveis de Configuração ---
 VENV_PATH="$HOME/cluster_env"
 
+# --- Funções ---
+create_spyder_shortcut() {
+    local shortcut_dir="$HOME/.local/share/applications"
+    local shortcut_file="$shortcut_dir/cluster-ai-spyder.desktop"
+    local venv_path="$VENV_PATH"
+
+    log "Criando atalho de menu para o Spyder..."
+    mkdir -p "$shortcut_dir"
+
+    # O comando Exec precisa ativar o ambiente virtual primeiro
+    tee "$shortcut_file" > /dev/null << EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Spyder (Cluster AI)
+Comment=Abre o Spyder IDE com o ambiente virtual do Cluster AI
+Exec=bash -c "source $venv_path/bin/activate && spyder"
+Icon=spyder
+Terminal=false
+Categories=Development;IDE;
+EOL
+
+    chmod +x "$shortcut_file"
+    success "Atalho criado em: $shortcut_file"
+}
+
 # --- Função Principal ---
 main() {
     section "Configurando Spyder IDE"
@@ -59,6 +85,9 @@ main() {
     deactivate
     log "Ambiente virtual desativado."
     
+    # Criar atalho no menu
+    create_spyder_shortcut
+
     success "✅ Configuração do Spyder concluída com sucesso!"
 }
 

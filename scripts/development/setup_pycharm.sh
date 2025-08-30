@@ -101,6 +101,30 @@ install_pycharm() {
     fi
 }
 
+create_pycharm_shortcut() {
+    local shortcut_dir="$HOME/.local/share/applications"
+    local shortcut_file="$shortcut_dir/cluster-ai-pycharm.desktop"
+    local project_root_from_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+    log "Criando atalho de menu para o PyCharm..."
+    mkdir -p "$shortcut_dir"
+
+    tee "$shortcut_file" > /dev/null << EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PyCharm (Cluster AI)
+Comment=Abre o projeto Cluster AI no PyCharm Community
+Exec=pycharm-community "$project_root_from_script"
+Icon=pycharm-community
+Terminal=false
+Categories=Development;IDE;
+EOL
+
+    chmod +x "$shortcut_file"
+    success "Atalho criado em: $shortcut_file"
+}
+
 main() {
     section "Configurando PyCharm IDE"
     
@@ -111,6 +135,9 @@ main() {
     fi
     
     install_pycharm
+
+    # Criar atalho no menu
+    create_pycharm_shortcut
     
     # Verifica se o comando existe OU se o pacote snap está instalado como fallback
     if command_exists pycharm-community || (command_exists snap && snap list 2>/dev/null | grep -q "pycharm-community"); then
