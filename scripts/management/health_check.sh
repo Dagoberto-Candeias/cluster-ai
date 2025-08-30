@@ -285,7 +285,38 @@ check_ollama() {
                     local models_count=$(echo "$models" | wc -l)
                     if [ $models_count -gt 1 ]; then
                         success "📦 Modelos Ollama: $((models_count - 1)) instalado(s)"
-                        echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $1}' | tr '\n' ' ')"
+                        echo "   Modelos: $(echo "$models" | grep -v "NAME" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//')"
+
+                        # --- INÍCIO DO TESTE DE LATÊNCIA ---
+                        subsection "Teste de Latência dos Modelos"
+                        local model_names
+                        model_names=$(echo "$models" | grep -v "NAME" | awk '{print $1}')
+
+                        for model in $model_names; do
+                            log "   Testando latência para o modelo: $model..."
+                            local start_time; start_time=$(date +%s.%N)
+                            
+                            # Envia um prompt simples e mede o tempo de resposta. Timeout de 60s.
+                            local api_response; api_response=$(timeout 60 curl -s -X POST http://localhost:11434/api/generate -d "{\"model\": \"$model\", \"prompt\": \"Responda apenas com 'OK'.\", \"stream\": false}" 2>/dev/null)
+                            local end_time; end_time=$(date +%s.%N)
+                            
+                            if echo "$api_response" | grep -q "\"response\":\"OK\""; then
+                                local duration; duration=$(echo "$end_time - $start_time" | bc)
+                                local duration_formatted; duration_formatted=$(printf "%.2f" "$duration")
+
+                                # Alertas baseados na latência (valores podem ser ajustados)
+                                if (( $(echo "$duration > 20" | bc -l) )); then
+                                    warn "   - Latência para '$model': ${duration_formatted}s (LENTO)"
+                                else
+                                    success "   - Latência para '$model': ${duration_formatted}s (RÁPIDO)"
+                                fi
+                            else
+                                local error_message; error_message=$(echo "$api_response" | grep -o '"error":"[^"]*"' | cut -d'"' -f4)
+                                fail "   - Falha ao testar o modelo '$model'. Erro da API: ${error_message:-'Resposta inválida ou timeout'}"
+                                OVERALL_HEALTH=false
+                            fi
+                        done
+                        # --- FIM DO TESTE DE LATÊNCIA ---
                     else
                         warn "⚠️  Modelos Ollama: Nenhum modelo instalado"
                         if confirm_operation "Deseja baixar um modelo padrão (llama3.1:8b)?"; then

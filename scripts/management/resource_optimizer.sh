@@ -21,64 +21,76 @@ export CLUSTER_AI_LOG_FILE="$LOG_FILE"
 # Função para detectar recursos do sistema
 detect_system_resources() {
     local cpu_cores=$(nproc)
-    local total_memory=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}')
+    local total_memory_mb=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}')
     local total_disk=$(df -h / | awk 'NR==2{print $2}')
 
-    # Atualizar informações da GPU
-    local gpu_detection_script="${PROJECT_ROOT}/scripts/utils/gpu_detection.sh"
-    if [ -f "$gpu_detection_script" ]; then
-        bash "$gpu_detection_script" >/dev/null 2>&1
+    # Detecção Multi-GPU
+    local gpu_count=0
+    local total_gpu_vram_mb=0
+    local primary_gpu_vram_mb=0
+
+    if command_exists nvidia-smi; then
+        gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader)
+        # Somar a VRAM de todas as GPUs
+        total_gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{s+=$1} END {print s}')
+        # Pegar a VRAM da primeira GPU para cálculo de camadas
+        primary_gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
     fi
 
-    # Carregar informações da GPU
-    local gpu_vram_mb=0
-    [ -f "$HOME/.cluster_gpu_config" ] && source "$HOME/.cluster_gpu_config"
-
     cpu_cores=${cpu_cores:-0}
-    total_memory=${total_memory:-0}
+    total_memory_mb=${total_memory_mb:-0}
     
     echo "CPU_CORES=$cpu_cores"
-    echo "TOTAL_MEMORY=$total_memory"
+    echo "TOTAL_MEMORY_MB=$total_memory_mb"
     echo "TOTAL_DISK=$total_disk"
-    echo "GPU_VRAM_MB=${GPU_VRAM_MB:-0}"
+    echo "GPU_COUNT=${gpu_count:-0}"
+    echo "TOTAL_GPU_VRAM_MB=${total_gpu_vram_mb:-0}"
+    echo "PRIMARY_GPU_VRAM_MB=${primary_gpu_vram_mb:-0}"
 }
 
 # Função para calcular configurações otimizadas
 calculate_optimized_settings() {
     local cpu_cores=$1
-    local total_memory=$2
-    local gpu_vram_mb=$3
+    local total_memory_mb=$2
+    local gpu_count=$3
+    local total_gpu_vram_mb=$4
+    local primary_gpu_vram_mb=$5
     
     # --- Configurações Dinâmicas ---
     local dask_workers=0
     local dask_threads=0
     local memory_limit="1GB"
+    local dask_worker_class="dask.distributed.Nanny" # Worker padrão (CPU)
     local ollama_num_gpu_layers=0
     local ollama_max_loaded_models=1
     local reserved_mem_for_os=2048 # Reservar 2GB para o SO
 
     # Perfil de Otimização: GPU vs CPU
-    if [ "$gpu_vram_mb" -ge 4000 ]; then # Considera-se um nó de GPU se tiver >= 4GB VRAM
+    if [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 4000 ]; then
         log "Perfil de otimização: GPU-Focused"
-        # --- Configuração OLLAMA (baseada em VRAM) ---
-        if [ "$gpu_vram_mb" -ge 20000 ]; then # 20GB+
+        dask_worker_class="dask_cuda.CUDAWorker"
+
+        # --- Configuração OLLAMA (baseada na VRAM da GPU primária e total) ---
+        if [ "$primary_gpu_vram_mb" -ge 20000 ]; then # 20GB+
             ollama_num_gpu_layers=99; ollama_max_loaded_models=3
-        elif [ "$gpu_vram_mb" -ge 10000 ]; then # 10GB+
+        elif [ "$primary_gpu_vram_mb" -ge 10000 ]; then # 10GB+
             ollama_num_gpu_layers=43; ollama_max_loaded_models=2
-        elif [ "$gpu_vram_mb" -ge 6000 ]; then # 6GB+
+        elif [ "$primary_gpu_vram_mb" -ge 6000 ]; then # 6GB+
             ollama_num_gpu_layers=33; ollama_max_loaded_models=1
         else # 4-6GB
             ollama_num_gpu_layers=25; ollama_max_loaded_models=1
         fi
+        # Ajustar modelos carregados com base na VRAM total
+        ollama_max_loaded_models=$(( total_gpu_vram_mb / 8000 ))
+        [ "$ollama_max_loaded_models" -lt 1 ] && ollama_max_loaded_models=1
 
-        # --- Configuração DASK (conservadora para dar espaço à GPU) ---
-        dask_workers=$((cpu_cores / 2))
-        [ "$dask_workers" -lt 1 ] && dask_workers=1
-        dask_threads=2
+        # --- Configuração DASK (um worker por GPU) ---
+        dask_workers=$gpu_count
+        dask_threads=2 # GPU workers geralmente usam menos threads de CPU
         
         # Reservar memória RAM para Ollama e SO
         local reserved_mem_for_ollama=8192 # 8GB
-        local available_mem_for_dask=$((total_memory - reserved_mem_for_os - reserved_mem_for_ollama))
+        local available_mem_for_dask=$((total_memory_mb - reserved_mem_for_os - reserved_mem_for_ollama))
 
     else
         log "Perfil de otimização: CPU-Focused"
@@ -93,7 +105,7 @@ calculate_optimized_settings() {
 
         # Reservar memória RAM para Ollama (CPU) e SO
         local reserved_mem_for_ollama=4096 # 4GB
-        local available_mem_for_dask=$((total_memory - reserved_mem_for_os - reserved_mem_for_ollama))
+        local available_mem_for_dask=$((total_memory_mb - reserved_mem_for_os - reserved_mem_for_ollama))
     fi
 
     # --- Cálculo do Limite de Memória do Dask ---
@@ -109,6 +121,7 @@ calculate_optimized_settings() {
     echo "DASK_WORKERS=$dask_workers"
     echo "DASK_THREADS=$dask_threads"
     echo "MEMORY_LIMIT=$memory_limit"
+    echo "DASK_WORKER_CLASS=$dask_worker_class"
     echo "OLLAMA_NUM_GPU_LAYERS=$ollama_num_gpu_layers"
     echo "OLLAMA_MAX_LOADED_MODELS=$ollama_max_loaded_models"
 }
@@ -121,18 +134,20 @@ apply_optimized_settings() {
     local dask_workers=$(echo "$settings" | grep "DASK_WORKERS=" | cut -d= -f2)
     local dask_threads=$(echo "$settings" | grep "DASK_THREADS=" | cut -d= -f2)
     local memory_limit=$(echo "$settings" | grep "MEMORY_LIMIT=" | cut -d= -f2)
+    local dask_worker_class=$(echo "$settings" | grep "DASK_WORKER_CLASS=" | cut -d= -f2)
     local ollama_num_gpu_layers=$(echo "$settings" | grep "OLLAMA_NUM_GPU_LAYERS=" | cut -d= -f2)
     local ollama_max_loaded_models=$(echo "$settings" | grep "OLLAMA_MAX_LOADED_MODELS=" | cut -d= -f2)
     
     log "Aplicando configurações otimizadas:"
     log "  Dask Workers: $dask_workers"
     log "  Dask Threads: $dask_threads"
-    log "  Memory Limit: $memory_limit"
+    log "  Dask Memory Limit: $memory_limit"
+    log "  Dask Worker Class: $dask_worker_class"
     log "  Ollama GPU Layers: $ollama_num_gpu_layers"
     log "  Ollama Max Loaded Models: $ollama_max_loaded_models"
     
     # Atualizar configuração do Dask
-    update_dask_config "$dask_workers" "$dask_threads" "$memory_limit"
+    update_dask_config "$dask_workers" "$dask_threads" "$memory_limit" "$dask_worker_class"
     
     # Atualizar configuração Ollama
     if confirm_operation "As configurações do Ollama exigem privilégios de root para serem aplicadas. Continuar?"; then
@@ -147,6 +162,7 @@ update_dask_config() {
     local workers=$1
     local threads=$2
     local memory_limit=$3
+    local worker_class=$4
     local dask_config_file="$CLUSTER_CONFIG_DIR/dask.conf"
 
     mkdir -p "$CLUSTER_CONFIG_DIR"
@@ -160,6 +176,7 @@ update_dask_config() {
 DASK_WORKERS=${workers}
 DASK_THREADS=${threads}
 DASK_MEMORY_LIMIT=${memory_limit}
+DASK_WORKER_CLASS=${worker_class}
 EOL
     success "Configuração do Dask Worker atualizada."
     info "Reinicie os workers Dask para aplicar as mudanças."
@@ -378,11 +395,14 @@ main() {
             fi
             log "Otimizando configurações baseadas nos recursos do sistema..."
             local resources=$(detect_system_resources)
-            local cpu_cores=$(echo "$resources" | grep "CPU_CORES=" | cut -d= -f2)
-            local total_memory=$(echo "$resources" | grep "TOTAL_MEMORY=" | cut -d= -f2)
-            local gpu_vram_mb=$(echo "$resources" | grep "GPU_VRAM_MB=" | cut -d= -f2)
+            local cpu_cores=$(echo "$resources" | grep "CPU_CORES" | cut -d= -f2)
+            local total_memory_mb=$(echo "$resources" | grep "TOTAL_MEMORY_MB" | cut -d= -f2)
+            local gpu_count=$(echo "$resources" | grep "GPU_COUNT" | cut -d= -f2)
+            local total_gpu_vram_mb=$(echo "$resources" | grep "TOTAL_GPU_VRAM_MB" | cut -d= -f2)
+            local primary_gpu_vram_mb=$(echo "$resources" | grep "PRIMARY_GPU_VRAM_MB" | cut -d= -f2)
             
-            local optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory" "$gpu_vram_mb")
+            local optimized_settings
+            optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory_mb" "$gpu_count" "$total_gpu_vram_mb" "$primary_gpu_vram_mb")
             apply_optimized_settings "$optimized_settings"
             ;;
         "monitor")

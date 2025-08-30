@@ -43,8 +43,9 @@ show_menu() {
     echo "9. ⚙️  Acessar instalador/configurador"
     echo "10. 📜 Ver log de auditoria"
     echo "11. 🗄️ Rotacionar logs de auditoria"
+    echo "12. ⏰ Agendar rotação de logs (Cron)"
     echo "---"
-    echo "12. 🚪 Sair"
+    echo "13. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -340,11 +341,16 @@ run_log_rotator() {
     bash "${SCRIPTS_DIR}/maintenance/log_rotator.sh"
 }
 
+run_cron_setup() {
+    section "Agendando Rotação de Logs"
+    bash "${SCRIPTS_DIR}/maintenance/setup_cron_job.sh"
+}
+
 main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
         show_menu
-        read -p "Selecione uma opção [1-12]: " choice
+        read -p "Selecione uma opção [1-13]: " choice
         case $choice in
             1) audit_log "start_all" "ATTEMPT"; start_all_services && audit_log "start_all" "SUCCESS" || audit_log "start_all" "FAIL" ;;
             2) audit_log "stop_all" "ATTEMPT"; stop_all_services && audit_log "stop_all" "SUCCESS" || audit_log "stop_all" "FAIL" ;;
@@ -370,7 +376,8 @@ main() {
                ;;
             10) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
             11) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
-            12) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            12) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
+            13) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""
