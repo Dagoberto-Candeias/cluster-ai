@@ -114,41 +114,105 @@ show_install_menu() {
     echo ""
 }
 
+# --- Funções de Detecção de Papel ---
+
+detect_hardware_for_role() {
+    local cpu_cores; cpu_cores=$(nproc 2>/dev/null || echo 4)
+    local total_memory_mb; total_memory_mb=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}' 2>/dev/null || echo 4096)
+    local gpu_count=0
+    local primary_gpu_vram_mb=0
+
+    if command_exists nvidia-smi; then
+        gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader 2>/dev/null || echo 0)
+        primary_gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1 2>/dev/null || echo 0)
+    fi
+    
+    echo "CPU_CORES=$cpu_cores"
+    echo "TOTAL_MEMORY_MB=$total_memory_mb"
+    echo "GPU_COUNT=$gpu_count"
+    echo "PRIMARY_GPU_VRAM_MB=$primary_gpu_vram_mb"
+}
+
+determine_node_role() {
+    section "Determinando Papel do Nó com Base no Hardware"
+    local resources; resources=$(detect_hardware_for_role)
+    
+    local cpu_cores; cpu_cores=$(echo "$resources" | grep "CPU_CORES" | cut -d= -f2)
+    local total_memory_mb; total_memory_mb=$(echo "$resources" | grep "TOTAL_MEMORY_MB" | cut -d= -f2)
+    local gpu_count; gpu_count=$(echo "$resources" | grep "GPU_COUNT" | cut -d= -f2)
+    local primary_gpu_vram_mb; primary_gpu_vram_mb=$(echo "$resources" | grep "PRIMARY_GPU_VRAM_MB" | cut -d= -f2)
+
+    log "Recursos detectados: ${cpu_cores} Cores, ${total_memory_mb}MB RAM, ${gpu_count} GPU(s) (${primary_gpu_vram_mb}MB VRAM primária)"
+
+    local suggested_role="Worker (CPU-Limitado)" # Papel padrão
+
+    # Lógica de decisão para sugerir o papel
+    if [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 12000 ] && [ "$total_memory_mb" -ge 32000 ] && [ "$cpu_cores" -ge 8 ]; then
+        suggested_role="Servidor Principal"
+    elif [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 8000 ]; then
+        suggested_role="Apenas Worker"
+    elif [ "$total_memory_mb" -ge 16000 ] && [ "$cpu_cores" -ge 6 ]; then
+        suggested_role="Estação de Trabalho"
+    fi
+    
+    info "Papel sugerido para este nó: ${YELLOW}${suggested_role}${NC}"
+    echo "$suggested_role"
+}
+
 run_full_installation() {
     # Limpar status de instalações anteriores
     INSTALL_STEPS_SUCCESS=()
     INSTALL_STEPS_WARNING=()
     INSTALL_STEPS_FAILED=()
 
-    section "Iniciando Instalação Completa"
+    section "Iniciando Instalação Completa e Automática"
 
+    local node_role; node_role=$(determine_node_role)
+    if [ -z "$node_role" ]; then
+        error "Não foi possível determinar o papel do nó. Abortando."
+        return 1
+    fi
+
+    if ! confirm_operation "O papel sugerido é '${node_role}'. Deseja prosseguir com esta configuração?"; then
+        log "Instalação cancelada pelo usuário."
+        return 0
+    fi
+
+    # Passos comuns a todos os papéis
     run_install_step "Instalando dependências do sistema" \
         "bash '${INSTALL_DIR}/setup_dependencies.sh'" true || { print_installation_summary; return 1; }
-
     run_install_step "Configurando ambiente Python" \
         "bash '${INSTALL_DIR}/setup_python_env.sh'" true || { print_installation_summary; return 1; }
-
     run_install_step "Configurando Ollama e baixando modelos" \
         "bash '${INSTALL_DIR}/setup_ollama.sh'" true || { print_installation_summary; return 1; }
 
-    if confirm_operation "Deseja tentar configurar os drivers de GPU (NVIDIA/AMD)?"; then
-        run_install_step "Configurando drivers de GPU" \
-            "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
-    fi
+    # Passos específicos para cada papel
+    case "$node_role" in
+        "Servidor Principal")
+            log "Instalando como Servidor Principal (todos os componentes)..."
+            run_install_step "Configurando drivers de GPU (Opcional)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
+            run_install_step "Instalando IDEs de desenvolvimento (Opcional)" "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
+            ;;
+        "Apenas Worker")
+            log "Instalando como Worker Dedicado (foco em processamento)..."
+            run_install_step "Configurando drivers de GPU (Crítico para este papel)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" true || { print_installation_summary; return 1; }
+            ;;
+        "Estação de Trabalho")
+            log "Instalando como Estação de Trabalho (desenvolvimento e processamento)..."
+            run_install_step "Configurando drivers de GPU (Opcional)" "sudo bash '${INSTALL_DIR}/gpu_setup.sh'" false
+            run_install_step "Instalando IDEs de desenvolvimento (Recomendado)" "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
+            ;;
+        "Worker (CPU-Limitado)")
+            log "Instalando como Worker (CPU)..."
+            warn "Este nó tem recursos limitados. A performance pode ser baixa."
+            ;;
+    esac
 
-    if confirm_operation "Deseja instalar as IDEs recomendadas (VSCode, PyCharm, Spyder)?"; then
-        run_install_step "Instalando IDEs de desenvolvimento" \
-            "bash '${DEV_DIR}/setup_vscode.sh' && bash '${DEV_DIR}/setup_pycharm.sh' && bash '${DEV_DIR}/setup_spyder.sh'" false
-    fi
-
+    # Passos finais comuns
     run_install_step "Configurando scripts de runtime" \
         "mkdir -p '$HOME/cluster_scripts' && cp '${PROJECT_ROOT}/scripts/runtime/start_worker.sh' '$HOME/cluster_scripts/' && chmod +x '$HOME/cluster_scripts/start_worker.sh'" true || { print_installation_summary; return 1; }
-
     local optimizer_script="${SCRIPTS_DIR}/management/resource_optimizer.sh"
-    if [ -f "$optimizer_script" ] && confirm_operation "Deseja executar o otimizador de recursos para ajustar as configurações de performance (Ollama, Dask) ao seu hardware?"; then
-        run_install_step "Otimização Automática de Recursos" \
-            "bash '$optimizer_script' optimize" false
-    fi
+    run_install_step "Otimização Automática de Recursos" "bash '$optimizer_script' optimize" false
 
     print_installation_summary
     

@@ -44,8 +44,9 @@ show_menu() {
     echo "10. 📜 Ver log de auditoria"
     echo "11. 🗄️ Rotacionar logs de auditoria"
     echo "12. ⏰ Agendar rotação de logs (Cron)"
+    echo "13. 📺 Configurar serviço de monitoramento"
     echo "---"
-    echo "13. 🚪 Sair"
+    echo "14. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -346,11 +347,16 @@ run_cron_setup() {
     bash "${SCRIPTS_DIR}/maintenance/setup_cron_job.sh"
 }
 
+run_monitor_setup() {
+    section "Configurando Serviço de Monitoramento"
+    sudo bash "${SCRIPTS_DIR}/deployment/setup_monitor_service.sh"
+}
+
 main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
         show_menu
-        read -p "Selecione uma opção [1-13]: " choice
+        read -p "Selecione uma opção [1-14]: " choice
         case $choice in
             1) audit_log "start_all" "ATTEMPT"; start_all_services && audit_log "start_all" "SUCCESS" || audit_log "start_all" "FAIL" ;;
             2) audit_log "stop_all" "ATTEMPT"; stop_all_services && audit_log "stop_all" "SUCCESS" || audit_log "stop_all" "FAIL" ;;
@@ -377,7 +383,8 @@ main() {
             10) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
             11) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
             12) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
-            13) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            13) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;
+            14) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""
