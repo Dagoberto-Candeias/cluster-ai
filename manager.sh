@@ -51,8 +51,9 @@ show_menu() {
     echo "16. 📜 Gerar README.md dinâmico"
     echo "17.  Lint (verificar qualidade do código)"
     echo "18. 🔄 Atualizar o Cluster AI (via Git)"
+    echo "19. 🗄️ Gerenciar Backups"
     echo "---"
-    echo "19. 🚪 Sair"
+    echo "20. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -428,11 +429,51 @@ run_auto_updater() {
     bash "${SCRIPTS_DIR}/maintenance/auto_updater.sh"
 }
 
+run_backup_manager() {
+    local backup_script="${SCRIPTS_DIR}/maintenance/backup_manager.sh"
+    if [ ! -f "$backup_script" ]; then
+        error "Script de backup não encontrado em $backup_script"
+        return 1
+    fi
+
+    while true; do
+        clear
+        section "Gerenciador de Backups"
+        echo "1. 💾 Fazer Backup Completo (config, modelos, docker)"
+        echo "2. ⚙️ Fazer Backup apenas das Configurações"
+        echo "3. 🧠 Fazer Backup apenas dos Modelos Ollama"
+        echo "4. 🐳 Fazer Backup apenas dos Dados Docker"
+        echo "5. 🔄 Restaurar a partir de um backup"
+        echo "---"
+        echo "6. 📋 Listar Backups existentes"
+        echo "7. 🗑️ Limpar Backups antigos"
+        echo "---"
+        echo "8. ↩️ Voltar ao menu principal"
+        read -p "Selecione uma opção [1-8]: " choice
+
+        case $choice in
+            1) audit_log "backup_full" "EXECUTE"; bash "$backup_script" full ;;
+            2) audit_log "backup_config" "EXECUTE"; bash "$backup_script" config ;;
+            3) audit_log "backup_models" "EXECUTE"; bash "$backup_script" models ;;
+            4) audit_log "backup_docker" "EXECUTE"; bash "$backup_script" docker-data ;;
+            5) 
+               audit_log "restore_start" "EXECUTE"
+               bash "${SCRIPTS_DIR}/maintenance/restore_manager.sh"
+               ;;
+            6) audit_log "backup_list" "EXECUTE"; bash "$backup_script" list ;;
+            7) audit_log "backup_cleanup" "EXECUTE"; bash "$backup_script" cleanup ;;
+            8) break ;;
+            *) warn "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
 main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
         show_menu
-        read -p "Selecione uma opção [1-19]: " choice
+        read -p "Selecione uma opção [1-20]: " choice
         case $choice in
             1) audit_log "start_all" "ATTEMPT"; start_all_services && audit_log "start_all" "SUCCESS" || audit_log "start_all" "FAIL" ;;
             2) audit_log "stop_all" "ATTEMPT"; stop_all_services && audit_log "stop_all" "SUCCESS" || audit_log "stop_all" "FAIL" ;;
@@ -465,7 +506,8 @@ main() {
             16) audit_log "generate_readme" "EXECUTE"; run_readme_generator ;;
             17) audit_log "run_linter" "EXECUTE"; run_linter ;;
             18) audit_log "run_updater" "EXECUTE"; run_auto_updater ;;
-            19) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            19) audit_log "backup_manager" "ENTER"; run_backup_manager; audit_log "backup_manager" "EXIT" ;;
+            20) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""
