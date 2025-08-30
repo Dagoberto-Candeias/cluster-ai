@@ -33,6 +33,20 @@ show_help() {
     echo "  help                  - Mostra esta ajuda."
 }
 
+# Função para imprimir uma string colorida com preenchimento para alinhamento de tabela
+print_padded_colored() {
+    local str_colored="$1"
+    local width="$2"
+    # Remove códigos de cor para calcular o comprimento real do texto
+    local str_uncolored; str_uncolored=$(echo -e "$str_colored" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g")
+    local len=${#str_uncolored}
+    local padding=$((width - len))
+
+    # Imprime a string colorida e o preenchimento
+    echo -ne "$str_colored"
+    printf '%*s' "$padding" ''
+}
+
 # Verifica se o arquivo de nós existe e não está vazio
 check_nodes_file() {
     if [ ! -f "$NODES_CONFIG_FILE" ] || [ ! -s "$NODES_CONFIG_FILE" ]; then
@@ -114,33 +128,54 @@ do_stop() {
 do_status() {
     section "Status dos Workers Dask Remotos"
     if ! check_nodes_file; then return 1; fi
-    
+
     # Cabeçalho da tabela
-    printf "%-25s | %-15s | %-12s | %-8s | %-8s\n" "Hostname" "IP" "Status" "CPU %" "Mem %"
-    printf "%s\n" "--------------------------|-----------------|--------------|----------|----------"
+    printf "%-25s | %-15s | %-18s | %-15s | %-12s\n" "Hostname" "IP" "Worker Status" "Node CPU Load" "Node Mem %"
+    printf "%s\n" "--------------------------|-----------------|--------------------|-----------------|-------------"
 
     while read -r hostname ip user; do
         if [ -z "$hostname" ]; then continue; fi
 
-        # Comando para obter o uso de CPU e Memória dos processos dask-worker
-        local remote_cmd="ps -C dask-worker -o %cpu,%mem --no-headers"
-        local status_output
-        status_output=$(ssh -o ConnectTimeout=5 "$user@$hostname" "$remote_cmd" 2>/dev/null)
+        # 1. Verificar status do worker Dask
+        local worker_check_cmd="pgrep -fc dask-worker"
+        local worker_count
+        worker_count=$(ssh -o ConnectTimeout=5 "$user@$hostname" "$worker_check_cmd" 2>/dev/null || echo 0)
 
-        if [ -n "$status_output" ]; then
-            # Agrega os valores se houver múltiplos workers no mesmo nó
-            local total_cpu=0
-            local total_mem=0
-            local worker_count=0
-            while read -r cpu mem; do
-                total_cpu=$(echo "$total_cpu + $cpu" | bc)
-                total_mem=$(echo "$total_mem + $mem" | bc)
-                ((worker_count++))
-            done <<< "$status_output"
-            printf "%-25s | %-15s | ${GREEN}%-12s${NC} | %-8.1f | %-8.1f\n" "$hostname" "$ip" "ATIVO ($worker_count)" "$total_cpu" "$total_mem"
+        local worker_status
+        if [ "$worker_count" -gt 0 ]; then
+            worker_status="${GREEN}ATIVO ($worker_count)${NC}"
         else
-            printf "%-25s | %-15s | ${RED}%-12s${NC} | %-8s | %-8s\n" "$hostname" "$ip" "INATIVO" "N/A" "N/A"
+            worker_status="${RED}INATIVO${NC}"
         fi
+
+        # 2. Obter métricas gerais do nó (CPU Load e Memória)
+        local node_metrics_cmd="uptime | awk -F'load average: ' '{print \$2}' | awk '{print \$1}' | tr -d ','; echo '|'; free -m | awk '/Mem:/ {printf \"%d\", \$3/\$2 * 100}'"
+        local metrics_output
+        metrics_output=$(ssh -o ConnectTimeout=5 "$user@$hostname" "$node_metrics_cmd" 2>/dev/null)
+
+        local node_cpu_load="N/A"
+        local node_mem_perc_raw="N/A"
+        local node_mem_perc_display="N/A"
+
+        if [ -n "$metrics_output" ]; then
+            node_cpu_load=$(echo "$metrics_output" | cut -d'|' -f1)
+            node_mem_perc_raw=$(echo "$metrics_output" | cut -d'|' -f2)
+
+            if [[ "$node_mem_perc_raw" -gt 85 ]]; then
+                node_mem_perc_display="${RED}${node_mem_perc_raw}%${NC}"
+            elif [[ "$node_mem_perc_raw" -gt 70 ]]; then
+                node_mem_perc_display="${YELLOW}${node_mem_perc_raw}%${NC}"
+            else
+                node_mem_perc_display="${GREEN}${node_mem_perc_raw}%${NC}"
+            fi
+        fi
+
+        # Imprimir linha da tabela com preenchimento manual para alinhamento
+        printf "%-25s | %-15s | " "$hostname" "$ip"
+        print_padded_colored "$worker_status" 18
+        printf " | %-15s | " "$node_cpu_load"
+        print_padded_colored "$node_mem_perc_display" 12
+        printf "\n"
     done < <(get_nodes)
 }
 

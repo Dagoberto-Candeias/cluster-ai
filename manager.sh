@@ -279,11 +279,12 @@ run_remote_worker_menu() {
         echo "1. Iniciar workers em TODOS os nós remotos"
         echo "2. Parar workers em TODOS os nós remotos"
         echo "3. Mostrar status dos workers remotos"
-        echo "4. Verificar conectividade SSH com os nós"
+        echo "4. ➕ Adicionar e configurar um novo worker"
+        echo "5. 🔗 Verificar conectividade SSH com os nós"
         echo "---"
-        echo "5. Voltar ao menu principal"
+        echo "6. Voltar ao menu principal"
 
-        read -p "Selecione uma opção [1-5]: " choice
+        read -p "Selecione uma opção [1-6]: " choice
         case $choice in
             1)
                 read -p "Digite o IP do Dask Scheduler (este nó): " scheduler_ip
@@ -303,10 +304,14 @@ run_remote_worker_menu() {
                 bash "$remote_manager_script" status
                 ;;
             4)
+                audit_log "setup_new_worker" "EXECUTE"
+                bash "${SCRIPTS_DIR}/deployment/setup_new_worker.sh"
+                ;;
+            5)
                 audit_log "remote_worker_check_ssh" "EXECUTE"
                 bash "$remote_manager_script" check-ssh
                 ;;
-            5) break ;;
+            6) break ;;
             *) warn "Opção inválida." ;;
         esac
         read -p "Pressione Enter para continuar..."
