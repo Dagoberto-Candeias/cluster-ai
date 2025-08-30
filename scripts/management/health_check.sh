@@ -429,6 +429,109 @@ check_remote_dask_connectivity() {
     done < <(grep -vE '^\s*(#|$)' "$nodes_file")
 }
 
+# Função para verificar a saúde dos workers remotos
+check_remote_workers_health() {
+    subsection "Saúde dos Nós Workers Remotos"
+    local nodes_file="$HOME/.cluster_config/nodes_list.conf"
+
+    if [ ! -f "$nodes_file" ] || [ ! -s "$nodes_file" ]; then
+        info "Nenhum nó remoto configurado em '$nodes_file'. Pulando verificação de saúde remota."
+        return
+    fi
+
+    while read -r hostname ip user; do
+        if [ -z "$hostname" ]; then continue; fi
+        log "Verificando saúde do nó remoto: $user@$hostname ($ip)..."
+
+        # Comando a ser executado remotamente
+        # Este comando irá verificar:
+        # 1. Carga de CPU (load average)
+        # 2. Uso de memória (%)
+        # 3. Uso de disco (%)
+        # 4. Número de processos dask-worker
+        # 5. Status do serviço Ollama (se existe e se está ativo)
+        local remote_check_cmd=$(cat <<'REMOTE_EOF'
+set -e
+CPU_LOAD=$(uptime | awk -F'load average: ' '{print $2}' | awk '{print $1}' | tr -d ',')
+MEM_USAGE=$(free -m | awk '/Mem:/ {printf "%d", $3/$2 * 100}')
+DISK_USAGE=$(df / | awk 'NR==2 {print $5}' | sed 's/%//')
+DASK_WORKERS=$(pgrep -fc dask-worker || echo 0)
+
+OLLAMA_STATUS="N/A"
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl list-units --full -all | grep -q "ollama.service"; then
+        if systemctl is-active --quiet ollama; then
+            OLLAMA_STATUS="ATIVO"
+        else
+            OLLAMA_STATUS="INATIVO"
+        fi
+    else
+        OLLAMA_STATUS="NÃO INSTALADO"
+    fi
+elif pgrep -f "ollama serve" >/dev/null 2>&1; then
+    OLLAMA_STATUS="ATIVO (processo)"
+else
+    OLLAMA_STATUS="NÃO INSTALADO"
+fi
+
+echo "CPU_LOAD=$CPU_LOAD"
+echo "MEM_USAGE=$MEM_USAGE"
+echo "DISK_USAGE=$DISK_USAGE"
+echo "DASK_WORKERS=$DASK_WORKERS"
+echo "OLLAMA_STATUS=$OLLAMA_STATUS"
+REMOTE_EOF
+)
+
+        local remote_output
+        remote_output=$(ssh -o ConnectTimeout=10 -o BatchMode=yes "$user@$hostname" "bash -s" <<< "$remote_check_cmd" 2>/dev/null)
+
+        if [ -z "$remote_output" ]; then
+            fail "   - Conexão com '$hostname': FALHOU. Não foi possível obter o status de saúde."
+            report_issue "FAIL" "Remote Worker ($hostname)" "Conexão SSH para health check falhou" "Verifique a conectividade e as chaves SSH."
+            OVERALL_HEALTH=false
+            continue
+        fi
+
+        # Parsear a saída
+        local cpu_load; cpu_load=$(echo "$remote_output" | grep "CPU_LOAD" | cut -d= -f2)
+        local mem_usage; mem_usage=$(echo "$remote_output" | grep "MEM_USAGE" | cut -d= -f2)
+        local disk_usage; disk_usage=$(echo "$remote_output" | grep "DISK_USAGE" | cut -d= -f2)
+        local dask_workers; dask_workers=$(echo "$remote_output" | grep "DASK_WORKERS" | cut -d= -f2)
+        local ollama_status; ollama_status=$(echo "$remote_output" | grep "OLLAMA_STATUS" | cut -d= -f2)
+
+        # Exibir status
+        if [ "$dask_workers" -gt 0 ]; then
+            success "   - Dask Workers: $dask_workers ATIVO(s)"
+        else
+            warn "   - Dask Workers: INATIVO"
+        fi
+
+        if [[ "$ollama_status" == "ATIVO" || "$ollama_status" == "ATIVO (processo)" ]]; then
+            success "   - Ollama: $ollama_status"
+        else
+            warn "   - Ollama: $ollama_status"
+        fi
+
+        # Alertas de recursos
+        if (( $(echo "$mem_usage > 85" | bc -l) )); then
+            fail "   - Uso de Memória: ${mem_usage}% (CRÍTICO)"
+            OVERALL_HEALTH=false
+        else
+            success "   - Uso de Memória: ${mem_usage}%"
+        fi
+
+        if (( $(echo "$disk_usage > 90" | bc -l) )); then
+            fail "   - Uso de Disco: ${disk_usage}% (CRÍTICO)"
+            OVERALL_HEALTH=false
+        else
+            success "   - Uso de Disco: ${disk_usage}%"
+        fi
+        
+        success "   - Carga de CPU: $cpu_load"
+
+    done < <(grep -vE '^\s*(#|$)' "$nodes_file")
+}
+
 # Função para verificar containers Docker com health check
 check_docker_containers() {
     subsection "Containers Docker do Projeto"
@@ -789,40 +892,41 @@ main() {
     # Verificar conectividade dos workers remotos
     echo -e "\n${BLUE}5. VERIFICAÇÃO DOS WORKERS REMOTOS${NC}"
     check_remote_dask_connectivity
+    check_remote_workers_health
 
     # Verificar containers Docker
-    echo -e "\n${BLUE}5. VERIFICAÇÃO DE CONTAINERS DOCKER${NC}"
+    echo -e "\n${BLUE}6. VERIFICAÇÃO DE CONTAINERS DOCKER${NC}"
     check_docker_containers
 
     # Verificar GPU
-    echo -e "\n${CYAN}6. VERIFICAÇÃO DE GPU${NC}"
+    echo -e "\n${CYAN}7. VERIFICAÇÃO DE GPU${NC}"
     check_gpu
 
     # Verificar PyTorch
-    echo -e "\n${BLUE}7. VERIFICAÇÃO DO PyTorch${NC}"
+    echo -e "\n${BLUE}8. VERIFICAÇÃO DO PyTorch${NC}"
     check_pytorch
 
     # Verificar ambiente virtual
-    echo -e "\n${BLUE}8. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
+    echo -e "\n${BLUE}9. VERIFICAÇÃO DO AMBIENTE VIRTUAL${NC}"
     check_venv
 
     # Verificar ambiente de desenvolvimento
-    echo -e "\n${CYAN}9. AMBIENTE DE DESENVOLVIMENTO (IDEs)${NC}"
+    echo -e "\n${CYAN}10. AMBIENTE DE DESENVOLVIMENTO (IDEs)${NC}"
     check_vscode_extensions
 
     # Verificar recursos
-    echo -e "\n${BLUE}10. RECURSOS DO SISTEMA${NC}"
+    echo -e "\n${BLUE}11. RECURSOS DO SISTEMA${NC}"
     check_resources
 
     # Verificar diretórios importantes
-    echo -e "\n${CYAN}11. ESTRUTURA DE DIRETÓRIOS${NC}"
+    echo -e "\n${CYAN}12. ESTRUTURA DE DIRETÓRIOS${NC}"
     check_directory "$HOME/venv" "Diretório do ambiente virtual"
     check_directory "$HOME/cluster_scripts" "Diretório de scripts do cluster"
     check_directory "$HOME/.ollama" "Diretório do Ollama"
     check_directory ".venv" "Diretório .venv do projeto"
 
     # Verificar documentação
-    echo -e "\n${BLUE}12. DOCUMENTAÇÃO DO PROJETO${NC}"
+    echo -e "\n${BLUE}13. DOCUMENTAÇÃO DO PROJETO${NC}"
     check_readme_freshness
 
     # Imprimir tabela de problemas

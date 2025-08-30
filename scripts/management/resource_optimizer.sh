@@ -136,6 +136,7 @@ calculate_optimized_settings() {
 # Função para aplicar configurações otimizadas
 apply_optimized_settings() {
     local settings="$1"
+    local non_interactive="${2:-false}"
     
     # Extrair configurações
     local dask_workers=$(echo "$settings" | grep "DASK_WORKERS=" | cut -d= -f2)
@@ -161,7 +162,7 @@ apply_optimized_settings() {
     update_dask_config "$dask_workers" "$dask_threads" "$memory_limit" "$dask_worker_class"
     
     # Atualizar configuração Ollama
-    if confirm_operation "As configurações do Ollama exigem privilégios de root para serem aplicadas. Continuar?"; then
+    if [ "$non_interactive" = true ] || confirm_operation "As configurações do Ollama exigem privilégios de root para serem aplicadas. Continuar?"; then
         sudo bash -c "$(declare -f log success error info section subsection; declare -f update_ollama_config); update_ollama_config '$ollama_num_gpu_layers' '$ollama_max_loaded_models'"
     else
         warn "A atualização da configuração do Ollama foi pulada."
@@ -426,6 +427,11 @@ main() {
     
     case "$1" in
         "optimize")
+            local non_interactive=false
+            if [[ "$2" == "-y" || "$2" == "--yes" ]]; then
+                non_interactive=true
+            fi
+
             # A otimização do Ollama requer sudo, então verificamos no início.
             if [[ $EUID -ne 0 ]]; then
                 warn "A otimização completa requer privilégios de root para configurar o serviço Ollama."
@@ -443,7 +449,7 @@ main() {
             
             local optimized_settings
             optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory_mb" "$gpu_count" "$total_gpu_vram_mb" "$primary_gpu_vram_mb")
-            apply_optimized_settings "$optimized_settings"
+            apply_optimized_settings "$optimized_settings" "$non_interactive"
             ;;
         "monitor")
             log "Iniciando monitoramento contínuo..."
@@ -475,7 +481,7 @@ main() {
         *)
             echo -e "${BLUE}Uso: $0 [comando]${NC}"
             echo "Comandos:"
-            echo "  optimize     - Otimizar configurações baseadas nos recursos"
+            echo "  optimize [-y] - Otimizar configurações baseadas nos recursos. Use -y para não interativo."
             echo "  monitor      - Iniciar monitoramento contínuo"
             echo "  get-settings - Obter configurações calculadas sem aplicar"
             echo "  restore      - Restaurar configurações anteriores ao último 'optimize'"

@@ -372,15 +372,72 @@ run_health_check() {
 
 run_optimizer() {
     local optimizer_script="${SCRIPTS_DIR}/management/resource_optimizer.sh"
-    if [ -f "$optimizer_script" ]; then
-        section "Executando Otimizador de Recursos"
-        bash "$optimizer_script" status
-        if confirm_operation "Deseja executar a otimização automática?"; then
-            bash "$optimizer_script" optimize
-        fi
-    else
+    if [ ! -f "$optimizer_script" ]; then
         error "Script do otimizador não encontrado em $optimizer_script"
+        return 1
     fi
+
+    while true; do
+        clear
+        section "Otimizador de Recursos"
+        bash "$optimizer_script" status # Show local status on menu
+        echo "---"
+        echo "1. Otimizar este nó (Local)"
+        echo "2. Otimizar TODOS os nós remotos"
+        echo "3. Restaurar configurações otimizadas (Local)"
+        echo "---"
+        echo "4. Voltar ao menu principal"
+        read -p "Selecione uma opção [1-4]: " choice
+
+        case $choice in
+            1)
+                audit_log "optimizer_local" "EXECUTE"
+                if confirm_operation "Deseja otimizar as configurações deste nó local?"; then
+                    bash "$optimizer_script" optimize
+                fi
+                ;;
+            2)
+                audit_log "optimizer_remote" "EXECUTE"
+                run_remote_optimization
+                ;;
+            3)
+                audit_log "optimizer_restore" "EXECUTE"
+                if confirm_operation "Deseja restaurar as configurações locais para a versão anterior à última otimização?"; then
+                    bash "$optimizer_script" restore
+                fi
+                ;;
+            4) break ;;
+            *) warn "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
+run_remote_optimization() {
+    local nodes_file="$HOME/.cluster_config/nodes_list.conf"
+    if [ ! -f "$nodes_file" ] || [ ! -s "$nodes_file" ]; then
+        warn "Arquivo de lista de nós não encontrado ou vazio. Nenhum nó remoto para otimizar."
+        return
+    fi
+
+    subsection "Iniciando Otimização Remota"
+    while read -r hostname ip user; do
+        if [ -z "$hostname" ]; then continue; fi
+        
+        log "Otimizando nó: $user@$hostname ($ip)..."
+        local remote_tmp_dir="/tmp/cluster_ai_optimizer_$$"
+
+        # 1. Criar diretório temporário remoto e copiar scripts
+        if ssh "$user@$hostname" "mkdir -p '$remote_tmp_dir/scripts/utils'" && \
+           scp "${SCRIPTS_DIR}/management/resource_optimizer.sh" "$user@$hostname:$remote_tmp_dir/resource_optimizer.sh" >/dev/null && \
+           scp "${UTILS_DIR}/common.sh" "$user@$hostname:$remote_tmp_dir/scripts/utils/common.sh" >/dev/null; then
+            # 2. Executar o otimizador remotamente em modo não-interativo e depois limpar
+            ssh "$user@$hostname" "bash '$remote_tmp_dir/resource_optimizer.sh' optimize -y && rm -rf '$remote_tmp_dir'" || error "Falha na execução do otimizador em $hostname"
+        else
+            error "Falha ao copiar scripts para $hostname. Verifique a conectividade SSH."
+        fi
+    done < <(grep -vE '^\s*(#|$)' "$nodes_file")
+    success "Otimização remota concluída para todos os nós."
 }
 
 run_config_manager() {
