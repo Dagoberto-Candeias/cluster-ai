@@ -56,6 +56,7 @@ calculate_optimized_settings() {
     local gpu_count=$3
     local total_gpu_vram_mb=$4
     local primary_gpu_vram_mb=$5
+    local profile="${6:-default}" # Novo parâmetro de perfil
     
     # --- Configurações Dinâmicas ---
     local dask_workers=0
@@ -70,8 +71,41 @@ calculate_optimized_settings() {
     local docker_openwebui_cpus="1.0"
     local docker_openwebui_memory="1g"
 
-    # Perfil de Otimização: GPU vs CPU
-    if [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 4000 ]; then
+    # Perfil de Otimização: Android (Recursos Limitados)
+    if [ "$profile" == "android" ]; then
+        log "Perfil de otimização: Android-Dynamic"
+        
+        # Regras conservadoras para Android, mas baseadas no hardware detectado
+        # Reservar uma grande parte da memória para o SO Android e UI
+        local reserved_mem_for_android_os=3072 # Reservar 3GB para o SO
+        if [ "$total_memory_mb" -gt 8000 ]; then
+            reserved_mem_for_android_os=4096 # Reservar 4GB para dispositivos com mais RAM
+        fi
+        
+        local available_mem_for_dask=$((total_memory_mb - reserved_mem_for_android_os))
+        
+        # Dask workers: usar metade dos cores, no máximo 4, para evitar superaquecimento
+        dask_workers=$((cpu_cores / 2))
+        [ "$dask_workers" -lt 1 ] && dask_workers=1
+        [ "$dask_workers" -gt 4 ] && dask_workers=4 # Limite máximo para evitar sobrecarga
+        
+        dask_threads=1 # Manter 1 thread por worker é mais seguro em mobile
+        
+        # Calcular limite de memória por worker
+        if [ "$dask_workers" -gt 0 ] && [ "$available_mem_for_dask" -gt 512 ]; then
+            local memory_per_worker=$((available_mem_for_dask / dask_workers))
+            memory_limit="${memory_per_worker}M"
+        else
+            memory_limit="256M" # Fallback muito conservador
+        fi
+        
+        dask_worker_class="dask.distributed.Nanny"
+        
+        # Ollama sempre em modo CPU no Android
+        ollama_num_gpu_layers=0
+        ollama_max_loaded_models=1
+
+    elif [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 4000 ]; then
         log "Perfil de otimização: GPU-Focused"
         dask_worker_class="dask_cuda.CUDAWorker"
 
@@ -137,6 +171,7 @@ calculate_optimized_settings() {
 apply_optimized_settings() {
     local settings="$1"
     local non_interactive="${2:-false}"
+    local profile="${3:-default}"
     
     # Extrair configurações
     local dask_workers=$(echo "$settings" | grep "DASK_WORKERS=" | cut -d= -f2)
@@ -162,14 +197,33 @@ apply_optimized_settings() {
     update_dask_config "$dask_workers" "$dask_threads" "$memory_limit" "$dask_worker_class"
     
     # Atualizar configuração Ollama
-    if [ "$non_interactive" = true ] || confirm_operation "As configurações do Ollama exigem privilégios de root para serem aplicadas. Continuar?"; then
-        sudo bash -c "$(declare -f log success error info section subsection; declare -f update_ollama_config); update_ollama_config '$ollama_num_gpu_layers' '$ollama_max_loaded_models'"
+    if [ "$profile" == "android" ]; then
+        # No Android, não usamos systemd. Criamos um arquivo de ambiente.
+        local ollama_env_file="$HOME/.cluster_config/ollama_env.conf"
+        log "Gerando arquivo de ambiente para Ollama em $ollama_env_file"
+        mkdir -p "$(dirname "$ollama_env_file")"
+        cat > "$ollama_env_file" << EOL
+# Para usar, inicie o Ollama com: source $ollama_env_file && ollama serve
+export OLLAMA_NUM_GPU=${ollama_num_gpu_layers}
+export OLLAMA_MAX_LOADED_MODELS=${ollama_max_loaded_models}
+EOL
+        success "Arquivo de ambiente do Ollama para Android gerado."
+        info "Use 'source $ollama_env_file' antes de 'ollama serve'."
     else
-        warn "A atualização da configuração do Ollama foi pulada."
+        # Para Linux, usamos systemd
+        if [ "$non_interactive" = true ] || confirm_operation "As configurações do Ollama exigem privilégios de root para serem aplicadas. Continuar?"; then
+            sudo bash -c "$(declare -f log success error info section subsection; declare -f update_ollama_config); update_ollama_config '$ollama_num_gpu_layers' '$ollama_max_loaded_models'"
+        else
+            warn "A atualização da configuração do Ollama foi pulada."
+        fi
     fi
 
     # Atualizar limites do container Docker
-    update_docker_container_limits "$OPENWEBUI_CONTAINER_NAME" "$docker_cpus" "$docker_memory"
+    if [ "$profile" != "android" ]; then
+        update_docker_container_limits "$OPENWEBUI_CONTAINER_NAME" "$docker_cpus" "$docker_memory"
+    else
+        log "Pulando atualização de container Docker para o perfil Android."
+    fi
 }
 
 # Função para atualizar a configuração do Dask
@@ -427,8 +481,14 @@ main() {
     
     case "$1" in
         "optimize")
+            local profile="default"
             local non_interactive=false
-            if [[ "$2" == "-y" || "$2" == "--yes" ]]; then
+            # Simple argument parsing
+            if [[ "$2" == "--profile" ]]; then
+                profile="$3"
+                shift 2
+            fi
+            if [[ "$2" == "-y" || "$2" == "--yes" ]] || [[ "$3" == "-y" || "$3" == "--yes" ]]; then
                 non_interactive=true
             fi
 
@@ -448,8 +508,8 @@ main() {
             local primary_gpu_vram_mb=$(echo "$resources" | grep "PRIMARY_GPU_VRAM_MB" | cut -d= -f2)
             
             local optimized_settings
-            optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory_mb" "$gpu_count" "$total_gpu_vram_mb" "$primary_gpu_vram_mb")
-            apply_optimized_settings "$optimized_settings" "$non_interactive"
+            optimized_settings=$(calculate_optimized_settings "$cpu_cores" "$total_memory_mb" "$gpu_count" "$total_gpu_vram_mb" "$primary_gpu_vram_mb" "$profile")
+            apply_optimized_settings "$optimized_settings" "$non_interactive" "$profile"
             ;;
         "monitor")
             log "Iniciando monitoramento contínuo..."
@@ -481,7 +541,7 @@ main() {
         *)
             echo -e "${BLUE}Uso: $0 [comando]${NC}"
             echo "Comandos:"
-            echo "  optimize [-y] - Otimizar configurações baseadas nos recursos. Use -y para não interativo."
+            echo "  optimize [--profile <name>] [-y] - Otimizar configurações. Perfis: default, android."
             echo "  monitor      - Iniciar monitoramento contínuo"
             echo "  get-settings - Obter configurações calculadas sem aplicar"
             echo "  restore      - Restaurar configurações anteriores ao último 'optimize'"

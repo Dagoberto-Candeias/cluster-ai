@@ -449,18 +449,25 @@ run_remote_optimization() {
     fi
 
     subsection "Iniciando Otimização Remota"
-    while read -r hostname ip user; do
+    while read -r hostname ip user port; do
         if [ -z "$hostname" ]; then continue; fi
         
         log "Otimizando nó: $user@$hostname ($ip)..."
         local remote_tmp_dir="/tmp/cluster_ai_optimizer_$$"
+        local optimizer_cmd="bash '$remote_tmp_dir/resource_optimizer.sh' optimize -y"
+
+        # Detecta se é um nó Android pela porta e aplica o perfil correto
+        if [[ "${port:-22}" == "8022" ]]; then
+            info "   -> Perfil Android detectado (porta 8022). Aplicando otimização conservadora."
+            optimizer_cmd="bash '$remote_tmp_dir/resource_optimizer.sh' optimize --profile android -y"
+        fi
 
         # 1. Criar diretório temporário remoto e copiar scripts
-        if ssh "$user@$hostname" "mkdir -p '$remote_tmp_dir/scripts/utils'" && \
-           scp "${SCRIPTS_DIR}/management/resource_optimizer.sh" "$user@$hostname:$remote_tmp_dir/resource_optimizer.sh" >/dev/null && \
-           scp "${UTILS_DIR}/common.sh" "$user@$hostname:$remote_tmp_dir/scripts/utils/common.sh" >/dev/null; then
+        if ssh -p "${port:-22}" "$user@$hostname" "mkdir -p '$remote_tmp_dir/scripts/utils'" && \
+           scp -P "${port:-22}" "${SCRIPTS_DIR}/management/resource_optimizer.sh" "$user@$hostname:$remote_tmp_dir/resource_optimizer.sh" >/dev/null && \
+           scp -P "${port:-22}" "${UTILS_DIR}/common.sh" "$user@$hostname:$remote_tmp_dir/scripts/utils/common.sh" >/dev/null; then
             # 2. Executar o otimizador remotamente em modo não-interativo e depois limpar
-            ssh "$user@$hostname" "bash '$remote_tmp_dir/resource_optimizer.sh' optimize -y && rm -rf '$remote_tmp_dir'" || error "Falha na execução do otimizador em $hostname"
+            ssh -p "${port:-22}" "$user@$hostname" "$optimizer_cmd && rm -rf '$remote_tmp_dir'" || error "Falha na execução do otimizador em $hostname"
         else
             error "Falha ao copiar scripts para $hostname. Verifique a conectividade SSH."
         fi
