@@ -70,9 +70,9 @@ if [ ! -f "$TEST_LOG_FILE" ]; then
     exit 1
 fi
 
-assert_log_contains "\[INFO\] Mensagem de info para o arquivo."
-assert_log_contains "\[WARN\] Mensagem de aviso para o arquivo."
-assert_log_contains "\[ERROR\] Mensagem de erro para o arquivo."
+assert_log_contains "\[INFO\].*Mensagem de info para o arquivo\."
+assert_log_contains "\[WARN\].*Mensagem de aviso para o arquivo\."
+assert_log_contains "\[ERROR\].*Mensagem de erro para o arquivo\."
 assert_log_not_contains "NÃO deve ir para o arquivo"
 
 # --- Resumo e Limpeza ---

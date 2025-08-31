@@ -33,6 +33,12 @@ if [ ! -f "${UTILS_DIR}/common.sh" ]; then
 fi
 source "${UTILS_DIR}/common.sh"
 
+# Log files
+CLUSTER_AI_LOG_DIR="${PROJECT_ROOT}/logs"
+CLUSTER_AI_LOG_FILE="$CLUSTER_AI_LOG_DIR/cluster_ai.log"
+AUDIT_LOG_FILE="$CLUSTER_AI_LOG_DIR/audit.log"
+mkdir -p "$CLUSTER_AI_LOG_DIR"
+
 # --- Constantes de Serviço ---
 OLLAMA_SERVICE_NAME="ollama"
 DASK_SCHEDULER_PROCESS="dask-scheduler"
@@ -40,6 +46,18 @@ DASK_WORKER_PROCESS="dask-worker"
 OPENWEBUI_CONTAINER_NAME="open-webui"
 
 # ==================== FUNÇÕES DE GERENCIAMENTO ====================
+
+audit_log() {
+    local action="$1"
+    local status="$2"
+    local details="${3:-}"
+    local user="${USER:-unknown}"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    if [ -n "$AUDIT_LOG_FILE" ] && [ -w "$(dirname "$AUDIT_LOG_FILE")" ]; then
+        echo "[$timestamp] [AUDIT] [USER:$user] [ACTION:$action] [STATUS:$status] $details" >> "$AUDIT_LOG_FILE"
+    fi
+}
 
 show_menu() {
     section "Painel de Controle - Cluster AI"
@@ -76,6 +94,15 @@ stop_ollama() {
         sudo systemctl stop "$OLLAMA_SERVICE_NAME" && success "Serviço Ollama parado." || { error "Falha ao parar serviço Ollama."; return 1; }
     else
         log "Serviço Ollama não estava ativo."
+    fi
+}
+
+start_ollama() {
+    if command_exists "$OLLAMA_SERVICE_NAME" && ! service_active "$OLLAMA_SERVICE_NAME"; then
+        log "Iniciando serviço Ollama..."
+        sudo systemctl start "$OLLAMA_SERVICE_NAME" && success "Serviço Ollama iniciado." || { error "Falha ao iniciar serviço Ollama."; return 1; }
+    else
+        log "Serviço Ollama já estava ativo."
     fi
 }
 
@@ -527,7 +554,7 @@ run_monitor_setup() {
 
 run_readme_generator() {
     section "Gerando Documentação README.md"
-    bash "${SCRIPTS_DIR}/documentation/generate_readme.sh"
+    warn "Script de geração de README não encontrado. Funcionalidade não implementada ainda."
 }
 
 run_linter() {
@@ -584,7 +611,7 @@ run_backup_manager() {
 
 run_performance_reporter() {
     section "Gerando Relatório de Performance"
-    bash "${SCRIPTS_DIR}/reporting/generate_performance_report.sh"
+    bash "${PROJECT_ROOT}/generate_performance_report.sh"
 }
 
 main() {
@@ -617,7 +644,7 @@ main() {
                run_installer; break 
                ;;
             11) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
-            12) audit_log "discover_nodes" "EXECUTE"; run_node_discovery ;;
+            12) audit_log "discover_nodes" "EXECUTE"; bash "${SCRIPTS_DIR}/management/discover_nodes.sh" ;;
             13) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
             14) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
             15) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;

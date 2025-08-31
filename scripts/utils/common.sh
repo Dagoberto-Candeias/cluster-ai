@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 success() {
     local message="$1"
     echo -e "${GREEN}[SUCCESS]${NC} $message"
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SUCCESS] $message" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }
@@ -20,7 +20,7 @@ success() {
 log() {
     local message="$1"
     echo -e "${GREEN}[INFO]${NC} $message"
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO]    $message" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }
@@ -28,7 +28,7 @@ log() {
 warn() {
     local message="$1"
     echo -e "${YELLOW}[WARN]${NC} $message"
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN]    $message" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }
@@ -36,7 +36,7 @@ warn() {
 fail() {
     local message="$1"
     echo -e "${RED}[FAIL]${NC} $message" >&2
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [FAIL]    $message" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }
@@ -44,7 +44,7 @@ fail() {
 error() {
     local message="$1"
     echo -e "${RED}[ERROR]${NC} $message" >&2
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR]   $message" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }
@@ -53,7 +53,7 @@ error() {
 section() {
     local message="$1"
     echo -e "\n${BLUE}=== $message ===${NC}"
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo -e "\n[$(date '+%Y-%m-%d %H:%M:%S')] [SECTION] === $message ===" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }
@@ -89,20 +89,37 @@ safe_path_check() {
     local path="$1"
     local operation="${2:-"operação de arquivo"}"
 
-    if [ -z "$path" ]; then
+    # Verificar se o caminho está vazio ou contém apenas espaços
+    if [ -z "$path" ] || [[ "$path" =~ ^[[:space:]]*$ ]]; then
         error "ERRO CRÍTICO: Caminho vazio fornecido para a $operation."
         return 1
     fi
 
-    # Resolve o caminho absoluto para uma verificação mais segura
-    local resolved_path
-    resolved_path=$(realpath -m "$path")
+    # Remover espaços do início e fim do caminho
+    path=$(echo "$path" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
+    # Resolver o caminho absoluto para uma verificação mais segura
+    local resolved_path
+    if command_exists realpath; then
+        resolved_path=$(realpath -m "$path" 2>/dev/null)
+    else
+        # Fallback para sistemas sem realpath
+        resolved_path=$(readlink -m "$path" 2>/dev/null || echo "$path")
+    fi
+
+    # Verificar se o caminho resolvido é válido
+    if [ -z "$resolved_path" ]; then
+        error "ERRO CRÍTICO: Caminho inválido fornecido para a $operation."
+        return 1
+    fi
+
+    # Verificar se é exatamente o diretório raiz
     if [ "$resolved_path" = "/" ]; then
         error "ERRO CRÍTICO: Tentativa de $operation no diretório raiz (/). Operação abortada."
         return 1
     fi
 
+    # Lista de diretórios críticos do sistema
     local critical_dirs=("/bin" "/boot" "/dev" "/etc" "/lib" "/lib64" "/proc" "/root" "/run" "/sbin" "/sys" "/usr" "/var")
     for dir in "${critical_dirs[@]}"; do
         # Verifica se o caminho é exatamente um diretório crítico ou um subdiretório dele
@@ -204,7 +221,7 @@ security_audit_log() {
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+    if [ -n "${CLUSTER_AI_LOG_FILE:-}" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
         echo "[$timestamp] [SECURITY] [USER:$user] [ACTION:$action] $details" >> "$CLUSTER_AI_LOG_FILE"
     fi
 }

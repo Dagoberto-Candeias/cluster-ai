@@ -6,7 +6,7 @@ set -euo pipefail
 
 # Carregar funções comuns
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_SCRIPT="${SCRIPT_DIR}/scripts/lib/common.sh"
+COMMON_SCRIPT="${SCRIPT_DIR}/../utils/common.sh"
 
 if [ ! -f "$COMMON_SCRIPT" ]; then
     echo "ERRO: Script de funções comuns não encontrado: $COMMON_SCRIPT"
