@@ -84,6 +84,38 @@ service_active() {
     systemctl is-active --quiet "$1"
 }
 
+# Função para verificar se um processo está rodando
+process_running() {
+    local process_name="$1"
+    pgrep -f "$process_name" >/dev/null 2>&1
+}
+
+# Função para registrar problemas encontrados
+report_issue() {
+    local type="$1"
+    local component="$2"
+    local problem="$3"
+    local suggestion="$4"
+
+    # Adicionar ao array de problemas se existir
+    if [ -n "${ISSUES_FOUND+x}" ]; then
+        ISSUES_FOUND+=("$type|$component|$problem|$suggestion")
+    fi
+
+    # Log do problema
+    case "$type" in
+        "FAIL")
+            error "[$component] $problem - $suggestion"
+            ;;
+        "WARN")
+            warn "[$component] $problem - $suggestion"
+            ;;
+        *)
+            log "[$component] $problem - $suggestion"
+            ;;
+    esac
+}
+
 # Função de validação de caminhos seguros
 safe_path_check() {
     local path="$1"

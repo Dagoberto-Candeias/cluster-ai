@@ -20,7 +20,7 @@ if [ ! -f "$PROJECT_ROOT/README.md" ]; then
 fi
 
 # Carregar funções comuns
-COMMON_SCRIPT_PATH="$SCRIPT_DIR/common.sh"
+COMMON_SCRIPT_PATH="$PROJECT_ROOT/scripts/utils/common.sh"
 if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
     echo "ERRO CRÍTICO: Script de funções comuns 'common.sh' não encontrado em $COMMON_SCRIPT_PATH"
     exit 1
@@ -302,7 +302,7 @@ check_ollama() {
                             
                             if echo "$api_response" | grep -q "\"response\":\"OK\""; then
                                 local duration; duration=$(echo "$end_time - $start_time" | bc)
-                                local duration_formatted; duration_formatted=$(printf "%.2f" "$duration")
+                                local duration_formatted; duration_formatted=$(echo "scale=2; $duration" | bc)
 
                                 # Alertas baseados na latência (valores podem ser ajustados)
                                 if (( $(echo "$duration > 20" | bc -l) )); then
@@ -390,7 +390,7 @@ check_remote_dask_connectivity() {
     local nodes_file="$HOME/.cluster_config/nodes_list.conf"
 
     if [ ! -f "$nodes_file" ] || [ ! -s "$nodes_file" ]; then
-        info "Nenhum nó remoto configurado em '$nodes_file'. Pulando verificação."
+        log "Nenhum nó remoto configurado em '$nodes_file'. Pulando verificação."
         return
     fi
 
@@ -435,7 +435,7 @@ check_remote_workers_health() {
     local nodes_file="$HOME/.cluster_config/nodes_list.conf"
 
     if [ ! -f "$nodes_file" ] || [ ! -s "$nodes_file" ]; then
-        info "Nenhum nó remoto configurado em '$nodes_file'. Pulando verificação de saúde remota."
+        log "Nenhum nó remoto configurado em '$nodes_file'. Pulando verificação de saúde remota."
         return
     fi
 
@@ -605,7 +605,10 @@ check_resources() {
     local mem_info=$(free -b 2>/dev/null || vm_stat 2>/dev/null)
     local mem_total_kb=$(echo "$mem_info" | awk '/Mem:/ {print $2/1024}')
     local mem_used_kb=$(echo "$mem_info" | awk '/Mem:/ {print $3/1024}')
-    local mem_used_percent=$((mem_used_kb * 100 / mem_total_kb))
+    local mem_used_percent=0
+    if [ "$mem_total_kb" -gt 0 ]; then
+        mem_used_percent=$((mem_used_kb * 100 / mem_total_kb))
+    fi
     local mem_total=$(free -h | awk '/Mem:/ {print $2}' || echo "N/A")
     local mem_used=$(free -h | awk '/Mem:/ {print $3}' || echo "N/A")
     local mem_free=$(free -h | awk '/Mem:/ {print $4}' || echo "N/A")
