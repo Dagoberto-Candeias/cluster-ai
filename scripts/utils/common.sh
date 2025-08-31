@@ -130,3 +130,93 @@ confirm_operation() {
         return 1
     fi
 }
+
+# ==================== FUNÇÕES DE VALIDAÇÃO E SEGURANÇA ====================
+
+# Função para validar endereço IP
+validate_ip() {
+    local ip="$1"
+    if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        # Verificar se cada octeto está entre 0-255
+        local IFS='.'
+        read -ra octets <<< "$ip"
+        for octet in "${octets[@]}"; do
+            if (( octet < 0 || octet > 255 )); then
+                return 1
+            fi
+        done
+        return 0
+    fi
+    return 1
+}
+
+# Função para validar hostname
+validate_hostname() {
+    local hostname="$1"
+    # Regex para hostname válido (RFC 1123)
+    if [[ $hostname =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# Função para validar nome de usuário (sem caracteres especiais perigosos)
+validate_username() {
+    local username="$1"
+    # Permitir apenas letras, números, underscore e hífen
+    if [[ $username =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# Função para sanitizar entrada de usuário (remover caracteres perigosos)
+sanitize_input() {
+    local input="$1"
+    # Remover caracteres de controle, pipes, ponto-e-vírgula, etc.
+    echo "$input" | sed 's/[;&|`$()<>]//g' | tr -d '\n\r\t'
+}
+
+# Função para validar porta SSH
+validate_port() {
+    local port="$1"
+    if [[ $port =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )); then
+        return 0
+    fi
+    return 1
+}
+
+# Função para validar caminho de arquivo (prevenção de path traversal)
+validate_file_path() {
+    local path="$1"
+    # Verificar se não contém ".." ou começa com "/"
+    if [[ $path == *".. "* ]] || [[ $path == /* ]]; then
+        return 1
+    fi
+    return 0
+}
+
+# Função para log de auditoria de segurança
+security_audit_log() {
+    local action="$1"
+    local details="$2"
+    local user="${USER:-unknown}"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    if [ -n "$CLUSTER_AI_LOG_FILE" ] && [ -w "$(dirname "$CLUSTER_AI_LOG_FILE")" ]; then
+        echo "[$timestamp] [SECURITY] [USER:$user] [ACTION:$action] $details" >> "$CLUSTER_AI_LOG_FILE"
+    fi
+}
+
+# Função para verificar se está rodando como root (com mensagem customizada)
+check_root_user() {
+    local script_name="${1:-script}"
+    if [ "$EUID" -eq 0 ]; then
+        error "ERRO DE SEGURANÇA: $script_name não deve ser executado como root (sudo)."
+        log "Execute como usuário normal para maior segurança."
+        security_audit_log "ROOT_EXECUTION_ATTEMPT" "Script: $script_name"
+        return 1
+    fi
+    return 0
+}

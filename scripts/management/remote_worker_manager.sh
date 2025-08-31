@@ -4,6 +4,20 @@
 set -euo pipefail
 
 # --- Configuração Inicial ---
+
+# --- VERIFICAÇÕES DE SEGURANÇA ---
+# Verificar se está sendo executado como root (não recomendado)
+if [ "$EUID" -eq 0 ]; then
+    echo "ERRO DE SEGURANÇA: Este script não deve ser executado como root (sudo)."
+    echo "Execute como usuário normal: ./scripts/management/remote_worker_manager.sh"
+    echo ""
+    echo "Razões de segurança:"
+    echo "- Evita modificações acidentais no sistema"
+    echo "- Previne exposição desnecessária de privilégios"
+    echo "- Segue melhores práticas de segurança"
+    exit 1
+fi
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
 

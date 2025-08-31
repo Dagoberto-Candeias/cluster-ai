@@ -1,6 +1,8 @@
 #!/bin/bash
-# Script de Verificação Pré-Instalação
+# Script de Verificação Pré-Instalação Avançada
 # Verifica requisitos do sistema antes da instalação do Cluster AI
+
+set -euo pipefail
 
 # Carregar funções comuns
 COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../utils" && pwd)/common.sh"
@@ -10,17 +12,62 @@ if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
 fi
 source "$COMMON_SCRIPT_PATH"
 
-# --- Funções de Verificação ---
+# ==================== CONFIGURAÇÃO ====================
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+LOG_DIR="${PROJECT_ROOT}/logs"
+LOG_FILE="${LOG_DIR}/pre_install_check_$(date +%Y%m%d_%H%M%S).log"
+
+# Criar diretório de logs se não existir
+mkdir -p "$LOG_DIR"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# ==================== VARIÁVEIS DE CONTROLE ====================
+
+CHECKS_PASSED=0
+CHECKS_TOTAL=0
+CHECKS_WARNING=0
+CHECKS_FAILED=0
+
+# ==================== FUNÇÕES DE VALIDAÇÃO AVANÇADA ====================
+
+# Função para executar verificação com controle de status
+run_check() {
+    local check_name="$1"
+    local check_function="$2"
+    local is_critical="${3:-true}"
+
+    subsection "Verificando: $check_name"
+    ((CHECKS_TOTAL++))
+
+    if $check_function; then
+        success "✅ $check_name: OK"
+        ((CHECKS_PASSED++))
+        return 0
+    else
+        if [ "$is_critical" = true ]; then
+            error "❌ $check_name: FALHA CRÍTICA"
+            ((CHECKS_FAILED++))
+            return 1
+        else
+            warn "⚠️  $check_name: AVISO (não crítico)"
+            ((CHECKS_WARNING++))
+            return 0
+        fi
+    fi
+}
 
 # Verifica privilégios sudo
 check_sudo_privileges() {
     if sudo -n true 2>/dev/null; then
-        success "Privilégios sudo disponíveis"
+        log "Privilégios sudo disponíveis sem senha"
+        return 0
+    elif sudo -v 2>/dev/null; then
+        log "Privilégios sudo disponíveis (senha pode ser solicitada)"
         return 0
     else
-        warn "A senha de sudo pode ser solicitada durante a instalação."
-        # Isso não é um erro, apenas um aviso para sessões interativas.
-        return 0
+        warn "Privilégios sudo não disponíveis ou não configurados"
+        return 1
     fi
 }
 
@@ -126,17 +173,17 @@ check_system_repositories() {
 
 # Verifica dependências básicas
 check_basic_dependencies() {
-    local deps=("curl" "git" "python3")
+    local deps=("curl" "git" "python3" "wget" "tar" "gzip")
     local missing_deps=()
-    
+
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
             missing_deps+=("$dep")
         fi
     done
-    
+
     if [ ${#missing_deps[@]} -eq 0 ]; then
-        success "Dependências básicas instaladas"
+        log "Todas as dependências básicas estão instaladas"
         return 0
     else
         warn "Dependências básicas faltando: ${missing_deps[*]}"
@@ -144,33 +191,130 @@ check_basic_dependencies() {
     fi
 }
 
-# --- Função Principal ---
-main() {
-    section "Verificação Pré-Instalação do Cluster AI"
-    
-    local checks_passed=0
-    local checks_total=0
-    
-    # Executar verificações
-    check_sudo_privileges && ((checks_passed++)); ((checks_total++))
-    check_disk_space && ((checks_passed++)); ((checks_total++))
-    check_memory && ((checks_passed++)); ((checks_total++))
-    check_internet_connectivity && ((checks_passed++)); ((checks_total++))
-    check_system_repositories && ((checks_passed++)); ((checks_total++))
-    check_basic_dependencies && ((checks_passed++)); ((checks_total++))
-    
-    # Resultado final
-    echo ""
-    if [ $checks_passed -eq $checks_total ]; then
-        success "✅ Todas as verificações passaram! Sistema pronto para instalação."
-        return 0
-    elif [ $checks_passed -ge $((checks_total * 2 / 3)) ]; then
-        warn "⚠️  $checks_passed/$checks_total verificações passaram. Instalação pode prosseguir com limitações."
-        return 0
-    else
-        error "❌ Apenas $checks_passed/$checks_total verificações passaram. Recomenda-se resolver os problemas antes da instalação."
+# Verifica versão do Python
+check_python_version() {
+    if ! command_exists python3; then
+        warn "Python3 não encontrado"
         return 1
     fi
+
+    local python_version
+    python_version=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+
+    if [[ "$(printf '%s\n' "$python_version" "3.8" | sort -V | head -n1)" = "3.8" ]]; then
+        log "Versão do Python adequada: $python_version"
+        return 0
+    else
+        warn "Versão do Python baixa: $python_version (recomendado: 3.8+)"
+        return 1
+    fi
+}
+
+# Verifica conectividade com repositórios específicos
+check_repository_connectivity() {
+    local repos=("pypi.org" "github.com" "registry-1.docker.io")
+    local failed_repos=()
+
+    for repo in "${repos[@]}"; do
+        if ! ping -c 1 -W 3 "$repo" >/dev/null 2>&1; then
+            failed_repos+=("$repo")
+        fi
+    done
+
+    if [ ${#failed_repos[@]} -eq 0 ]; then
+        log "Conectividade com todos os repositórios principais OK"
+        return 0
+    else
+        warn "Problemas de conectividade com: ${failed_repos[*]}"
+        return 1
+    fi
+}
+
+# Verifica permissões de escrita em diretórios importantes
+check_write_permissions() {
+    local dirs=("$HOME" "$HOME/.local" "/tmp" "$PROJECT_ROOT")
+    local failed_dirs=()
+
+    for dir in "${dirs[@]}"; do
+        if [ ! -w "$dir" ]; then
+            failed_dirs+=("$dir")
+        fi
+    done
+
+    if [ ${#failed_dirs[@]} -eq 0 ]; then
+        log "Permissões de escrita adequadas em todos os diretórios"
+        return 0
+    else
+        warn "Sem permissões de escrita em: ${failed_dirs[*]}"
+        return 1
+    fi
+}
+
+# Verifica se há processos conflitantes
+check_conflicting_processes() {
+    local conflicting_procs=("ollama" "dask-scheduler" "dask-worker")
+    local running_procs=()
+
+    for proc in "${conflicting_procs[@]}"; do
+        if pgrep -f "$proc" >/dev/null 2>&1; then
+            running_procs+=("$proc")
+        fi
+    done
+
+    if [ ${#running_procs[@]} -eq 0 ]; then
+        log "Nenhum processo conflitante detectado"
+        return 0
+    else
+        warn "Processos conflitantes em execução: ${running_procs[*]}"
+        info "Considere parar estes processos antes da instalação"
+        return 0  # Não é crítico, apenas um aviso
+    fi
+}
+
+# Verifica configuração de locale
+check_locale_settings() {
+    if locale -a 2>/dev/null | grep -q "C.UTF-8\|en_US.UTF-8"; then
+        log "Configuração de locale adequada"
+        return 0
+    else
+        warn "Configuração de locale pode causar problemas"
+        info "Recomenda-se instalar locales adequados"
+        return 0  # Não é crítico
+    fi
+}
+
+ # --- Função Principal ---
+ main() {
+     section "Verificação Pré-Instalação do Cluster AI"
+
+     run_check "Privilégios sudo" check_sudo_privileges false
+     run_check "Espaço em disco disponível" check_disk_space true
+     run_check "Memória RAM disponível" check_memory true
+     run_check "Versão do Python" check_python_version true
+     run_check "Conectividade com repositórios" check_repository_connectivity true
+     run_check "Dependências básicas" check_basic_dependencies true
+     run_check "Permissões de escrita" check_write_permissions true
+     run_check "Processos conflitantes" check_conflicting_processes false
+     run_check "Configuração de locale" check_locale_settings false
+
+     echo ""
+     log "Resumo das verificações:"
+     log "  - Total de verificações: $CHECKS_TOTAL"
+     log "  - Verificações aprovadas: $CHECKS_PASSED"
+     log "  - Verificações com aviso: $CHECKS_WARNING"
+     log "  - Verificações falhadas: $CHECKS_FAILED"
+     echo ""
+
+     if [ $CHECKS_FAILED -gt 0 ]; then
+         error "❌ Algumas verificações críticas falharam. Recomenda-se corrigir antes da instalação."
+         return 1
+     elif [ $CHECKS_WARNING -gt 0 ]; then
+         warn "⚠️ Algumas verificações apresentaram avisos. A instalação pode prosseguir com limitações."
+         return 0
+     else
+         success "✅ Todas as verificações passaram! Sistema pronto para instalação."
+         return 0
+     fi
 }
 
 # Executar apenas se chamado diretamente
