@@ -237,53 +237,50 @@ main() {
     # Carregar configuração
     load_config
     
-    try {
-        # Fase 1: Pré-deploy
-        validate_environment
-        
-        if [ "$BACKUP_BEFORE_DEPLOY" = true ]; then
-            create_backup
-        fi
-        
-        # Fase 2: Deploy
-        deploy_cluster
-        
-        # Fase 3: Pós-deploy
-        if [ "$VALIDATE_AFTER_DEPLOY" = true ]; then
-            validate_deploy
-        fi
-        
-        # Fase 4: Notificação
-        if [ "$NOTIFY_ON_SUCCESS" = true ]; then
-            local end_time=$(date +%s)
-            local duration=$((end_time - start_time))
-            send_notification "SUCESSO" "Deploy concluído em ${duration}s"
-        fi
-        
-        success "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
-        log "Tempo total: ${duration}s"
-        log "Serviços disponíveis:"
-        log "  Ollama: http://localhost:11434"
-        log "  OpenWebUI: http://localhost:8080"
-        log "  Dask Dashboard: http://localhost:8787"
-        
-    } catch {
-        local error_msg=$?
+    # Bash não suporta try/catch nativamente, substituindo por trap e controle de erros
+    trap 'error_handler $?' ERR
+    error_handler() {
+        local error_code=$1
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
-        
         error "❌ DEPLOY FALHOU após ${duration}s"
-        
-        # Rollback se configurado
         if [ "$ROLLBACK_ON_FAILURE" = true ]; then
             rollback_deploy
             send_notification "FALHA_COM_ROLLBACK" "Deploy falhou, rollback executado"
         else
             send_notification "FALHA" "Deploy falhou sem rollback"
         fi
-        
-        exit $error_msg
+        exit $error_code
     }
+
+    # Fase 1: Pré-deploy
+    validate_environment
+
+    if [ "$BACKUP_BEFORE_DEPLOY" = true ]; then
+        create_backup
+    fi
+
+    # Fase 2: Deploy
+    deploy_cluster
+
+    # Fase 3: Pós-deploy
+    if [ "$VALIDATE_AFTER_DEPLOY" = true ]; then
+        validate_deploy
+    fi
+
+    # Fase 4: Notificação
+    if [ "$NOTIFY_ON_SUCCESS" = true ]; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        send_notification "SUCESSO" "Deploy concluído em ${duration}s"
+    fi
+
+    success "🎉 DEPLOY CONCLUÍDO COM SUCESSO!"
+    log "Tempo total: ${duration}s"
+    log "Serviços disponíveis:"
+    log "  Ollama: http://localhost:11434"
+    log "  OpenWebUI: http://localhost:8080"
+    log "  Dask Dashboard: http://localhost:8787"
 }
 
 # Função de ajuda
