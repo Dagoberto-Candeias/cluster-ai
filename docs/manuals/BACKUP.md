@@ -2,25 +2,15 @@
 
 ## 🎯 Visão Geral
 
-Este manual descreve o sistema completo de backup e restauração do Cluster AI, incluindo modelos Ollama, configurações do cluster, dados do OpenWebUI e configurações de sistema.
+Este manual descreve o sistema de backup e restauração do Cluster AI, gerenciado através do `manager.sh`. O sistema foi projetado para ser robusto, cobrindo tanto o servidor principal quanto os workers remotos.
 
-## 🚀 Sistema de Backup Integrado
+## 🚀 Gerenciamento de Backups via `manager.sh`
 
-### Backup Automático
-O Cluster AI inclui um sistema de backup robusto que pode ser acessado via:
+Todas as operações de backup e restauração são centralizadas no painel de controle.
 
 ```bash
-# Menu interativo de backup
-./install_cluster.sh --backup
-
-# Backup automático (para agendamento)
-./install_cluster.sh --backup --auto
-
-# Restauração
-./install_cluster.sh --restore
-
-# Agendamento automático
-./install_cluster.sh --schedule
+# Inicie o painel de controle
+./manager.sh
 ```
 
 ### Itens Incluídos no Backup

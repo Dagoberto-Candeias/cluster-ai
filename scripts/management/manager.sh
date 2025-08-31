@@ -378,7 +378,8 @@ show_status() {
 
     subsection "Workers Dask Remotos"
     local remote_manager_script="${SCRIPTS_DIR}/management/remote_worker_manager.sh"
-    if [ -f "$remote_manager_script" ] && [ -f "$HOME/.cluster_config/nodes.conf" ]; then
+    local nodes_list_file="$HOME/.cluster_config/nodes_list.conf"
+    if [ -f "$remote_manager_script" ] && [ -f "$nodes_list_file" ] && [ -s "$nodes_list_file" ]; then
         bash "$remote_manager_script" status
     else
         log "Nenhum nó remoto configurado. Pule esta verificação."

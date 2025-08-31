@@ -149,32 +149,50 @@ do_status() {
             worker_status="${RED}INATIVO${NC}"
         fi
 
-        # 2. Obter métricas gerais do nó (CPU Load e Memória)
-        local node_metrics_cmd="uptime | awk -F'load average: ' '{print \$2}' | awk '{print \$1}' | tr -d ','; echo '|'; free -m | awk '/Mem:/ {printf \"%d\", \$3/\$2 * 100}'"
+        # 2. Obter métricas gerais do nó (Cores, CPU Load e Memória)
+        local node_metrics_cmd="nproc 2>/dev/null || echo 1; echo '|'; uptime | awk -F'load average: ' '{print \$2}' | awk '{print \$1}' | tr -d ','; echo '|'; free -m | awk '/Mem:/ {printf \"%d\", \$3/\$2 * 100}'"
         local metrics_output
         metrics_output=$(ssh -p "${port:-22}" -o ConnectTimeout=5 "$user@$hostname" "$node_metrics_cmd" 2>/dev/null)
 
-        local node_cpu_load="N/A"
-        local node_mem_perc_raw="N/A"
+        local node_cpu_load_display="N/A"
         local node_mem_perc_display="N/A"
 
         if [ -n "$metrics_output" ]; then
-            node_cpu_load=$(echo "$metrics_output" | cut -d'|' -f1)
-            node_mem_perc_raw=$(echo "$metrics_output" | cut -d'|' -f2)
+            local cpu_cores; cpu_cores=$(echo "$metrics_output" | cut -d'|' -f1)
+            local node_cpu_load_raw; node_cpu_load_raw=$(echo "$metrics_output" | cut -d'|' -f2)
+            local node_mem_perc_raw; node_mem_perc_raw=$(echo "$metrics_output" | cut -d'|' -f3)
 
-            if [[ "$node_mem_perc_raw" -gt 85 ]]; then
-                node_mem_perc_display="${RED}${node_mem_perc_raw}%${NC}"
-            elif [[ "$node_mem_perc_raw" -gt 70 ]]; then
-                node_mem_perc_display="${YELLOW}${node_mem_perc_raw}%${NC}"
+            # Colorize CPU Load
+            if command_exists bc && [[ "$node_cpu_load_raw" != "N/A" ]] && [[ "$cpu_cores" -gt 0 ]]; then
+                if (( $(echo "$node_cpu_load_raw > $cpu_cores" | bc -l) )); then
+                    node_cpu_load_display="${RED}${node_cpu_load_raw}${NC}"
+                elif (( $(echo "$node_cpu_load_raw > ($cpu_cores * 0.7)" | bc -l) )); then
+                    node_cpu_load_display="${YELLOW}${node_cpu_load_raw}${NC}"
+                else
+                    node_cpu_load_display="${GREEN}${node_cpu_load_raw}${NC}"
+                fi
             else
-                node_mem_perc_display="${GREEN}${node_mem_perc_raw}%${NC}"
+                node_cpu_load_display="$node_cpu_load_raw" # Fallback
+            fi
+
+            # Colorize Memory
+            if [[ "$node_mem_perc_raw" != "N/A" ]]; then
+                if [[ "$node_mem_perc_raw" -gt 85 ]]; then
+                    node_mem_perc_display="${RED}${node_mem_perc_raw}%${NC}"
+                elif [[ "$node_mem_perc_raw" -gt 70 ]]; then
+                    node_mem_perc_display="${YELLOW}${node_mem_perc_raw}%${NC}"
+                else
+                    node_mem_perc_display="${GREEN}${node_mem_perc_raw}%${NC}"
+                fi
             fi
         fi
 
         # Imprimir linha da tabela com preenchimento manual para alinhamento
         printf "%-25s | %-15s | " "$hostname" "$ip"
         print_padded_colored "$worker_status" 18
-        printf " | %-15s | " "$node_cpu_load"
+        printf " | "
+        print_padded_colored "$node_cpu_load_display" 15
+        printf " | "
         print_padded_colored "$node_mem_perc_display" 12
         printf "\n"
     done < <(get_nodes)

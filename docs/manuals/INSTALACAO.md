@@ -2,11 +2,9 @@
 
 ## 🎯 Visão Geral
 
-Este guia fornece instruções passo a passo para instalar o Cluster AI em sua máquina. O processo é projetado para ser simples e direto, garantindo que você tenha tudo configurado corretamente.
+Este guia fornece as instruções para instalar o Cluster AI usando o script unificado `install.sh`. O processo é automatizado e se adapta ao seu hardware.
 
 ## 📋 Pré-requisitos
-
-Antes de começar, verifique se você possui os seguintes requisitos:
 
 - **Sistema Operacional**: Ubuntu, Debian, CentOS ou RHEL
 - **RAM**: Mínimo de 4GB (8GB recomendado)
@@ -14,7 +12,7 @@ Antes de começar, verifique se você possui os seguintes requisitos:
 - **Conexão de Internet**: Estável
 - **Acesso Sudo**: Você precisará de permissões de administrador
 
-## 🚀 Passo a Passo da Instalação
+## 🚀 Instalação
 
 ### 1. 📥 Baixar o Repositório
 
@@ -27,14 +25,11 @@ cd cluster-ai
 
 ### 2. 📦 Executar o Script de Instalação
 
-O Cluster AI vem com um script de instalação que automatiza a configuração:
+O `install.sh` é o único ponto de entrada para a instalação.
 
 ```bash
-# Tornar o script executável
-chmod +x install_cluster.sh
-
-# Executar o script
-./install_cluster.sh
+# Executa o instalador interativo
+bash install.sh
 ```
 
 ### 3. 🎭 Escolher o Papel da Máquina
