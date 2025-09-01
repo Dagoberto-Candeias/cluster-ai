@@ -95,7 +95,7 @@ install_vscode() {
     case $OS in
         ubuntu|debian)
             # Baixar e adicionar chave GPG
-            wget --timeout=30 --tries=2 -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+            wget --timeout=30 --tries=2 --timeout=30 --tries=2 -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
             sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
             
             # Adicionar repositório
@@ -103,7 +103,7 @@ install_vscode() {
             
             # Atualizar e instalar
             sudo apt update
-            sudo apt install -y --no-install-recommends code
+            sudo apt install -y --no-install-recommends --no-install-recommends code
             
             # Limpar arquivo temporário
             rm -f packages.microsoft.gpg
@@ -120,7 +120,7 @@ install_vscode() {
             
             # Instalar
             if command_exists dnf; then
-                sudo dnf install -y --setopt=install_weak_deps=False code
+                sudo dnf install -y --setopt=install_weak_deps=False --setopt=install_weak_deps=False code
             else
                 sudo yum install -y code
             fi
@@ -257,13 +257,13 @@ install_fira_font() {
     
     case $OS in
         ubuntu|debian)
-            sudo apt install -y --no-install-recommends fonts-firacode
+            sudo apt install -y --no-install-recommends --no-install-recommends fonts-firacode
             ;;
         manjaro|arch)
             sudo pacman -S --noconfirm ttf-fira-code
             ;;
         centos|rhel|fedora)
-            sudo dnf install -y --setopt=install_weak_deps=False fira-code-fonts || sudo yum install -y fira-code-fonts
+            sudo dnf install -y --setopt=install_weak_deps=False --setopt=install_weak_deps=False fira-code-fonts || sudo yum install -y fira-code-fonts
             ;;
     esac
     
