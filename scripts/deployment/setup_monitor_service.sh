@@ -34,8 +34,8 @@ main() {
 
     if [ -f "$SERVICE_FILE_PATH" ]; then
         success "O serviço de monitoramento '$SERVICE_NAME' já está configurado."
-        info "Para reiniciar: sudo systemctl restart $SERVICE_NAME"
-        info "Para ver o status, mude para o terminal 8 (Ctrl+Alt+F8)."
+        log "Para reiniciar: sudo systemctl restart $SERVICE_NAME"
+        log "Para ver o status, mude para o terminal 8 (Ctrl+Alt+F8)."
         return 0
     fi
 
@@ -76,12 +76,12 @@ EOL
         systemctl start "$SERVICE_NAME"
         
         success "Serviço '$SERVICE_NAME' configurado e iniciado!"
-        info "Para ver o monitor, mude para o terminal 8 (pressione Ctrl+Alt+F8)."
-        info "Para voltar à sua sessão gráfica, use Ctrl+Alt+F1 ou Ctrl+Alt+F7 (depende da sua distro)."
+        log "Para ver o monitor, mude para o terminal 8 (pressione Ctrl+Alt+F8)."
+        log "Para voltar à sua sessão gráfica, use Ctrl+Alt+F1 ou Ctrl+Alt+F7 (depende da sua distro)."
     else
         warn "Configuração do serviço concluída, mas não foi habilitado ou iniciado."
-        info "Para habilitar e iniciar manualmente, execute:"
-        info "  sudo systemctl daemon-reload && sudo systemctl enable --now $SERVICE_NAME"
+        log "Para habilitar e iniciar manualmente, execute:"
+        log "  sudo systemctl daemon-reload && sudo systemctl enable --now $SERVICE_NAME"
     fi
 }
 

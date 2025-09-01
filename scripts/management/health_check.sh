@@ -603,24 +603,24 @@ check_resources() {
 
     # Memória RAM
     local mem_info=$(free -b 2>/dev/null || vm_stat 2>/dev/null)
-    local mem_total_kb=$(echo "$mem_info" | awk '/Mem:/ {print $2/1024}')
-    local mem_used_kb=$(echo "$mem_info" | awk '/Mem:/ {print $3/1024}')
+    local mem_total_kb=$(echo "$mem_info" | awk '/Mem:/ {print $2/1024}' || echo "0")
+    local mem_used_kb=$(echo "$mem_info" | awk '/Mem:/ {print $3/1024}' || echo "0")
     local mem_used_percent=0
-    if [ "$mem_total_kb" -gt 0 ]; then
+    if [[ "$mem_total_kb" =~ ^[0-9]+$ ]] && [ "$mem_total_kb" -gt 0 ]; then
         mem_used_percent=$((mem_used_kb * 100 / mem_total_kb))
     fi
-    local mem_total=$(free -h | awk '/Mem:/ {print $2}' || echo "N/A")
-    local mem_used=$(free -h | awk '/Mem:/ {print $3}' || echo "N/A")
-    local mem_free=$(free -h | awk '/Mem:/ {print $4}' || echo "N/A")
+    local mem_total=$(free -h | awk '/Mem:/ {print $2}' 2>/dev/null || echo "N/A")
+    local mem_used=$(free -h | awk '/Mem:/ {print $3}' 2>/dev/null || echo "N/A")
+    local mem_free=$(free -h | awk '/Mem:/ {print $4}' 2>/dev/null || echo "N/A")
 
     echo "💾 Memória RAM: Total: $mem_total, Usada: $mem_used, Livre: $mem_free"
 
     # Alertas de memória
-    if [ $mem_used_percent -gt 90 ]; then
+    if [[ "$mem_used_percent" =~ ^[0-9]+$ ]] && [ $mem_used_percent -gt 90 ]; then
         error "🚨 ALERTA CRÍTICO: Uso de memória: ${mem_used_percent}%"
         echo "   💡 Execute: ./scripts/utils/memory_manager.sh --optimize"
         OVERALL_HEALTH=false
-    elif [ $mem_used_percent -gt 80 ]; then
+    elif [[ "$mem_used_percent" =~ ^[0-9]+$ ]] && [ $mem_used_percent -gt 80 ]; then
         warn "⚠️  AVISO: Uso de memória alto: ${mem_used_percent}%"
         echo "   💡 Monitor: ./scripts/utils/memory_manager.sh --monitor"
     fi
