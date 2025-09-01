@@ -1,4 +1,7 @@
 #!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
 # Health Check Script - Cluster AI
 # Verifica a saúde dos serviços do cluster
 
@@ -81,7 +84,7 @@ main() {
 }
 
 # Executar função principal
-if [ "$1" = "--test" ]; then
+if [ "${1:-}" = "--test" ]; then
     # Modo de teste - execução básica
     echo "=== MODO TESTE - HEALTH CHECK ==="
     echo "Simulando verificação de serviços..."

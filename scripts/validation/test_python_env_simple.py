@@ -3,6 +3,7 @@ from distributed import Client
 import torch
 import numpy as np
 
+
 def test_dask():
     try:
         client = Client()
@@ -16,6 +17,7 @@ def test_dask():
         print("Dask test failed:", e)
         return False
 
+
 def test_torch():
     try:
         x = torch.tensor([1.0, 2.0, 3.0])
@@ -25,6 +27,7 @@ def test_torch():
     except Exception as e:
         print("Torch test failed:", e)
         return False
+
 
 def test_numpy():
     try:
@@ -36,12 +39,13 @@ def test_numpy():
         print("NumPy test failed:", e)
         return False
 
+
 if __name__ == "__main__":
     print("Testing Python environment and key packages...")
     dask_ok = test_dask()
     torch_ok = test_torch()
     numpy_ok = test_numpy()
-    
+
     if dask_ok and torch_ok and numpy_ok:
         print("All tests passed successfully.")
     else:

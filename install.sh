@@ -1,12 +1,12 @@
 #!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
 
 # =============================================================================
 # Cluster AI - Instalador Unificado
 # =============================================================================
 # Este é o instalador principal do Cluster AI. Ele detecta automaticamente
 # o sistema operacional, instala dependências e configura o ambiente.
-
-set -e  # Para o script em caso de erro
 
 # =============================================================================
 # INICIALIZAÇÃO

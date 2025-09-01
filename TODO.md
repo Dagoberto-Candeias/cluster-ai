@@ -4,9 +4,9 @@
 - [x] Create .editorconfig for consistent formatting
 - [x] Reorganize project structure into scripts/, config/, docs/, tests/, android/ folders
 - [x] Move existing scripts to appropriate subfolders
-- [ ] Standardize Python code to PEP 8 (use autopep8 or black)
-- [ ] Standardize shell scripts per best practices (add shebang, error handling)
-- [ ] Update file permissions appropriately
+- [x] Standardize Python code to PEP 8 (use autopep8 or black)
+- [x] Standardize shell scripts per best practices (add shebang, error handling)
+- [x] Update file permissions appropriately
 
 ## 2. Documentation Improvements
 - [x] Expand docs/manuals/ANDROID.md with:
@@ -16,14 +16,14 @@
   - [x] Instructions for removing/deregistering Android workers
   - [x] Minimum requirements and compatibility info
   - [x] Troubleshooting section
-- [ ] Update README.md with:
-  - [ ] Clear installation instructions
-  - [ ] Usage examples and workflows
-  - [ ] Backup and restore procedures
-  - [ ] Uninstallation guide
-  - [ ] Troubleshooting section
-  - [ ] Validation and testing instructions
-- [ ] Create unified documentation index
+- [x] Update README.md with:
+  - [x] Clear installation instructions
+  - [x] Usage examples and workflows
+  - [x] Backup and restore procedures
+  - [x] Uninstallation guide
+  - [x] Troubleshooting section
+  - [x] Validation and testing instructions
+- [x] Create unified documentation index
 - [ ] Add inline code comments and docstrings to all scripts
 
 ## 3. Security Enhancements

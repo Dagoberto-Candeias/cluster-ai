@@ -26,10 +26,19 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 -   **🩺 Diagnóstico e Manutenção**: Ferramentas de health check, otimização de recursos e relatórios de performance.
 -   **💾 Backup e Restauração**: Sistema completo para backup e restauração de configurações, modelos e dados de containers.
 -   **☁️ Gerenciamento Remoto**: Controle workers remotos via SSH, execute comandos, inicie e pare serviços.
+-   **📱 Suporte Android**: Workers Android via Termux para expansão do cluster.
+-   **🔒 Segurança**: Autenticação, validação de entrada e medidas de segurança integradas.
 
 ## 🚀 Instalação
 
 A instalação é projetada para ser simples e flexível.
+
+### Pré-requisitos
+- Sistema Linux (Ubuntu/Debian, Fedora/RHEL, Arch)
+- Pelo menos 4GB RAM e 20GB espaço em disco
+- Conexão com internet para downloads
+
+### Instalação Rápida
 
 1.  **Clone o repositório:**
     ```bash
@@ -47,9 +56,16 @@ O instalador irá:
 -   Detectar seu hardware e sugerir um papel para o nó (Servidor Principal, Worker GPU, etc.).
 -   Guiá-lo através de um menu interativo para uma instalação completa ou customizada.
 
+### Instalação Automatizada
 Para **instalação automatizada** (sem prompts), use a flag `--auto-role`:
 ```bash
 bash install.sh --auto-role
+```
+
+### Instalação Personalizada
+Para escolher componentes específicos:
+```bash
+bash install.sh --custom
 ```
 
 ## 🛠️ Uso (Painel de Controle)
@@ -65,6 +81,7 @@ O coração do projeto é o `manager.sh`. Ele oferece um menu interativo para co
 -   **Ações em Massa**: Iniciar, parar e reiniciar todos os serviços de uma vez.
 -   **Gerenciamento Individual**: Controle fino sobre Ollama, Dask e OpenWebUI.
 -   **Workers Remotos**: Adicione, configure, inicie, pare e execute comandos em nós remotos.
+-   **Workers Android**: Gerencie workers Android via Termux.
 -   **Diagnóstico**: Execute health checks, gere relatórios de performance e verifique a qualidade do código.
 -   **Manutenção**: Gerencie backups, restaure o sistema, atualize o projeto via Git e rotacione logs.
 -   **Otimização**: Otimize os recursos do nó local e dos workers remotos com base no hardware detectado.
@@ -75,6 +92,7 @@ O sistema é modular, permitindo que diferentes máquinas assumam papéis espec�
 
 -   **Servidor Principal**: Hospeda o Dask Scheduler, a API do Ollama e a interface OpenWebUI. Centraliza o gerenciamento.
 -   **Worker (GPU/CPU)**: Executa os processos `dask-worker` para realizar as tarefas de computação. Pode ou não ter uma GPU.
+-   **Worker Android**: Expande o cluster usando dispositivos Android via Termux.
 -   **Estação de Trabalho**: Um worker que também possui ferramentas de desenvolvimento (IDEs) instaladas.
 
 | Serviço        | Porta   | Protocolo | Descrição                  |
@@ -87,17 +105,56 @@ O sistema é modular, permitindo que diferentes máquinas assumam papéis espec�
 
 ## 📚 Documentação Completa
 
-A documentação detalhada está no diretório `docs/`.
+A documentação detalhada está organizada no diretório `docs/`.
 
--   **Índice da Documentação**: Ponto de partida para todos os guias.
--   **Guia de Início Rápido**: Comece a usar o cluster em minutos.
--   **Biblioteca de Prompts**: Prompts avançados para desenvolvedores.
--   **Guia de Troubleshooting**: Soluções para problemas comuns.
+### 📖 Documentação Principal
+-   **[Índice da Documentação](docs/INDEX.md)**: Ponto de entrada para todos os guias.
+
+### 🚀 Guias Práticos
+-   **[Guia de Início Rápido](docs/guides/quick-start.md)**: Comece a usar o cluster em minutos.
+-   **[Instalação Detalhada](docs/manuals/INSTALACAO.md)**: Guia passo-a-passo completo.
+-   **[Uso Avançado](docs/guides/usage.md)**: Funcionalidades avançadas e otimização.
+
+### 🛠️ Manuais Técnicos
+-   **[Manual do Ollama](docs/manuals/ollama/)**: Modelos de IA e configuração.
+-   **[Guia OpenWebUI](docs/manuals/openwebui/)**: Interface web.
+-   **[Backup e Restauração](docs/manuals/BACKUP.md)**: Sistema de backup.
+-   **[Android Workers](docs/manuals/ANDROID.md)**: Configuração de workers Android.
+
+### 💡 Desenvolvimento
+-   **[Biblioteca de Prompts](docs/guides/prompts_desenvolvedores_completo.md)**: Prompts avançados para desenvolvedores.
+-   **[Arquitetura do Sistema](docs/guides/architecture.md)**: Detalhes técnicos da arquitetura.
+-   **[Solução de Problemas](docs/guides/troubleshooting.md)**: FAQ e soluções para problemas comuns.
+
+### 🔧 Configurações
+-   **[Docker Compose](configs/docker/)**: Configurações Docker.
+-   **[Nginx](configs/nginx/)**: Configurações de proxy reverso.
+-   **[TLS/SSL](configs/tls/)**: Certificados e segurança.
 
 ## 🤝 Contribuição
 
 Contribuições são bem-vindas! Por favor, leia o nosso **Guia de Contribuição** para saber como participar.
 
+### Como Contribuir
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
+
 ## 📄 Licença
 
 Este projeto está licenciado sob a Licença MIT. Veja o arquivo LICENSE.txt para mais detalhes.
+
+## 🙏 Agradecimentos
+
+-   **Dask**: Framework de computação distribuída
+-   **Ollama**: Execução local de modelos de IA
+-   **OpenWebUI**: Interface web para modelos
+-   **Comunidade Open Source**: Por tornar possível este projeto
+
+---
+
+**📧 Suporte**: Para dúvidas e suporte, abra uma issue no GitHub.
+**📚 Documentação**: [docs/INDEX.md](docs/INDEX.md)
+**🚀 Início Rápido**: [Guia de Início Rápido](docs/guides/quick-start.md)

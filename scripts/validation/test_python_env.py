@@ -3,6 +3,7 @@ from distributed import Client
 import torch
 from transformers import pipeline
 
+
 def test_dask():
     try:
         client = Client()
@@ -16,6 +17,7 @@ def test_dask():
         print("Dask test failed:", e)
         return False
 
+
 def test_torch():
     try:
         x = torch.tensor([1.0, 2.0, 3.0])
@@ -26,6 +28,7 @@ def test_torch():
         print("Torch test failed:", e)
         return False
 
+
 def test_transformers():
     try:
         classifier = pipeline("sentiment-analysis")
@@ -35,6 +38,7 @@ def test_transformers():
     except Exception as e:
         print("Transformers test failed:", e)
         return False
+
 
 if __name__ == "__main__":
     print("Testing Python environment and key packages...")
