@@ -38,7 +38,28 @@ A instalação é projetada para ser simples e flexível.
 - Pelo menos 4GB RAM e 20GB espaço em disco
 - Conexão com internet para downloads
 
-### Instalação Rápida
+### Instalação Automática (Recomendado)
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+    cd cluster-ai
+    ```
+
+2.  **Execute a configuração automática:**
+    ```bash
+    ./auto_setup.sh
+    ```
+
+    O script irá:
+    - Detectar automaticamente se deve configurar como servidor ou worker
+    - Instalar todas as dependências necessárias
+    - Configurar a rede e conexões entre nós
+    - Iniciar todos os serviços automaticamente
+
+### Instalação Manual (Avançado)
+
+Para controle total do processo:
 
 1.  **Clone o repositório:**
     ```bash
