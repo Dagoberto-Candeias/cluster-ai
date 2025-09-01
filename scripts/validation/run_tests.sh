@@ -92,7 +92,7 @@ run_validation_tests() {
 
 run_health_check() {
     section "Teste de Health Check"
-    run_test "Health Check Completo" "scripts/management/health_check.sh" "--test"
+    run_test "Health Check Completo" "scripts/utils/health_check.sh" "--test"
 }
 
 run_backup_tests() {
@@ -108,7 +108,7 @@ run_syntax_check() {
         "manager.sh"
         "scripts/lib/common.sh"
         "scripts/lib/install_functions.sh"
-        "scripts/management/health_check.sh"
+        "scripts/utils/health_check.sh"
         "scripts/management/memory_manager.sh"
         "scripts/management/resource_optimizer.sh"
         "scripts/backup/backup_manager.sh"

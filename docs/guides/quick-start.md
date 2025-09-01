@@ -140,7 +140,7 @@ sudo ufw allow 11434/tcp # Ollama API
 ### Verificar Status dos Serviços
 ```bash
 # Status completo
-./scripts/management/health_check.sh
+./scripts/utils/health_check.sh
 
 # Apenas processos principais
 ps aux | grep -E "(dask|ollama|openwebui)"

@@ -115,7 +115,7 @@
 5. **Consolidar documentação**
 
 ### Scripts a Serem Criados na Fase 2:
-- `scripts/management/health_check.sh` (versão unificada)
+- `scripts/utils/health_check.sh` (versão unificada)
 - `scripts/management/backup_manager.sh` (versão unificada)
 - `scripts/management/memory_manager.sh` (versão unificada)
 - `scripts/validation/run_tests.sh` (suite completa)
