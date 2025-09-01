@@ -100,29 +100,60 @@ generate_gpu_config() {
     local has_cuda=$(command -v nvcc >/dev/null 2>&1 && echo "true" || echo "false")
     local gpu_vram_mb=0
     local has_rocm=$([ -f "/opt/rocm/bin/rocminfo" ] && echo "true" || echo "false")
-    
-    echo "GPU_TYPE=none" > "$GPU_CONFIG_FILE"
-    echo "GPU_COUNT=0" >> "$GPU_CONFIG_FILE"
-    echo "CUDA_AVAILABLE=false" >> "$GPU_CONFIG_FILE"
-    echo "ROCm_AVAILABLE=false" >> "$GPU_CONFIG_FILE"
-    echo "DETECTION_DATE=$(date '+%Y-%m-%d %H:%M:%S')" >> "$GPU_CONFIG_FILE"
-    
+
+    # Inicializar arquivo de configuração
+    echo "DETECTION_DATE=$(date '+%Y-%m-%d %H:%M:%S')" > "$GPU_CONFIG_FILE"
+
     if [ "$has_nvidia" -gt 0 ]; then
-        if command_exists nvidia-smi; then
+        if command -v nvidia-smi >/dev/null 2>&1; then
             # Get VRAM in MiB from the first GPU
-            gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
+            gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1 || echo "0")
         fi
         echo "GPU_TYPE=nvidia" >> "$GPU_CONFIG_FILE"
         echo "GPU_COUNT=$has_nvidia" >> "$GPU_CONFIG_FILE"
         echo "CUDA_AVAILABLE=$has_cuda" >> "$GPU_CONFIG_FILE"
+        echo "ROCm_AVAILABLE=false" >> "$GPU_CONFIG_FILE"
         log "Configuração NVIDIA gerada: $has_nvidia GPU(s), CUDA: $has_cuda, VRAM: ${gpu_vram_mb}MB"
     elif [ "$has_amd" -gt 0 ]; then
-        # VRAM detection for AMD can be more complex, using a placeholder for now
+        # Tentar detectar VRAM para AMD usando múltiplos métodos
+        if command -v glxinfo >/dev/null 2>&1; then
+            gpu_vram_mb=$(glxinfo | grep -i "video memory" | head -n 1 | awk '{print $3}' | sed 's/[^0-9]*//g')
+        fi
+
+        if [ -z "$gpu_vram_mb" ] || [ "$gpu_vram_mb" = "0" ]; then
+            # Tentar ler diretamente dos arquivos do sistema
+            for card in /sys/class/drm/card*; do
+                if [ -f "$card/device/mem_info_vram_total" ]; then
+                    vram_bytes=$(cat "$card/device/mem_info_vram_total" 2>/dev/null)
+                    if [ ! -z "$vram_bytes" ]; then
+                        gpu_vram_mb=$((vram_bytes / 1024 / 1024))
+                        break
+                    fi
+                fi
+            done
+        fi
+
+        if [ -z "$gpu_vram_mb" ] || [ "$gpu_vram_mb" = "0" ]; then
+            # Método alternativo com lshw
+            if command -v lshw >/dev/null 2>&1; then
+                gpu_vram_mb=$(lshw -C display | grep -i 'size' | head -n 1 | awk '{print $2}' | sed 's/[^0-9]*//g')
+            fi
+        fi
+
+        if [ -z "$gpu_vram_mb" ]; then
+            gpu_vram_mb=0
+        fi
+
         echo "GPU_TYPE=amd" >> "$GPU_CONFIG_FILE"
         echo "GPU_COUNT=$has_amd" >> "$GPU_CONFIG_FILE"
+        echo "CUDA_AVAILABLE=false" >> "$GPU_CONFIG_FILE"
         echo "ROCm_AVAILABLE=$has_rocm" >> "$GPU_CONFIG_FILE"
-        log "Configuração AMD gerada: $has_amd GPU(s), ROCm: $has_rocm"
+        log "Configuração AMD gerada: $has_amd GPU(s), ROCm: $has_rocm, VRAM detectada: ${gpu_vram_mb}MB"
     else
+        echo "GPU_TYPE=none" >> "$GPU_CONFIG_FILE"
+        echo "GPU_COUNT=0" >> "$GPU_CONFIG_FILE"
+        echo "CUDA_AVAILABLE=false" >> "$GPU_CONFIG_FILE"
+        echo "ROCm_AVAILABLE=false" >> "$GPU_CONFIG_FILE"
         warn "Nenhuma GPU dedicada detectada - usando CPU apenas"
     fi
 

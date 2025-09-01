@@ -90,6 +90,21 @@ process_running() {
     pgrep -f "$process_name" >/dev/null 2>&1
 }
 
+# Função para verificar se uma porta está aberta
+port_open() {
+    local port="$1"
+    if command_exists nc; then
+        nc -z localhost "$port" >/dev/null 2>&1
+    elif command_exists ss; then
+        ss -ln | grep -q ":$port "
+    elif command_exists netstat; then
+        netstat -ln | grep -q ":$port "
+    else
+        # Fallback: tentar conectar usando /dev/tcp (bash built-in)
+        (echo >/dev/tcp/localhost/"$port") >/dev/null 2>&1
+    fi
+}
+
 # Função para registrar problemas encontrados
 report_issue() {
     local type="$1"

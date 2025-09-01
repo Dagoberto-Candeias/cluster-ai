@@ -247,13 +247,13 @@ show_detailed_status() {
 run_tests() {
     section "Executando Testes"
 
-    if ! file_exists "run_tests.sh"; then
-        error "Script de testes não encontrado: run_tests.sh"
+    if ! file_exists "scripts/validation/run_tests.sh"; then
+        error "Script de testes não encontrado: scripts/validation/run_tests.sh"
         return 1
     fi
 
     progress "Executando suíte de testes..."
-    bash run_tests.sh
+    bash scripts/validation/run_tests.sh
 }
 
 # Mostra diagnóstico

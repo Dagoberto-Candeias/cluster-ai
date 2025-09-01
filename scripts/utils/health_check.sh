@@ -55,10 +55,10 @@ main() {
     
     # Verificar portas
     subsection "Verificando Portas"
-    check_port 8080 "Dask Dashboard"
     check_port 8786 "Dask Scheduler"
-    check_port 8787 "Dask Worker"
+    check_port 8787 "Dask Dashboard"
     check_port 11434 "Ollama API"
+    check_port 3000 "OpenWebUI"
     
     # Verificar recursos do sistema
     subsection "Verificando Recursos do Sistema"
