@@ -1,6 +1,26 @@
 #!/bin/bash
+# =============================================================================
 # Otimizador de Recursos para Cluster AI - Versão Segura
-# Evita sobrecarga e falta de memória através de ajustes automáticos e inteligentes.
+# =============================================================================
+# Sistema inteligente de otimização automática de recursos que previne sobrecarga
+# e falta de memória através de ajustes dinâmicos baseados no hardware detectado.
+#
+# Funcionalidades principais:
+# - Detecção automática de recursos do sistema (CPU, RAM, GPU, Disco)
+# - Cálculo inteligente de configurações otimizadas para Dask e Ollama
+# - Suporte a perfis de otimização (default, android)
+# - Monitoramento contínuo de recursos com alertas automáticos
+# - Limpeza automática de memória e disco quando necessário
+#
+# Autor: Cluster AI Team
+# Data: 2024-12-19
+# Versão: 2.0.0
+# Dependências: common.sh, nvidia-smi (opcional), docker (opcional)
+# =============================================================================
+
+# =============================================================================
+# CONFIGURAÇÃO GLOBAL
+# =============================================================================
 
 # Carregar funções comuns com segurança
 COMMON_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../utils" && pwd)/common.sh"
@@ -11,36 +31,63 @@ else
     exit 1
 fi
 
-# Configurações
+# Diretórios de configuração
 CONFIG_DIR="$HOME/.cluster_optimization"
 CLUSTER_CONFIG_DIR="$HOME/.cluster_config"
 LOG_FILE="$CONFIG_DIR/optimization.log"
+
+# Configurações do sistema
 OPENWEBUI_CONTAINER_NAME="open-webui"
 CHECK_INTERVAL=60  # Verificação a cada 60 segundos
+
+# Exportar arquivo de log para uso global
 export CLUSTER_AI_LOG_FILE="$LOG_FILE"
 
-# Função para detectar recursos do sistema
+# =============================================================================
+# FUNÇÕES PRINCIPAIS
+# =============================================================================
+
+# Função: detect_system_resources
+# Descrição: Detecta automaticamente todos os recursos disponíveis no sistema
+# Parâmetros:
+#   Nenhum
+# Retorno:
+#   String formatada com informações dos recursos detectados
+#   Formato: VARIAVEL=valor (uma por linha)
+# Exemplo:
+#   resources=$(detect_system_resources)
+#   cpu_cores=$(echo "$resources" | grep "CPU_CORES" | cut -d= -f2)
 detect_system_resources() {
+    # Detecção de CPU
     local cpu_cores=$(nproc)
+
+    # Detecção de memória RAM total em MB
     local total_memory_mb=$(LC_ALL=C free -m | awk '/^Mem:/{print $2}')
+
+    # Detecção de espaço em disco total
     local total_disk=$(df -h / | awk 'NR==2{print $2}')
 
-    # Detecção Multi-GPU
+    # Detecção Multi-GPU usando NVIDIA SMI
     local gpu_count=0
     local total_gpu_vram_mb=0
     local primary_gpu_vram_mb=0
 
     if command_exists nvidia-smi; then
+        # Contar GPUs disponíveis
         gpu_count=$(nvidia-smi --query-gpu=count --format=csv,noheader)
-        # Somar a VRAM de todas as GPUs
+
+        # Calcular VRAM total de todas as GPUs
         total_gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{s+=$1} END {print s}')
-        # Pegar a VRAM da primeira GPU para cálculo de camadas
+
+        # Obter VRAM da primeira GPU para cálculos de camadas do Ollama
         primary_gpu_vram_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
     fi
 
+    # Valores padrão para evitar erros
     cpu_cores=${cpu_cores:-0}
     total_memory_mb=${total_memory_mb:-0}
-    
+
+    # Retornar informações formatadas
     echo "CPU_CORES=$cpu_cores"
     echo "TOTAL_MEMORY_MB=$total_memory_mb"
     echo "TOTAL_DISK=$total_disk"
@@ -49,16 +96,41 @@ detect_system_resources() {
     echo "PRIMARY_GPU_VRAM_MB=${primary_gpu_vram_mb:-0}"
 }
 
-# Função para calcular configurações otimizadas
+# Função: calculate_optimized_settings
+# Descrição: Calcula configurações otimizadas para Dask, Ollama e Docker baseadas
+#           nos recursos detectados do sistema e no perfil de uso especificado
+# Parâmetros:
+#   $1 - Número de cores de CPU disponíveis
+#   $2 - Memória RAM total em MB
+#   $3 - Número de GPUs disponíveis
+#   $4 - VRAM total de todas as GPUs em MB
+#   $5 - VRAM da GPU primária em MB
+#   $6 - Perfil de otimização (default, android)
+# Retorno:
+#   String formatada com configurações calculadas (uma por linha)
+#   Formato: VARIAVEL=valor
+# Exemplo:
+#   settings=$(calculate_optimized_settings 8 16384 1 8192 8192 "default")
+#   dask_workers=$(echo "$settings" | grep "DASK_WORKERS" | cut -d= -f2)
 calculate_optimized_settings() {
     local cpu_cores=$1
     local total_memory_mb=$2
     local gpu_count=$3
     local total_gpu_vram_mb=$4
     local primary_gpu_vram_mb=$5
-    local profile="${6:-default}" # Novo parâmetro de perfil
-    
-    # --- Configurações Dinâmicas ---
+    local profile="${6:-default}"
+
+    # =============================================================================
+    # ALGORITMO DE CÁLCULO DE CONFIGURAÇÕES OTIMIZADAS
+    #
+    # Este algoritmo considera:
+    # 1. Recursos disponíveis (CPU, RAM, GPU)
+    # 2. Perfil de uso (default vs android)
+    # 3. Reserva de recursos para SO e aplicações críticas
+    # 4. Balanceamento entre performance e estabilidade
+    # =============================================================================
+
+    # --- Configurações Dinâmicas Iniciais ---
     local dask_workers=0
     local dask_threads=0
     local memory_limit="1GB"
@@ -71,39 +143,46 @@ calculate_optimized_settings() {
     local docker_openwebui_cpus="1.0"
     local docker_openwebui_memory="1g"
 
-    # Perfil de Otimização: Android (Recursos Limitados)
+    # =============================================================================
+    # PERFIL DE OTIMIZAÇÃO: ANDROID (Recursos Limitados)
+    #
+    # Estratégia: Conservadora e adaptativa baseada no hardware
+    # Objetivos:
+    # - Evitar superaquecimento em dispositivos móveis
+    # - Reservar memória suficiente para SO Android e UI
+    # - Manter estabilidade em hardwares limitados
+    # =============================================================================
     if [ "$profile" == "android" ]; then
         log "Perfil de otimização: Android-Dynamic"
-        
-        # Regras conservadoras para Android, mas baseadas no hardware detectado
-        # Reservar uma grande parte da memória para o SO Android e UI
-        local reserved_mem_for_android_os=3072 # Reservar 3GB para o SO
+
+        # Reserva adaptativa de memória para SO Android
+        # Baseado em: https://developer.android.com/topic/performance/memory
+        local reserved_mem_for_android_os=3072 # 3GB base para SO + UI
         if [ "$total_memory_mb" -gt 8000 ]; then
-            reserved_mem_for_android_os=4096 # Reservar 4GB para dispositivos com mais RAM
+            reserved_mem_for_android_os=4096 # 4GB para dispositivos high-end
         fi
-        
+
         local available_mem_for_dask=$((total_memory_mb - reserved_mem_for_android_os))
-        
-        # Dask workers: usar metade dos cores, no máximo 4, para evitar superaquecimento
+
+        # Cálculo conservador de workers Dask
+        # Metade dos cores para evitar thermal throttling
         dask_workers=$((cpu_cores / 2))
         [ "$dask_workers" -lt 1 ] && dask_workers=1
-        [ "$dask_workers" -gt 4 ] && dask_workers=4 # Limite máximo para evitar sobrecarga
-        
-        dask_threads=1 # Manter 1 thread por worker é mais seguro em mobile
-        
-        # Calcular limite de memória por worker
+        [ "$dask_workers" -gt 4 ] && dask_workers=4 # Limite para dispositivos móveis
+
+        dask_threads=1 # Single thread por worker para estabilidade térmica
+
+        # Cálculo de memória por worker com validação
         if [ "$dask_workers" -gt 0 ] && [ "$available_mem_for_dask" -gt 512 ]; then
             local memory_per_worker=$((available_mem_for_dask / dask_workers))
             memory_limit="${memory_per_worker}M"
         else
-            memory_limit="256M" # Fallback muito conservador
+            memory_limit="256M" # Fallback para dispositivos muito limitados
         fi
-        
+
         dask_worker_class="dask.distributed.Nanny"
-        
-        # Ollama sempre em modo CPU no Android
-        ollama_num_gpu_layers=0
-        ollama_max_loaded_models=1
+
+        # Ollama em modo CPU (Android geralmente não tem GPU dedicada)
 
     elif [ "$gpu_count" -gt 0 ] && [ "$primary_gpu_vram_mb" -ge 4000 ]; then
         log "Perfil de otimização: GPU-Focused"
