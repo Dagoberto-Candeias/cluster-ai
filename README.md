@@ -112,6 +112,7 @@ A documentação detalhada está organizada no diretório `docs/`.
 
 ### 🚀 Guias Práticos
 -   **[Guia de Início Rápido](docs/guides/quick-start.md)**: Comece a usar o cluster em minutos.
+-   **[Configuração de Cluster: Servidor + Worker](docs/guides/cluster_setup_guide.md)**: Configure cluster distribuído com múltiplas máquinas.
 -   **[Instalação Detalhada](docs/manuals/INSTALACAO.md)**: Guia passo-a-passo completo.
 -   **[Uso Avançado](docs/guides/usage.md)**: Funcionalidades avançadas e otimização.
 
