@@ -7,8 +7,8 @@ set -euo pipefail
 # ==================== CONFIGURAÇÃO INICIAL ====================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_SCRIPT="${SCRIPT_DIR}/scripts/lib/common.sh"
-INSTALL_FUNCTIONS="${SCRIPT_DIR}/scripts/lib/install_functions.sh"
+COMMON_SCRIPT="${SCRIPT_DIR}/../utils/common.sh"
+INSTALL_FUNCTIONS="${SCRIPT_DIR}/../utils/install_functions.sh"
 
 if [ ! -f "$COMMON_SCRIPT" ]; then
     echo "ERRO: Script de funções comuns não encontrado: $COMMON_SCRIPT"

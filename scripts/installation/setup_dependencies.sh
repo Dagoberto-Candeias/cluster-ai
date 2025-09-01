@@ -23,7 +23,11 @@ source "$PROGRESS_UTILS_PATH"
 # Inicializar sistema de progresso
 init_progress_system
 
-# A variável $OS é exportada pelo script pai (install_universal.sh)
+# Detectar OS se não estiver definido
+if [ -z "${OS:-}" ]; then
+    OS=$(detect_os)
+    export OS
+fi
 
 # Atualiza os pacotes do sistema com retry e progresso
 update_system_packages() {

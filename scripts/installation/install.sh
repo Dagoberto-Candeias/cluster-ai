@@ -19,7 +19,7 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPTS_DIR="${PROJECT_ROOT}/scripts"
 UTILS_DIR="${SCRIPTS_DIR}/utils"
 INSTALL_DIR="${SCRIPTS_DIR}/installation"
@@ -361,7 +361,7 @@ process_menu_choice() {
 
 main() {
     # Verifica se o modo automático foi passado como argumento para o script principal
-    if [[ "$1" == "--auto-role" ]]; then
+    if [[ "${1:-}" == "--auto-role" ]]; then
         run_full_installation "--auto-role"
         exit $?
     fi
