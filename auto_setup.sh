@@ -31,14 +31,14 @@ info() {
 
 # Função para detectar se é servidor ou worker
 detect_node_role() {
-    log "🔍 Detectando papel do nó..."
-
     # Verificar se já existe configuração
     if [ -f "cluster.conf" ]; then
-        if grep -q "NODE_ROLE=server" cluster.conf; then
+        # Carregar variáveis do arquivo e suprimir saída
+        source cluster.conf >/dev/null 2>&1
+        if [ "$NODE_ROLE" = "server" ]; then
             echo "server"
             return
-        elif grep -q "NODE_ROLE=worker" cluster.conf; then
+        elif [ "$NODE_ROLE" = "worker" ]; then
             echo "worker"
             return
         fi
@@ -47,8 +47,6 @@ detect_node_role() {
     # Detectar baseado em recursos do sistema
     CPU_CORES=$(nproc)
     TOTAL_MEM=$(free -g | awk 'NR==2{printf "%.0f", $2}')
-
-    log "Sistema detectado: ${CPU_CORES} cores CPU, ${TOTAL_MEM}GB RAM"
 
     # Se tem mais de 4 cores e 8GB RAM, assume servidor
     if [ "$CPU_CORES" -gt 4 ] && [ "$TOTAL_MEM" -gt 8 ]; then
@@ -252,17 +250,22 @@ main() {
     fi
 
     # Detectar papel do nó
+    log "🔍 Chamando função detect_node_role..."
     NODE_ROLE=$(detect_node_role)
+    log "🔍 NODE_ROLE retornado: '$NODE_ROLE'"
 
     case $NODE_ROLE in
         "server")
+            log "✅ Papel detectado: SERVIDOR"
             setup_server
             ;;
         "worker")
+            log "✅ Papel detectado: WORKER"
             setup_worker
             ;;
         *)
             error "❌ Não foi possível determinar o papel do nó"
+            error "Valor retornado: '$NODE_ROLE'"
             exit 1
             ;;
     esac

@@ -44,7 +44,7 @@ main() {
 
     if sudo docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         success "O container '$CONTAINER_NAME' já existe. Nenhuma ação necessária."
-        info "Para recriá-lo, pare e remova o container primeiro: sudo docker stop $CONTAINER_NAME && sudo docker rm $CONTAINER_NAME"
+        log "Para recriá-lo, pare e remova o container primeiro: sudo docker stop $CONTAINER_NAME && sudo docker rm $CONTAINER_NAME"
         return 0
     fi
 
@@ -52,9 +52,9 @@ main() {
     local cpus; cpus=$(echo "$settings" | grep "DOCKER_OPENWEBUI_CPUS" | cut -d= -f2)
     local memory; memory=$(echo "$settings" | grep "DOCKER_OPENWEBUI_MEMORY" | cut -d= -f2)
 
-    info "Criando container '$CONTAINER_NAME' com os seguintes limites:"
-    info "  -> CPUs: $cpus"
-    info "  -> Memória: $memory"
+    log "Criando container '$CONTAINER_NAME' com os seguintes limites:"
+    log "  -> CPUs: $cpus"
+    log "  -> Memória: $memory"
 
     if confirm_operation "Deseja continuar com a criação do container?"; then
         log "Baixando a imagem mais recente do OpenWebUI..."
@@ -74,7 +74,7 @@ main() {
 
         if sudo docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
             success "Container '$CONTAINER_NAME' criado e iniciado com sucesso!"
-            info "Acesse a interface em: http://localhost:3000"
+            log "Acesse a interface em: http://localhost:3000"
         else
             error "Falha ao criar o container '$CONTAINER_NAME'. Verifique os logs do Docker."
             return 1
