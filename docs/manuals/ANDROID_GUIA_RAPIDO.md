@@ -8,16 +8,102 @@
 3. Execute: `termux-setup-storage`
 4. Conceda as permissões solicitadas
 
-### Passo 2: Executar Instalação Automática
+### Passo 2: Escolher Método de Instalação
+
+#### 📡 Método Automático (recomendado):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
+```
+
+#### 📱 Método Manual (se automático falhar):
+```bash
+# Copie e cole este script completo no Termux:
+```
+
+```bash
+#!/data/data/com.termux/files/usr/bin/bash
+# Instalação Manual do Worker Android - Cluster AI
+
+set -euo pipefail
+
+# --- Cores para output ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# --- Funções auxiliares ---
+log() { echo -e "${BLUE}[INFO]${NC} $1"; }
+success() { echo -e "${GREEN}[✓]${NC} $1"; }
+error() { echo -e "${RED}[✗]${NC} $1"; }
+warn() { echo -e "${YELLOW}[!]${NC} $1"; }
+
+check_termux() {
+    if [ ! -d "/data/data/com.termux" ]; then
+        error "Este script deve ser executado no Termux!"
+        exit 1
+    fi
+    success "Termux detectado"
+}
+
+main() {
+    echo; echo "🤖 INSTALAÇÃO MANUAL - WORKER ANDROID"; echo "====================================="; echo
+    check_termux
+
+    log "Configurando armazenamento..."
+    if [ ! -d "$HOME/storage" ]; then termux-setup-storage; sleep 3; fi
+    success "Armazenamento OK"
+
+    log "Atualizando pacotes..."
+    pkg update -y >/dev/null 2>&1; pkg upgrade -y >/dev/null 2>&1
+    success "Pacotes atualizados"
+
+    log "Instalando dependências..."
+    pkg install -y openssh python git ncurses-utils curl >/dev/null 2>&1
+    success "Dependências OK"
+
+    log "Configurando SSH..."
+    mkdir -p "$HOME/.ssh"
+    if [ ! -f "$HOME/.ssh/id_rsa" ]; then
+        ssh-keygen -t rsa -b 2048 -N "" -f "$HOME/.ssh/id_rsa" >/dev/null 2>&1
+    fi
+    sshd >/dev/null 2>&1
+    success "SSH OK"
+
+    log "Baixando projeto..."
+    if [ ! -d "$HOME/Projetos/cluster-ai" ]; then
+        mkdir -p "$HOME/Projetos"
+        if git clone git@github.com:Dagoberto-Candeias/cluster-ai.git "$HOME/Projetos/cluster-ai" >/dev/null 2>&1; then
+            success "Projeto clonado via SSH"
+        elif git clone https://github.com/Dagoberto-Candeias/cluster-ai.git "$HOME/Projetos/cluster-ai" >/dev/null 2>&1; then
+            success "Projeto clonado via HTTPS"
+        else
+            warn "Clone falhou - configure autenticação posteriormente"
+        fi
+    else
+        success "Projeto já existe"
+    fi
+
+    echo; echo "=================================================="
+    echo "🎉 INSTALAÇÃO CONCLUÍDA!"
+    echo "=================================================="; echo
+    echo "🔑 CHAVE SSH (copie para o servidor principal):"
+    echo "--------------------------------------------------"
+    cat "$HOME/.ssh/id_rsa.pub"
+    echo "--------------------------------------------------"; echo
+    echo "🌐 CONEXÃO: $(whoami)@$(ip route get 1 | awk '{print $7}' | head -1 || echo 'Verifique Wi-Fi'):8022"
+    echo; echo "📋 No servidor principal: ./manager.sh > Gerenciar Workers"
+}
+
+main
 ```
 
 **O que acontece:**
 - ✅ Atualiza pacotes automaticamente
 - ✅ Instala SSH, Python e Git
 - ✅ Configura servidor SSH
-- ✅ Baixa o projeto Cluster AI
+- ✅ Baixa o projeto Cluster AI (com fallback)
 - ✅ Mostra informações de conexão
 
 ### Passo 3: Copiar Chave SSH
@@ -44,13 +130,28 @@ Escolha as opções:
 
 ## 🔧 Solução de Problemas
 
-### ❌ Erro 400 ou falha no download
+### ❌ Erro 400 ou falha no download (Repositório Privado)
 ```bash
-# Tente baixar o script primeiro
-curl -O https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh
+# SOLUÇÃO 1: Baixar via Git (recomendado para repositórios privados)
+pkg install -y git
+git clone https://github.com/Dagoberto-Candeias/cluster-ai.git ~/cluster-ai-temp
+cd ~/cluster-ai-temp
+bash scripts/android/setup_android_worker.sh
 
-# Depois execute
-bash setup_android_worker_simple.sh
+# SOLUÇÃO 2: Usar token de acesso pessoal
+# 1. Vá para: https://github.com/settings/tokens
+# 2. Crie um token com permissões "repo"
+# 3. Execute:
+curl -H "Authorization: token SEU_TOKEN_AQUI" \
+  -H "Accept: application/vnd.github.v3.raw" \
+  -o setup_worker.sh \
+  https://api.github.com/repos/Dagoberto-Candeias/cluster-ai/contents/scripts/android/setup_android_worker.sh?ref=main
+
+# SOLUÇÃO 3: Download manual
+# 1. No seu computador, baixe o arquivo:
+#    https://github.com/Dagoberto-Candeias/cluster-ai/blob/main/scripts/android/setup_android_worker.sh
+# 2. Transfira para o Android via Bluetooth/USB
+# 3. Execute: bash setup_android_worker.sh
 ```
 
 ### ❌ "Repository not found" ou "Permission denied" (Repositório Privado)
