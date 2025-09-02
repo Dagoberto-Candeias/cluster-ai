@@ -142,6 +142,7 @@ A documentação detalhada está organizada no diretório `docs/`.
 -   **[Guia OpenWebUI](docs/manuals/openwebui/)**: Interface web.
 -   **[Backup e Restauração](docs/manuals/BACKUP.md)**: Sistema de backup.
 -   **[Android Workers](docs/manuals/ANDROID.md)**: Configuração de workers Android.
+-   **[Guia Rápido Android](docs/manuals/ANDROID_GUIA_RAPIDO.md)**: Instalação simplificada em 5 minutos.
 
 ### 💡 Desenvolvimento
 -   **[Biblioteca de Prompts](docs/guides/prompts_desenvolvedores_completo.md)**: Prompts avançados para desenvolvedores.
