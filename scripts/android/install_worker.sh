@@ -77,11 +77,17 @@ download_project() {
         success "Projeto baixado via HTTPS"
     else
         warn "HTTPS falhou - tentando método alternativo"
-        curl -L -o cluster-ai.zip https://github.com/Dagoberto-Candeias/cluster-ai/archive/main.zip
-        unzip cluster-ai.zip
-        mv cluster-ai-main cluster-ai
-        rm cluster-ai.zip
-        success "Projeto baixado via ZIP"
+        if curl -L -o cluster-ai.zip https://github.com/Dagoberto-Candeias/cluster-ai/archive/main.zip && [ -s cluster-ai.zip ]; then
+            unzip cluster-ai.zip
+            mv cluster-ai-main cluster-ai
+            rm cluster-ai.zip
+            success "Projeto baixado via ZIP"
+        else
+            warn "Download falhou. Você pode baixar manualmente de:"
+            echo "  https://github.com/Dagoberto-Candeias/cluster-ai"
+            echo "  Ou configure autenticação SSH primeiro."
+            success "Pule o download - configure manualmente se necessário"
+        fi
     fi
 }
 
