@@ -27,33 +27,58 @@ termux-setup-storage
 ```
 Conceda as permissões solicitadas.
 
-### 2. Configurar Autenticação com GitHub (para repositórios privados)
-```bash
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_github_auth.sh | bash
-```
-Siga as instruções do script para configurar SSH ou Token.
-
-### 3. Instalar Dependências
+### 2. Instalar Dependências
 ```bash
 pkg update -y
-pkg install -y openssh python git curl
+pkg install -y openssh python git curl unzip
 ```
 
-### 4. Baixar o Projeto (método automático)
+### 3. Configurar Autenticação com GitHub (para repositórios privados)
+
+#### Opção 1: SSH (Recomendado)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_robust.sh | bash
+ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
+cat ~/.ssh/id_rsa.pub
 ```
-Se falhar, tente o método simples:
+Copie a chave pública e adicione em [GitHub > Settings > SSH keys](https://github.com/settings/keys).
+
+#### Opção 2: Token de Acesso Pessoal
+- Gere um token em [GitHub Tokens](https://github.com/settings/tokens) com permissão "repo".
+- Use para clonar:
+  ```bash
+  git clone https://TOKEN@github.com/Dagoberto-Candeias/cluster-ai.git
+  ```
+
+### 4. Baixar o Projeto
+
+#### Método Git (recomendado)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh | bash
+git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+cd cluster-ai
+```
+Se for privado, use o SSH após configurar a chave.
+
+#### Método ZIP (offline/manual)
+```bash
+curl -L -o cluster-ai.zip https://github.com/Dagoberto-Candeias/cluster-ai/archive/main.zip
+unzip cluster-ai.zip
+mv cluster-ai-main cluster-ai
+rm cluster-ai.zip
+cd cluster-ai
 ```
 
-### 5. Copiar Chave SSH
-O script exibirá sua chave pública.  
-Copie tudo e adicione em [GitHub SSH Keys](https://github.com/settings/keys).
+### 5. Iniciar o SSHD no Termux
+```bash
+sshd
+```
+- Porta padrão: **8022**
+- Descubra seu IP local:
+  ```bash
+  ip addr show wlan0
+  ```
 
 ### 6. Registrar Worker no Servidor Principal
-No servidor principal:
+No servidor principal (Linux/VS Code):
 ```bash
 cd /caminho/para/cluster-ai
 ./manager.sh
@@ -63,9 +88,10 @@ Escolha "Gerenciar Workers Remotos (SSH)", cole a chave SSH, informe IP e porta 
 ### 7. Testar Conexão
 No servidor principal:
 ```bash
-ssh usuario@ip_do_android -p 8022
-ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
+ssh <usuario>@<ip_do_android> -p 8022
+ssh <usuario>@<ip_do_android> -p 8022 "echo 'Worker Android conectado!'"
 ```
+No Termux, o usuário padrão é o nome exibido no prompt (ex: `u0_a249`).
 
 ---
 
@@ -81,6 +107,7 @@ ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
   ```bash
   ping 8.8.8.8
   ```
+- Se não conseguir clonar, baixe o ZIP e extraia manualmente.
 
 ---
 
@@ -90,8 +117,9 @@ ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
 2. Transfira para o Android.
 3. Extraia e execute:
    ```bash
+   unzip cluster-ai.zip
+   mv cluster-ai-main cluster-ai
    cd cluster-ai
-   bash scripts/android/setup_android_worker_simple.sh
    ```
 
 ---
@@ -125,30 +153,35 @@ ou envie e-mail para: betoallnet@gmail.com
 2. **Instalar dependências:**
    ```bash
    pkg update -y
-   pkg install -y openssh python git curl
+   pkg install -y openssh python git curl unzip
    ```
 
-3. **Configurar autenticação GitHub:**
+3. **Gerar chave SSH (se necessário):**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_github_auth.sh | bash
+   ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
+   cat ~/.ssh/id_rsa.pub
    ```
 
-4. **Instalar o worker Android (automático):**
+4. **Clonar o repositório:**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_robust.sh | bash
+   git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+   cd cluster-ai
    ```
 
-5. **Se falhar, tente o método simples:**
+5. **Iniciar SSHD:**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh | bash
+   sshd
    ```
 
-6. **Copie a chave SSH exibida e registre no GitHub.**
+6. **Descobrir IP local:**
+   ```bash
+   ip addr show wlan0
+   ```
 
-7. **No servidor principal, registre o worker e teste a conexão:**
+7. **No servidor principal, registrar e testar o worker:**
    ```bash
    ./manager.sh
-   ssh usuario@ip_do_android -p 8022
+   ssh <usuario>@<ip_do_android> -p 8022
    ```
 
 ---

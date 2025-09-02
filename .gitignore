@@ -7,9 +7,9 @@ cluster_swap/
 cluster_cache/
 
 # Ollama
-.ollama/models/
-.ollama/tmp/
-.ollama/cache/
+.olloma/models/
+.olloma/tmp/
+.olloma/cache/
 
 # Docker
 open-webui/
@@ -101,3 +101,6 @@ htmlcov/
 
 # Development
 .devcontainer/
+
+# SSH public key (local worker)
+worker_id_rsa.pub

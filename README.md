@@ -27,6 +27,7 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 -   **💾 Backup e Restauração**: Sistema completo para backup e restauração de configurações, modelos e dados de containers.
 -   **☁️ Gerenciamento Remoto**: Controle workers remotos via SSH, execute comandos, inicie e pare serviços.
 -   **📱 Suporte Android**: Workers Android via Termux para expansão do cluster.
+-   **🔐 Configuração SSH**: Scripts automatizados para configuração de chaves SSH e autenticação GitHub.
 -   **🔒 Segurança**: Autenticação, validação de entrada e medidas de segurança integradas.
 
 ## 🚀 Instalação
@@ -142,7 +143,7 @@ A documentação detalhada está organizada no diretório `docs/`.
 -   **[Guia OpenWebUI](docs/manuals/openwebui/)**: Interface web.
 -   **[Backup e Restauração](docs/manuals/BACKUP.md)**: Sistema de backup.
 -   **[Android Workers](docs/manuals/ANDROID.md)**: Configuração de workers Android.
--   **[Guia Rápido Android](docs/manuals/ANDROID_GUIA_RAPIDO.md)**: Instalação simplificada em 5 minutos.
+-   **[Guia Rápido Android](docs/manuals/ANDROID_GUIA_RAPIDO.md)**: Instalação simplificada em 5 minutos (inclui configuração SSH automática).
 
 ### 💡 Desenvolvimento
 -   **[Biblioteca de Prompts](docs/guides/prompts_desenvolvedores_completo.md)**: Prompts avançados para desenvolvedores.
