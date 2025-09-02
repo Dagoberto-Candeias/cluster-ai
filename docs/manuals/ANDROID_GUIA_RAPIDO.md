@@ -2,13 +2,35 @@
 
 ## 📱 Instalação em 5 Minutos
 
-### Passo 1: Instalar Termux
-1. Baixe o **Termux** da F-Droid ou Google Play
-2. Abra o aplicativo
-3. Execute: `termux-setup-storage`
-4. Conceda as permissões solicitadas
+### Pré-requisitos
+- Dispositivo Android com Termux instalado (via F-Droid ou Google Play)
+- Conexão Wi-Fi estável
+- Pelo menos 20% de bateria
+- Acesso ao seu repositório privado no GitHub (via SSH ou Token)
 
-### Passo 2: Escolher Método de Instalação
+### Passo 1: Preparar o Termux
+1. Abra o Termux no seu Android
+2. Execute o comando para configurar o armazenamento:
+   ```bash
+   termux-setup-storage
+   ```
+3. Conceda as permissões solicitadas quando aparecer a caixa de diálogo
+
+### Passo 2: Configurar Autenticação com GitHub (IMPORTANTE para repositórios privados)
+1. Execute o script de configuração de autenticação:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_github_auth.sh | bash
+   ```
+2. Escolha o método de autenticação:
+   - **SSH (Recomendado)**: Mais seguro, sem expiração
+   - **Token de Acesso Pessoal**: Mais simples para começar
+   - **Ambos**: Máxima compatibilidade
+3. Se escolher SSH, adicione a chave pública ao GitHub:
+   - Vá para: https://github.com/settings/keys
+   - Clique em "New SSH key"
+   - Cole a chave mostrada pelo script
+
+### Passo 3: Escolher Método de Instalação
 
 #### 📡 Método Automático (recomendado - versão robusta):
 ```bash
@@ -17,7 +39,7 @@ curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/
 
 #### 📡 Método Automático (versão simples):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh | bash
 ```
 
 #### 📱 Método Manual (se automático falhar):
@@ -115,7 +137,7 @@ main
 **⏱️ Tempo estimado:** 3-8 minutos dependendo da velocidade da internet
 **📶 Requisitos:** Conexão Wi-Fi estável, pelo menos 20% de bateria
 
-### Passo 3: Copiar Chave SSH
+### Passo 4: Copiar Chave SSH
 O script mostrará uma **chave SSH** como esta:
 ```
 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... usuario@dispositivo
@@ -123,7 +145,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... usuario@dispositivo
 
 **Copie TUDO** (da palavra `ssh-rsa` até o final)
 
-### Passo 4: Registrar no Servidor Principal
+### Passo 5: Registrar no Servidor Principal
 No seu servidor principal, execute:
 ```bash
 cd /caminho/para/cluster-ai
@@ -136,6 +158,16 @@ Escolha as opções:
 3. **Cole a chave SSH** quando solicitado
 4. **Digite o IP** do seu celular Android
 5. **Porta: 8022**
+
+### Passo 6: Testar a Conexão
+1. No servidor principal, teste a conexão SSH:
+   ```bash
+   ssh usuario@ip_do_android -p 8022
+   ```
+2. Execute um comando remoto para verificar:
+   ```bash
+   ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
+   ```
 
 ## 🔧 Solução de Problemas
 
@@ -247,6 +279,37 @@ ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
 - 📊 **Análise de Dados**: Processa chunks de dados
 - 🔄 **Backup**: Ajuda em tarefas de backup distribuído
 
+## 📱 Instalação Offline (Último Recurso)
+
+Se todos os métodos automáticos falharem devido a problemas de conectividade ou repositório privado:
+
+### Método 1: Script Offline
+1. Baixe o script `install_offline.sh` do repositório
+2. Transfira para o seu Android
+3. Execute no Termux:
+   ```bash
+   bash install_offline.sh
+   ```
+
+### Método 2: Download Manual
+1. No navegador do seu computador, acesse:
+   ```
+   https://github.com/Dagoberto-Candeias/cluster-ai
+   ```
+2. Clique em "Code" → "Download ZIP"
+3. Transfira o arquivo ZIP para o Android
+4. Extraia e execute:
+   ```bash
+   cd cluster-ai
+   bash scripts/android/setup_android_worker_simple.sh
+   ```
+
+### Método 3: Via SCP (se tiver acesso SSH)
+```bash
+# No servidor, copie para o Android:
+scp -P 8022 /caminho/cluster-ai usuario@ip_android:~/Projetos/
+```
+
 ## ❓ Ainda com Problemas?
 
 Se nada funcionar:
@@ -260,7 +323,8 @@ Se nada funcionar:
      bash ~/scripts/android/setup_github_ssh.sh
      ```
    - Siga as instruções para adicionar a chave SSH no GitHub
-5. **Abra uma issue no GitHub** com os logs de erro
+5. **Tente a instalação offline**
+6. **Abra uma issue no GitHub** com os logs de erro
 
 ---
 
