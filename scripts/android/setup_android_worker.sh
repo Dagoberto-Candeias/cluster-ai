@@ -38,7 +38,15 @@ main() {
 
     # 2. Instalar dependências essenciais
     log "Instalando dependências: openssh, python, git, ncurses-utils..."
-    pkg install -y openssh python git ncurses-utils
+    log "Isso pode levar alguns minutos..."
+
+    # Instalar com timeout para evitar travamentos
+    if timeout 300 pkg install -y openssh python git ncurses-utils 2>&1; then
+        success "Dependências instaladas com sucesso"
+    else
+        error "Falha ao instalar dependências"
+        exit 1
+    fi
 
     # 3. Configurar e iniciar o servidor SSH
     section "Configurando Servidor SSH"

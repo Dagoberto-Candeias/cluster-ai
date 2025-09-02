@@ -45,9 +45,21 @@ main() {
 
     # Passo 2: Atualizar pacotes
     log "Passo 2: Atualizando pacotes..."
-    pkg update -y >/dev/null 2>&1
-    pkg upgrade -y >/dev/null 2>&1
-    success "Pacotes atualizados"
+    log "Isso pode levar alguns minutos na primeira vez..."
+
+    # Atualizar com timeout e mostrar progresso
+    if timeout 300 pkg update -y 2>&1; then
+        log "Pacotes base atualizados"
+    else
+        warn "Timeout na atualização de pacotes, continuando..."
+    fi
+
+    # Upgrade com timeout
+    if timeout 300 pkg upgrade -y 2>&1; then
+        success "Pacotes atualizados e atualizados"
+    else
+        warn "Timeout no upgrade de pacotes, continuando..."
+    fi
 
     # Passo 3: Instalar dependências
     log "Passo 3: Instalando dependências..."

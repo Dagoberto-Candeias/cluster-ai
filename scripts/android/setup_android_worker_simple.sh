@@ -38,13 +38,30 @@ check_storage() {
 # --- Instalação de dependências ---
 install_deps() {
     log "Atualizando pacotes..."
-    pkg update -y >/dev/null 2>&1
-    pkg upgrade -y >/dev/null 2>&1
+    log "Isso pode levar alguns minutos na primeira vez..."
+
+    # Atualizar com timeout
+    if timeout 300 pkg update -y 2>&1; then
+        log "Pacotes base atualizados"
+    else
+        warn "Timeout na atualização, continuando..."
+    fi
+
+    # Upgrade com timeout
+    if timeout 300 pkg upgrade -y 2>&1; then
+        log "Pacotes atualizados"
+    else
+        warn "Timeout no upgrade, continuando..."
+    fi
 
     log "Instalando dependências..."
-    pkg install -y openssh python git ncurses-utils curl >/dev/null 2>&1
-
-    success "Dependências instaladas"
+    # Instalar com timeout
+    if timeout 300 pkg install -y openssh python git ncurses-utils curl 2>&1; then
+        success "Dependências instaladas"
+    else
+        error "Falha ao instalar dependências"
+        return 1
+    fi
 }
 
 # --- Configuração SSH ---

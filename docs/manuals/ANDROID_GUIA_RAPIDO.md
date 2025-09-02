@@ -10,7 +10,12 @@
 
 ### Passo 2: Escolher Método de Instalação
 
-#### 📡 Método Automático (recomendado):
+#### 📡 Método Automático (recomendado - versão robusta):
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_robust.sh | bash
+```
+
+#### 📡 Método Automático (versão simples):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
 ```
@@ -100,11 +105,15 @@ main
 ```
 
 **O que acontece:**
-- ✅ Atualiza pacotes automaticamente
-- ✅ Instala SSH, Python e Git
-- ✅ Configura servidor SSH
-- ✅ Baixa o projeto Cluster AI (com fallback)
-- ✅ Mostra informações de conexão
+- ✅ Atualiza pacotes automaticamente (pode levar alguns minutos na primeira vez)
+- ✅ Instala SSH, Python e Git com timeout de segurança
+- ✅ Configura servidor SSH na porta 8022
+- ✅ Baixa o projeto Cluster AI (com fallback SSH → HTTPS)
+- ✅ Mostra informações de conexão e chave SSH para copiar
+- ✅ Tratamento robusto de erros e timeouts
+
+**⏱️ Tempo estimado:** 3-8 minutos dependendo da velocidade da internet
+**📶 Requisitos:** Conexão Wi-Fi estável, pelo menos 20% de bateria
 
 ### Passo 3: Copiar Chave SSH
 O script mostrará uma **chave SSH** como esta:
