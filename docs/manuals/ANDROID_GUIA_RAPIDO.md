@@ -53,6 +53,21 @@ curl -O https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scr
 bash setup_android_worker_simple.sh
 ```
 
+### ❌ "Repository not found" ou "Permission denied" (Repositório Privado)
+```bash
+# Solução 1: Configurar chave SSH no GitHub
+# 1. Vá para: https://github.com/settings/keys
+# 2. Clique em "New SSH key"
+# 3. Cole a chave gerada pelo script (mostrada na saída)
+# 4. Execute o script novamente
+
+# Solução 2: Usar Personal Access Token
+# 1. Vá para: https://github.com/settings/tokens
+# 2. Gere um novo token com permissões de "repo"
+# 3. Execute manualmente:
+git clone https://SEU_TOKEN@github.com/Dagoberto-Candeias/cluster-ai.git ~/Projetos/cluster-ai
+```
+
 ### ❌ SSH não conecta
 ```bash
 # No Termux, verifique se SSH está rodando
@@ -62,7 +77,7 @@ sshd
 ssh localhost -p 8022
 ```
 
-### ❌ "Permission denied"
+### ❌ "Permission denied" (não relacionado ao Git)
 ```bash
 # Execute novamente a configuração de storage
 termux-setup-storage
@@ -73,7 +88,23 @@ termux-setup-storage
 - Teste: `ping 8.8.8.8`
 - Se não funcionar, reinicie o Termux
 
+### ❌ Falha na autenticação Git
+```bash
+# Verificar configuração Git
+git config --global user.name "Seu Nome"
+git config --global user.email "seu@email.com"
+
+# Testar conexão SSH
+ssh -T git@github.com
+```
+
 ## 📊 Verificar se Funcionou
+
+### No Android (Termux):
+```bash
+# Execute o script de teste
+bash ~/Projetos/cluster-ai/scripts/android/test_android_worker.sh
+```
 
 ### No Servidor Principal:
 ```bash
@@ -86,6 +117,9 @@ termux-setup-storage
 ```bash
 # Teste SSH do servidor para o Android
 ssh usuario@ip_do_android -p 8022
+
+# Teste execução remota
+ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
 ```
 
 ## 💡 Dicas para Melhor Performance
@@ -110,7 +144,13 @@ Se nada funcionar:
 1. **Reinicie o Android**
 2. **Reinstale o Termux**
 3. **Execute novamente a configuração**
-4. **Abra uma issue no GitHub** com os logs de erro
+4. **Configure a autenticação SSH para GitHub:**
+   - Execute o script auxiliar:
+     ```bash
+     bash ~/scripts/android/setup_github_ssh.sh
+     ```
+   - Siga as instruções para adicionar a chave SSH no GitHub
+5. **Abra uma issue no GitHub** com os logs de erro
 
 ---
 
