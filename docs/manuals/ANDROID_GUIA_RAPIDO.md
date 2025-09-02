@@ -1,506 +1,158 @@
 # 🚀 Guia Rápido - Worker Android (Fácil)
 
-## 📱 Instalação em 5 Minutos
+## Sumário
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação Passo a Passo](#instalação-passo-a-passo)
+- [Solução de Problemas](#solução-de-problemas)
+- [Instalação Offline](#instalação-offline-último-recurso)
+- [Checklist Final](#checklist-final)
+- [Contato/Suporte](#contato-suporte)
 
-### Pré-requisitos
-- Dispositivo Android com Termux instalado (via F-Droid ou Google Play)
+---
+
+## 📋 Pré-requisitos
+
+- Dispositivo Android com Termux instalado ([F-Droid](https://f-droid.org/packages/com.termux/) ou Google Play)
 - Conexão Wi-Fi estável
 - Pelo menos 20% de bateria
 - Acesso ao seu repositório privado no GitHub (via SSH ou Token)
 
-### Passo 1: Preparar o Termux
-1. Abra o Termux no seu Android
-2. Execute o comando para configurar o armazenamento:
-   ```bash
-   termux-setup-storage
-   ```
-3. Conceda as permissões solicitadas quando aparecer a caixa de diálogo
+---
 
-### Passo 2: Configurar Autenticação com GitHub (IMPORTANTE para repositórios privados)
-1. Execute o script de configuração de autenticação:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_github_auth.sh | bash
-   ```
-2. Escolha o método de autenticação:
-   - **SSH (Recomendado)**: Mais seguro, sem expiração
-   - **Token de Acesso Pessoal**: Mais simples para começar
-   - **Ambos**: Máxima compatibilidade
-3. Se escolher SSH, adicione a chave pública ao GitHub:
-   - Vá para: https://github.com/settings/keys
-   - Clique em "New SSH key"
-   - Cole a chave mostrada pelo script
+## 🛠️ Instalação Passo a Passo
 
-### Passo 3: Escolher Método de Instalação
-
-#### 🚨 SE O DOWNLOAD FALHAR (Problema Atual):
-Se você receber erro 404 ou "Permission denied", use o **Método Manual**:
-
-### 📱 **Opção 1: Script Ultra-Simplificado (Mais Fácil)**
+### 1. Preparar o Termux
 ```bash
-#!/bin/bash
-# INSTALAÇÃO RÁPIDA - COPIE E COLE NO TERMUX
-# Versão ultra-simplificada para resolver problemas de download
+termux-setup-storage
+```
+Conceda as permissões solicitadas.
 
-echo "🤖 CLUSTER AI - INSTALAÇÃO ULTRA-RÁPIDA"
-echo "======================================"
+### 2. Configurar Autenticação com GitHub (para repositórios privados)
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_github_auth.sh | bash
+```
+Siga as instruções do script para configurar SSH ou Token.
 
-# Verificar Termux
-if [ ! -d "/data/data/com.termux" ]; then
-    echo "❌ Este script deve ser executado no Termux!"
-    exit 1
-fi
-echo "✅ Termux detectado"
-
-# Configurar armazenamento
-echo "📱 Configurando armazenamento..."
-if [ ! -d "$HOME/storage" ]; then
-    termux-setup-storage
-    sleep 3
-fi
-echo "✅ Armazenamento OK"
-
-# Corrigir dpkg
-echo "🔧 Corrigindo pacotes..."
-dpkg --configure -a 2>/dev/null || true
-
-# Atualizar pacotes
-echo "📦 Atualizando pacotes..."
+### 3. Instalar Dependências
+```bash
 pkg update -y
-
-# Instalar dependências
-echo "⚙️ Instalando dependências..."
 pkg install -y openssh python git curl
-
-# Configurar SSH
-echo "🔐 Configurando SSH..."
-mkdir -p "$HOME/.ssh"
-if [ ! -f "$HOME/.ssh/id_rsa" ]; then
-    ssh-keygen -t rsa -b 2048 -N "" -f "$HOME/.ssh/id_rsa" -C "termux-$(date +%s)"
-fi
-sshd
-
-# Baixar projeto
-echo "📥 Baixando projeto..."
-mkdir -p "$HOME/Projetos"
-cd "$HOME/Projetos"
-
-# Tentar múltiplos métodos
-if git clone https://github.com/Dagoberto-Candeias/cluster-ai.git cluster-ai 2>/dev/null; then
-    echo "✅ Projeto baixado via HTTPS"
-elif curl -L -o cluster-ai.zip https://github.com/Dagoberto-Candeias/cluster-ai/archive/main.zip && unzip cluster-ai.zip && mv cluster-ai-main cluster-ai && rm cluster-ai.zip; then
-    echo "✅ Projeto baixado via ZIP"
-else
-    echo "⚠️ Download falhou - configure autenticação posteriormente"
-fi
-
-echo ""
-echo "=================================================="
-echo "🎉 INSTALAÇÃO CONCLUÍDA!"
-echo "=================================================="
-echo ""
-echo "🔑 CHAVE SSH (copie para o servidor principal):"
-echo "--------------------------------------------------"
-cat "$HOME/.ssh/id_rsa.pub"
-echo "--------------------------------------------------"
-echo ""
-echo "🌐 CONEXÃO:"
-echo "   Usuário: $(whoami)"
-echo "   IP: $(ip route get 1 | awk '{print $7}' | head -1)"
-echo "   Porta: 8022"
-echo ""
-echo "📋 PRÓXIMOS PASSOS:"
-echo "1. Copie a chave SSH acima"
-echo "2. No servidor principal: ./manager.sh"
-echo "3. Escolha: Gerenciar Workers Remotos (SSH)"
-echo ""
-echo "🧪 TESTE:"
-echo "ssh $(whoami)@$(ip route get 1 | awk '{print $7}' | head -1) -p 8022"
 ```
 
-### 📱 **Opção 2: Download Direto do Arquivo**
-1. **No navegador do seu celular**, acesse:
-   ```
-   https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/quick_install.sh
-   ```
-2. **Copie TODO o conteúdo** da página
-3. **Cole no Termux** e pressione Enter
-
-#### 📡 Método Automático (recomendado - versão robusta):
+### 4. Baixar o Projeto (método automático)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_robust.sh | bash
 ```
-
-#### 📡 Método Automático (versão simples):
+Se falhar, tente o método simples:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh | bash
 ```
 
-#### 📱 Método Manual (se automático falhar):
-```bash
-# COPIE E COLE TODO O CONTEÚDO ABAIXO NO TERMUX:
-```
+### 5. Copiar Chave SSH
+O script exibirá sua chave pública.  
+Copie tudo e adicione em [GitHub SSH Keys](https://github.com/settings/keys).
 
-```bash
-#!/data/data/com.termux/files/usr/bin/bash
-# INSTALAÇÃO MANUAL COMPLETA - Worker Android Cluster AI
-# COPIE E COLE TODO ESTE CONTEÚDO NO TERMUX
-
-set -euo pipefail
-
-# --- Cores para output ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-# --- Funções auxiliares ---
-log() { echo -e "${BLUE}[INFO]${NC} $1"; }
-success() { echo -e "${GREEN}[✓]${NC} $1"; }
-error() { echo -e "${RED}[✗]${NC} $1"; }
-warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-
-# --- Verificações iniciais ---
-check_termux() {
-    if [ ! -d "/data/data/com.termux" ]; then
-        error "Este script deve ser executado no Termux!"
-        exit 1
-    fi
-    success "Termux detectado"
-}
-
-# --- Configuração de armazenamento ---
-setup_storage() {
-    log "Configurando armazenamento..."
-    if [ ! -d "$HOME/storage" ]; then
-        termux-setup-storage
-        sleep 3
-    fi
-    success "Armazenamento configurado"
-}
-
-# --- Instalação de dependências ---
-install_deps() {
-    log "Corrigindo dpkg se necessário..."
-    dpkg --configure -a 2>/dev/null || true
-
-    log "Atualizando lista de pacotes..."
-    pkg update -y
-
-    log "Instalando dependências..."
-    pkg install -y openssh python git ncurses-utils curl
-
-    success "Dependências instaladas"
-}
-
-# --- Configuração SSH ---
-setup_ssh() {
-    log "Configurando SSH..."
-
-    mkdir -p "$HOME/.ssh"
-
-    if [ ! -f "$HOME/.ssh/id_rsa" ]; then
-        ssh-keygen -t rsa -b 2048 -N "" -f "$HOME/.ssh/id_rsa" -C "$(whoami)@termux"
-    fi
-
-    sshd >/dev/null 2>&1
-
-    success "SSH configurado"
-}
-
-# --- Download do projeto ---
-download_project() {
-    log "Baixando projeto Cluster AI..."
-
-    if [ ! -d "$HOME/Projetos/cluster-ai" ]; then
-        mkdir -p "$HOME/Projetos"
-
-        # Tentar HTTPS primeiro (público)
-        if git clone https://github.com/Dagoberto-Candeias/cluster-ai.git "$HOME/Projetos/cluster-ai" 2>/dev/null; then
-            success "Projeto baixado via HTTPS"
-        else
-            warn "HTTPS falhou - tentando método alternativo"
-
-            # Método alternativo: baixar ZIP
-            log "Tentando download via ZIP..."
-            cd "$HOME/Projetos"
-            if curl -L -o cluster-ai.zip https://github.com/Dagoberto-Candeias/cluster-ai/archive/main.zip; then
-                unzip cluster-ai.zip
-                mv cluster-ai-main cluster-ai
-                rm cluster-ai.zip
-                success "Projeto baixado via ZIP"
-            else
-                error "Falha no download. Tente configurar autenticação primeiro."
-                echo
-                echo "🔧 SOLUÇÕES:"
-                echo "1. Configure SSH: https://github.com/settings/keys"
-                echo "2. Ou use token: https://github.com/settings/tokens"
-                echo "3. Execute: git clone https://TOKEN@github.com/Dagoberto-Candeias/cluster-ai.git"
-                exit 1
-            fi
-        fi
-    else
-        success "Projeto já existe"
-    fi
-}
-
-# --- Exibir informações ---
-show_info() {
-    echo
-    echo "=================================================="
-    echo "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!"
-    echo "=================================================="
-    echo
-    echo "📱 Seu dispositivo Android está pronto para ser worker!"
-    echo
-    echo "🔑 CHAVE SSH PÚBLICA (copie tudo abaixo):"
-    echo "--------------------------------------------------"
-    cat "$HOME/.ssh/id_rsa.pub"
-    echo "--------------------------------------------------"
-    echo
-    echo "🌐 INFORMAÇÕES DE CONEXÃO:"
-    echo "   Usuário: $(whoami)"
-    echo "   IP: $(ip route get 1 | awk '{print $7}' | head -1)"
-    echo "   Porta SSH: 8022"
-    echo
-    echo "📋 PRÓXIMOS PASSOS:"
-    echo "1. Copie a chave SSH acima"
-    echo "2. No seu servidor principal, execute: ./manager.sh"
-    echo "3. Escolha: Gerenciar Workers Remotos (SSH)"
-    echo "4. Cole a chave SSH quando solicitado"
-    echo "5. Digite o IP do seu Android"
-    echo "6. Porta: 8022"
-    echo
-    echo "🧪 TESTE DE CONEXÃO:"
-    echo "ssh $(whoami)@$(ip route get 1 | awk '{print $7}' | head -1) -p 8022"
-    echo
-}
-
-# --- Função principal ---
-main() {
-    echo
-    echo "🤖 CLUSTER AI - INSTALAÇÃO MANUAL COMPLETA"
-    echo "=========================================="
-    echo
-    warn "Este script instala tudo automaticamente"
-    echo
-
-    check_termux
-    setup_storage
-    install_deps
-    setup_ssh
-    download_project
-    show_info
-
-    echo "🎊 Pronto! Seu Android é um worker do Cluster AI!"
-    echo
-}
-
-# Executar
-main
-```
-```
-
-**O que acontece:**
-- ✅ Atualiza pacotes automaticamente (pode levar alguns minutos na primeira vez)
-- ✅ Instala SSH, Python e Git com timeout de segurança
-- ✅ Configura servidor SSH na porta 8022
-- ✅ Baixa o projeto Cluster AI (com fallback SSH → HTTPS)
-- ✅ Mostra informações de conexão e chave SSH para copiar
-- ✅ Tratamento robusto de erros e timeouts
-
-**⏱️ Tempo estimado:** 3-8 minutos dependendo da velocidade da internet
-**📶 Requisitos:** Conexão Wi-Fi estável, pelo menos 20% de bateria
-
-### Passo 4: Copiar Chave SSH
-O script mostrará uma **chave SSH** como esta:
-```
-ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... usuario@dispositivo
-```
-
-**Copie TUDO** (da palavra `ssh-rsa` até o final)
-
-### Passo 5: Registrar no Servidor Principal
-No seu servidor principal, execute:
+### 6. Registrar Worker no Servidor Principal
+No servidor principal:
 ```bash
 cd /caminho/para/cluster-ai
 ./manager.sh
 ```
+Escolha "Gerenciar Workers Remotos (SSH)", cole a chave SSH, informe IP e porta (8022).
 
-Escolha as opções:
-1. **"Gerenciar Workers Remotos (SSH)"**
-2. **"Configurar um worker Android (Termux)"**
-3. **Cole a chave SSH** quando solicitado
-4. **Digite o IP** do seu celular Android
-5. **Porta: 8022**
-
-### Passo 6: Testar a Conexão
-1. No servidor principal, teste a conexão SSH:
-   ```bash
-   ssh usuario@ip_do_android -p 8022
-   ```
-2. Execute um comando remoto para verificar:
-   ```bash
-   ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
-   ```
-
-## 🔧 Solução de Problemas
-
-### ❌ Erro 400 ou falha no download (Repositório Privado)
+### 7. Testar Conexão
+No servidor principal:
 ```bash
-# SOLUÇÃO 1: Baixar via Git (recomendado para repositórios privados)
-pkg install -y git
-git clone https://github.com/Dagoberto-Candeias/cluster-ai.git ~/cluster-ai-temp
-cd ~/cluster-ai-temp
-bash scripts/android/setup_android_worker.sh
-
-# SOLUÇÃO 2: Usar token de acesso pessoal
-# 1. Vá para: https://github.com/settings/tokens
-# 2. Crie um token com permissões "repo"
-# 3. Execute:
-curl -H "Authorization: token SEU_TOKEN_AQUI" \
-  -H "Accept: application/vnd.github.v3.raw" \
-  -o setup_worker.sh \
-  https://api.github.com/repos/Dagoberto-Candeias/cluster-ai/contents/scripts/android/setup_android_worker.sh?ref=main
-
-# SOLUÇÃO 3: Download manual
-# 1. No seu computador, baixe o arquivo:
-#    https://github.com/Dagoberto-Candeias/cluster-ai/blob/main/scripts/android/setup_android_worker.sh
-# 2. Transfira para o Android via Bluetooth/USB
-# 3. Execute: bash setup_android_worker.sh
-```
-
-### ❌ "Repository not found" ou "Permission denied" (Repositório Privado)
-```bash
-# Solução 1: Configurar chave SSH no GitHub
-# 1. Vá para: https://github.com/settings/keys
-# 2. Clique em "New SSH key"
-# 3. Cole a chave gerada pelo script (mostrada na saída)
-# 4. Execute o script novamente
-
-# Solução 2: Usar Personal Access Token
-# 1. Vá para: https://github.com/settings/tokens
-# 2. Gere um novo token com permissões de "repo"
-# 3. Execute manualmente:
-git clone https://SEU_TOKEN@github.com/Dagoberto-Candeias/cluster-ai.git ~/Projetos/cluster-ai
-```
-
-### ❌ SSH não conecta
-```bash
-# No Termux, verifique se SSH está rodando
-sshd
-
-# Teste local
-ssh localhost -p 8022
-```
-
-### ❌ "Permission denied" (não relacionado ao Git)
-```bash
-# Execute novamente a configuração de storage
-termux-setup-storage
-```
-
-### ❌ Sem internet no Termux
-- Verifique se o Wi-Fi está conectado
-- Teste: `ping 8.8.8.8`
-- Se não funcionar, reinicie o Termux
-
-### ❌ Falha na autenticação Git
-```bash
-# Verificar configuração Git
-git config --global user.name "Seu Nome"
-git config --global user.email "seu@email.com"
-
-# Testar conexão SSH
-ssh -T git@github.com
-```
-
-## 📊 Verificar se Funcionou
-
-### No Android (Termux):
-```bash
-# Execute o script de teste
-bash ~/Projetos/cluster-ai/scripts/android/test_android_worker.sh
-```
-
-### No Servidor Principal:
-```bash
-# Ver status dos workers
-./manager.sh
-# Procure pelo worker Android na lista
-```
-
-### Teste de Conexão:
-```bash
-# Teste SSH do servidor para o Android
 ssh usuario@ip_do_android -p 8022
-
-# Teste execução remota
 ssh usuario@ip_do_android -p 8022 "echo 'Worker Android conectado!'"
 ```
 
-## 💡 Dicas para Melhor Performance
+---
 
-- 🔋 **Bateria**: Mantenha acima de 20%
-- 📶 **Wi-Fi**: Use rede estável
-- 📱 **Background**: Não feche o Termux
-- 🧠 **RAM**: Feche outros apps no Android
-- 🌡️ **Temperatura**: Evite uso prolongado se >40°C
+## 🆘 Solução de Problemas
 
-## 🎯 O Que Faz o Worker Android
+- Execute novamente `termux-setup-storage` se houver erro de permissão.
+- Configure SSH ou Token se o clone do repositório falhar.
+- Teste SSH local:  
+  ```bash
+  ssh localhost -p 8022
+  ```
+- Verifique conexão Wi-Fi:  
+  ```bash
+  ping 8.8.8.8
+  ```
 
-- ⚡ **Processamento CPU**: Executa tarefas distribuídas
-- 🤖 **IA Local**: Pode rodar modelos pequenos do Ollama
-- 📊 **Análise de Dados**: Processa chunks de dados
-- 🔄 **Backup**: Ajuda em tarefas de backup distribuído
+---
 
-## 📱 Instalação Offline (Último Recurso)
+## 📦 Instalação Offline (Último Recurso)
 
-Se todos os métodos automáticos falharem devido a problemas de conectividade ou repositório privado:
-
-### Método 1: Script Offline
-1. Baixe o script `install_offline.sh` do repositório
-2. Transfira para o seu Android
-3. Execute no Termux:
-   ```bash
-   bash install_offline.sh
-   ```
-
-### Método 2: Download Manual
-1. No navegador do seu computador, acesse:
-   ```
-   https://github.com/Dagoberto-Candeias/cluster-ai
-   ```
-2. Clique em "Code" → "Download ZIP"
-3. Transfira o arquivo ZIP para o Android
-4. Extraia e execute:
+1. Baixe o ZIP do projeto no computador.
+2. Transfira para o Android.
+3. Extraia e execute:
    ```bash
    cd cluster-ai
    bash scripts/android/setup_android_worker_simple.sh
    ```
 
-### Método 3: Via SCP (se tiver acesso SSH)
-```bash
-# No servidor, copie para o Android:
-scp -P 8022 /caminho/cluster-ai usuario@ip_android:~/Projetos/
-```
+---
 
-## ❓ Ainda com Problemas?
+## ✅ Checklist Final
 
-Se nada funcionar:
-
-1. **Reinicie o Android**
-2. **Reinstale o Termux**
-3. **Execute novamente a configuração**
-4. **Configure a autenticação SSH para GitHub:**
-   - Execute o script auxiliar:
-     ```bash
-     bash ~/scripts/android/setup_github_ssh.sh
-     ```
-   - Siga as instruções para adicionar a chave SSH no GitHub
-5. **Tente a instalação offline**
-6. **Abra uma issue no GitHub** com os logs de erro
+- [ ] Termux instalado e com permissões de armazenamento
+- [ ] Dependências instaladas
+- [ ] Projeto baixado com sucesso
+- [ ] Chave SSH copiada e registrada no GitHub
+- [ ] Worker aparece no painel do servidor principal
+- [ ] Teste SSH funciona
 
 ---
 
-**🎉 Parabéns!** Seu Android agora é parte do Cluster AI! 🚀
+## 📧 Contato/Suporte
+
+Dúvidas?  
+Abra uma issue em [github.com/Dagoberto-Candeias/cluster-ai/issues](https://github.com/Dagoberto-Candeias/cluster-ai/issues)  
+ou envie e-mail para: betoallnet@gmail.com
+
+---
+
+# Resumo Prático dos Comandos
+
+1. **Configurar armazenamento:**
+   ```bash
+   termux-setup-storage
+   ```
+
+2. **Instalar dependências:**
+   ```bash
+   pkg update -y
+   pkg install -y openssh python git curl
+   ```
+
+3. **Configurar autenticação GitHub:**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_github_auth.sh | bash
+   ```
+
+4. **Instalar o worker Android (automático):**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_robust.sh | bash
+   ```
+
+5. **Se falhar, tente o método simples:**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker_simple.sh | bash
+   ```
+
+6. **Copie a chave SSH exibida e registre no GitHub.**
+
+7. **No servidor principal, registre o worker e teste a conexão:**
+   ```bash
+   ./manager.sh
+   ssh usuario@ip_do_android -p 8022
+   ```
+
+---
+
+Pronto!  
+Seu Android estará integrado ao Cluster AI como worker.  
+Se encontrar problemas, siga as dicas de solução ou entre em contato
