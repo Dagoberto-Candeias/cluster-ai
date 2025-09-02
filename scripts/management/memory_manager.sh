@@ -6,7 +6,7 @@
 export PATH=$PATH:/usr/sbin
 
 # Carregar funções comuns com segurança
-COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/common.sh"
+COMMON_SCRIPT_PATH="$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 if [ -f "$COMMON_SCRIPT_PATH" ]; then
     source "$COMMON_SCRIPT_PATH"
 else
