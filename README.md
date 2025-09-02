@@ -26,7 +26,8 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 -   **🩺 Diagnóstico e Manutenção**: Ferramentas de health check, otimização de recursos e relatórios de performance.
 -   **💾 Backup e Restauração**: Sistema completo para backup e restauração de configurações, modelos e dados de containers.
 -   **☁️ Gerenciamento Remoto**: Controle workers remotos via SSH, execute comandos, inicie e pare serviços.
--   **📱 Suporte Android**: Workers Android via Termux para expansão do cluster.
+-   **📱 Suporte Android**: Workers Android via Termux para expansão do cluster com configuração guiada.
+-   **🔧 Configuração Interativa**: Menu de configuração completo (opção 7) para setup de workers Android.
 -   **🔐 Configuração SSH**: Scripts automatizados para configuração de chaves SSH e autenticação GitHub.
 -   **🔒 Segurança**: Autenticação, validação de entrada e medidas de segurança integradas.
 
@@ -103,7 +104,8 @@ O coração do projeto é o `manager.sh`. Ele oferece um menu interativo para co
 -   **Ações em Massa**: Iniciar, parar e reiniciar todos os serviços de uma vez.
 -   **Gerenciamento Individual**: Controle fino sobre Ollama, Dask e OpenWebUI.
 -   **Workers Remotos**: Adicione, configure, inicie, pare e execute comandos em nós remotos.
--   **Workers Android**: Gerencie workers Android via Termux.
+-   **Workers Android**: Gerencie workers Android via Termux com configuração guiada (opção 7).
+-   **Configuração Interativa**: Menu completo para configurar workers Android e SSH (opção 7).
 -   **Diagnóstico**: Execute health checks, gere relatórios de performance e verifique a qualidade do código.
 -   **Manutenção**: Gerencie backups, restaure o sistema, atualize o projeto via Git e rotacione logs.
 -   **Otimização**: Otimize os recursos do nó local e dos workers remotos com base no hardware detectado.

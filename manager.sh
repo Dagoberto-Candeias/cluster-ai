@@ -388,7 +388,7 @@ main() {
             4) show_detailed_status ;;
             5) warn "Métricas em tempo real - Em desenvolvimento" ;;
             6) warn "Logs do sistema - Em desenvolvimento" ;;
-            7) warn "Configuração - Em desenvolvimento" ;;
+            7) configure_cluster ;;
             8) warn "Atualização - Em desenvolvimento" ;;
             9) warn "Backup - Em desenvolvimento" ;;
             10) run_tests ;;
@@ -408,6 +408,47 @@ main() {
         read -p "Pressione Enter para continuar..."
         clear
     done
+}
+
+# =============================================================================
+# FUNÇÃO PARA CONFIGURAR CLUSTER (IMPLEMENTAÇÃO DA OPÇÃO 7)
+# =============================================================================
+
+configure_cluster() {
+    section "Configuração do Cluster"
+
+    echo "Opções de Configuração:"
+    echo "1) Gerenciar Workers Remotos (SSH)"
+    echo "2) Configurar Worker Android (Termux)"
+    echo "0) Voltar ao Menu Principal"
+    echo
+
+    read -p "Digite sua opção: " option
+
+    case $option in
+        1)
+            echo "Gerenciamento de Workers Remotos - Em desenvolvimento"
+            ;;
+        2)
+            echo "Configurando Worker Android (Termux)..."
+            # Chamar script de configuração do servidor para worker Android
+            if [ -f "${SCRIPT_DIR}/scripts/android/configure_android_worker_server.sh" ]; then
+                bash "${SCRIPT_DIR}/scripts/android/configure_android_worker_server.sh"
+            else
+                error "Script de configuração do worker Android não encontrado."
+            fi
+            ;;
+        0)
+            return
+            ;;
+        *)
+            error "Opção inválida."
+            ;;
+    esac
+
+    echo
+    read -p "Pressione Enter para continuar..."
+    clear
 }
 
 # =============================================================================
