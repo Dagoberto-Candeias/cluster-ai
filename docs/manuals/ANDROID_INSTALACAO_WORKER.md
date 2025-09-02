@@ -1,17 +1,33 @@
 # Instalação do Worker no Android
 
-Este guia fornece uma lista sequencial de comandos para instalar um worker no Android usando o Termux.
+Este guia fornece instruções para instalar um worker no Android usando o Termux.
 
 ## Pré-requisitos
 
 - Dispositivo Android com Termux instalado
 - Conexão com a internet
 
-## Lista Sequencial de Comandos
+## Método 1: Script Automático (Recomendado)
 
-**Importante:** Copie e cole cada bloco de código separadamente no Termux. Não copie múltiplos blocos de uma vez, pois pode causar erros de sintaxe.
+Para facilitar a instalação, use o script automático:
 
-Execute os comandos abaixo em sequência no Termux:
+### Baixar e executar o script
+```bash
+# Baixar o script
+curl -L -o install_worker.sh https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/install_worker.sh
+
+# Tornar executável
+chmod +x install_worker.sh
+
+# Executar
+./install_worker.sh
+```
+
+Este script executa todos os passos automaticamente e exibe as informações necessárias ao final.
+
+## Método 2: Instalação Manual (Passo a Passo)
+
+Se preferir executar manualmente, siga os comandos abaixo. **Importante:** Copie e cole cada bloco de código separadamente no Termux.
 
 ### 1. Verificar se está no Termux
 ```bash
