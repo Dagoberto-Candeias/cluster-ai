@@ -144,6 +144,9 @@ collect_cluster_metrics() {
     local dask_running=0
     local webui_running=0
     local worker_count=0
+    local dask_tasks_completed=0
+    local dask_tasks_failed=0
+    local dask_memory_used=0
 
     # Verificar processos principais
     if pgrep -f "ollama" >/dev/null 2>&1; then
@@ -153,6 +156,36 @@ collect_cluster_metrics() {
     if pgrep -f "dask-scheduler\|dask-worker" >/dev/null 2>&1; then
         dask_running=1
         worker_count=$(pgrep -f "dask-worker" | wc -l)
+
+        # Coletar métricas avançadas do Dask (se disponível)
+        if command_exists python3 && [ -f "${PROJECT_ROOT}/.venv/bin/activate" ]; then
+            source "${PROJECT_ROOT}/.venv/bin/activate"
+            # Tentar coletar métricas via Dask client
+            python3 -c "
+import dask
+from dask.distributed import Client
+import time
+try:
+    client = Client('tls://192.168.0.2:8786', timeout='2s')
+    info = client.scheduler_info()
+    print(f'tasks_completed:{len([t for t in info.get(\"tasks\", {}).values() if t.get(\"state\") == \"memory\"])}')
+    print(f'tasks_failed:{len([t for t in info.get(\"tasks\", {}).values() if t.get(\"state\") == \"erred\"])}')
+    workers = info.get('workers', {})
+    total_memory = sum(w.get('metrics', {}).get('memory', 0) for w in workers.values())
+    print(f'memory_used:{total_memory}')
+    client.close()
+except Exception as e:
+    print('tasks_completed:0')
+    print('tasks_failed:0')
+    print('memory_used:0')
+" 2>/dev/null | while IFS=: read -r key value; do
+                case $key in
+                    tasks_completed) dask_tasks_completed=$value ;;
+                    tasks_failed) dask_tasks_failed=$value ;;
+                    memory_used) dask_memory_used=$value ;;
+                esac
+            done
+        fi
     fi
 
     if pgrep -f "open-webui" >/dev/null 2>&1; then
@@ -163,6 +196,9 @@ collect_cluster_metrics() {
     CLUSTER_METRICS["dask_running"]=$dask_running
     CLUSTER_METRICS["webui_running"]=$webui_running
     CLUSTER_METRICS["worker_count"]=$worker_count
+    CLUSTER_METRICS["dask_tasks_completed"]=$dask_tasks_completed
+    CLUSTER_METRICS["dask_tasks_failed"]=$dask_tasks_failed
+    CLUSTER_METRICS["dask_memory_used"]=$dask_memory_used
     CLUSTER_METRICS["timestamp"]=$(date +%s)
 }
 
@@ -313,6 +349,9 @@ show_dashboard() {
     echo "   Dask: $([ "${CLUSTER_METRICS["dask_running"]}" = "1" ] && echo "✅ Rodando" || echo "❌ Parado")"
     echo "   WebUI: $([ "${CLUSTER_METRICS["webui_running"]}" = "1" ] && echo "✅ Rodando" || echo "❌ Parado")"
     echo "   Workers: ${CLUSTER_METRICS["worker_count"]}"
+    echo "   Tarefas Concluídas: ${CLUSTER_METRICS["dask_tasks_completed"]}"
+    echo "   Tarefas Falhadas: ${CLUSTER_METRICS["dask_tasks_failed"]}"
+    echo "   Memória Dask: ${CLUSTER_METRICS["dask_memory_used"]} bytes"
     echo ""
 
     # Android Workers

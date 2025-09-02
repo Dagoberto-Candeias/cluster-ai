@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Health Check Script Consolidado - Cluster AI
+# Script de Verificação de Saúde Consolidado - Cluster AI
 # Versão unificada com recursos avançados de monitoramento e recuperação
 
 # ==================== CONFIGURAÇÃO DE SEGURANÇA ====================
@@ -31,13 +31,13 @@ fi
 source "$COMMON_SCRIPT_PATH"
 
 # Configurações
-LOG_FILE="/tmp/cluster_ai_health_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="/tmp/cluster_ai_saude_$(date +%Y%m%d_%H%M%S).log"
 OVERALL_HEALTH=true
 
 # Funções de log aprimoradas
-log() { echo -e "${CYAN}[HEALTH-CHECK $(date '+%H:%M:%S')]${NC} $1"; }
-warn() { echo -e "${YELLOW}[HEALTH-WARN $(date '+%H:%M:%S')]${NC} $1"; }
-error() { echo -e "${RED}[HEALTH-ERROR $(date '+%H:%M:%S')]${NC} $1"; }
+log() { echo -e "${CYAN}[VERIFICACAO-SAUDE $(date '+%H:%M:%S')]${NC} $1"; }
+warn() { echo -e "${YELLOW}[AVISO-SAUDE $(date '+%H:%M:%S')]${NC} $1"; }
+error() { echo -e "${RED}[ERRO-SAUDE $(date '+%H:%M:%S')]${NC} $1"; }
 section() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 subsection() { echo -e "\n${CYAN}➤ $1${NC}"; }
 
@@ -60,7 +60,7 @@ check_command() {
     fi
 }
 
-# Função para verificar serviço com opção de restart
+# Função para verificar serviço com opção de reinicialização
 check_service() {
     local service_name="$1"
     local description="$2"
@@ -71,11 +71,11 @@ check_service() {
     else
         fail "❌ $description: Inativo"
         OVERALL_HEALTH=false
-        if confirm_operation "Tentar reiniciar o serviço $service_name?"; then
+        if confirm_operation "Tentar reinicializar o serviço $service_name?"; then
             if sudo systemctl restart "$service_name"; then
-                success "✅ Serviço $service_name reiniciado com sucesso."
+                success "✅ Serviço $service_name reinicializado com sucesso."
             else
-                error "❌ Falha ao reiniciar o serviço $service_name."
+                error "❌ Falha ao reinicializar o serviço $service_name."
             fi
         fi
         return 1
@@ -153,7 +153,12 @@ check_gpu() {
 }
 
 # Função para verificar recursos do sistema com alertas
+# Função para verificar recursos do sistema com alertas
 check_resources() {
+
+    # Memória RAM
+    local mem_info=$(free -b 2>/dev/null || vm_stat 2>/dev/null)
+    local mem_total_kb=$(echo "$mem_info" | awk '/Mem:/ {print $2/1024}' || echo "0")
     subsection "Monitoramento de Recursos"
 
     # Memória RAM

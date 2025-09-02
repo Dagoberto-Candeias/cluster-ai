@@ -171,18 +171,35 @@ python -c "
 import dask
 from dask.distributed import Client, LocalCluster
 import time
+import os
 
-print('Iniciando cluster Dask local...')
+print('Iniciando cluster Dask com segurança...')
+
+# Configurações de segurança
+cert_file = 'certs/dask_cert.pem'
+key_file = 'certs/dask_key.pem'
+auth_token = 'secure_token_12345'
+
+security = {
+    'tls': {
+        'cert': cert_file,
+        'key': key_file
+    },
+    'require_encryption': True,
+    'auth': auth_token
+}
+
 cluster = LocalCluster(
     n_workers=2,
     threads_per_worker=2,
     dashboard_address=':8787',
-    processes=False
+    processes=False,
+    security=security
 )
 client = Client(cluster)
-print(f'Dask Dashboard: http://localhost:8787/status')
+print(f'Dask Dashboard: https://localhost:8787/status')
 print(f'Dask Scheduler: {cluster.scheduler_address}')
-print('Dask iniciado. Pressione Ctrl+C para parar.')
+print('Dask iniciado com TLS e autenticação. Pressione Ctrl+C para parar.')
 
 try:
     while True:

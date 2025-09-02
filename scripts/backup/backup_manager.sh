@@ -69,6 +69,8 @@ show_help() {
     echo "  webui     - Realiza um backup apenas dos dados do OpenWebUI."
     echo "  list      - Lista todos os backups existentes."
     echo "  cleanup   - Remove backups mais antigos que $RETENTION_DAYS dias."
+    echo "  auto      - Configura backup automático via cron."
+    echo "  recover   - Restaura um backup específico."
     echo "  help      - Mostra esta ajuda."
 }
 
@@ -154,6 +156,81 @@ cleanup_backups() {
     fi
 }
 
+# Função para configurar backup automático
+setup_auto_backup() {
+    section "Configurando Backup Automático"
+
+    local cron_schedule="0 2 * * *" # Todos os dias às 2:00 AM
+    local cron_command="$0 full"
+
+    log "Adicionando entrada no crontab para backup diário..."
+
+    # Verificar se crontab existe
+    if ! crontab -l >/dev/null 2>&1; then
+        warn "Crontab não encontrado. Criando um novo."
+        echo "" | crontab -
+    fi
+
+    # Adicionar entrada se não existir
+    if ! crontab -l | grep -q "$cron_command"; then
+        (crontab -l ; echo "$cron_schedule $cron_command") | crontab -
+        success "Backup automático configurado com sucesso!"
+        log "Horário: $cron_schedule (todos os dias às 2:00 AM)"
+    else
+        warn "Backup automático já está configurado."
+    fi
+}
+
+# Função para restaurar backup
+recover_backup() {
+    section "Restauração de Backup"
+
+    if [ -z "$1" ]; then
+        error "Nome do arquivo de backup não fornecido."
+        echo "Uso: $0 recover <nome_do_arquivo.tar.gz>"
+        echo ""
+        echo "Arquivos disponíveis:"
+        list_backups
+        return 1
+    fi
+
+    local backup_file="$1"
+
+    # Verificar se é caminho absoluto ou relativo
+    if [[ "$backup_file" != /* ]]; then
+        backup_file="$BACKUP_BASE_DIR/$backup_file"
+    fi
+
+    if [ ! -f "$backup_file" ]; then
+        error "Arquivo de backup não encontrado: $backup_file"
+        return 1
+    fi
+
+    warn "ATENÇÃO: Esta operação irá sobrescrever arquivos existentes!"
+    if ! confirm_operation "Deseja continuar com a restauração?"; then
+        warn "Restauração cancelada."
+        return 0
+    fi
+
+    log "Restaurando backup: $backup_file"
+
+    # Criar backup de segurança antes da restauração
+    local safety_backup="$BACKUP_BASE_DIR/safety_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+    log "Criando backup de segurança..."
+    tar -czf "$safety_backup" --absolute-names "${COMPONENTS_FULL[@]}" 2>/dev/null || true
+
+    # Restaurar o backup
+    tar -xzf "$backup_file" -C /
+
+    if [ $? -eq 0 ]; then
+        success "Restauração concluída com sucesso!"
+        log "Backup de segurança criado: $safety_backup"
+    else
+        error "Falha na restauração. Verifique o arquivo de backup."
+        return 1
+    fi
+}
+
 # --- Execução ---
 main() {
     case "$1" in
@@ -174,6 +251,12 @@ main() {
             ;;
         cleanup)
             cleanup_backups
+            ;;
+        auto)
+            setup_auto_backup
+            ;;
+        recover)
+            recover_backup "$2"
             ;;
         help|--help|-h|"")
             show_help
