@@ -19,7 +19,7 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # --- Ativar Ambiente Virtual ---
-VENV_PATH="${PROJECT_ROOT}/.venv"
+VENV_PATH="${HOME}/cluster_env"
 if [ -f "${VENV_PATH}/bin/activate" ]; then
     source "${VENV_PATH}/bin/activate"
     echo "Ambiente virtual ativado."
