@@ -33,16 +33,14 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 
 ## 🚀 Instalação
 
-A instalação é projetada para ser simples e flexível, utilizando um sistema modular e inteligente.
+A instalação é projetada para ser simples e flexível.
 
 ### Pré-requisitos
 - Sistema Linux (Ubuntu/Debian, Fedora/RHEL, Arch)
 - Pelo menos 4GB RAM e 20GB espaço em disco
 - Conexão com internet para downloads
 
-### 🚀 Instalação Unificada (Recomendado - Novo!)
-
-O novo instalador unificado oferece a melhor experiência de instalação:
+### Instalação Automática (Recomendado)
 
 1.  **Clone o repositório:**
     ```bash
@@ -50,57 +48,47 @@ O novo instalador unificado oferece a melhor experiência de instalação:
     cd cluster-ai
     ```
 
-2.  **Execute o instalador unificado:**
+2.  **Execute a configuração automática:**
     ```bash
-    ./install_unified.sh
+    ./auto_setup.sh
     ```
 
-**Vantagens do Instalador Unificado:**
-- ✅ **Arquitetura Modular**: Scripts independentes para cada componente
-- ✅ **Instalação Inteligente**: Detecta automaticamente o sistema e otimiza
-- ✅ **Menu Interativo**: Escolha entre instalação completa ou personalizada
-- ✅ **Verificação Integrada**: Valida cada componente após instalação
-- ✅ **Relatórios Detalhados**: Acompanhe o progresso em tempo real
-- ✅ **Tratamento de Erros**: Recuperação automática de falhas
+    O script irá:
+    - Detectar automaticamente se deve configurar como servidor ou worker
+    - Instalar todas as dependências necessárias
+    - Configurar a rede e conexões entre nós
+    - Iniciar todos os serviços automaticamente
 
-### 📦 Instalação Automática (Legacy)
+### Instalação Manual (Avançado)
 
-Para compatibilidade, o instalador automático legado ainda está disponível:
+Para controle total do processo:
 
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+    cd cluster-ai
+    ```
+
+2.  **Execute o instalador principal:**
+    ```bash
+    bash install.sh
+    ```
+
+O instalador irá:
+-   Verificar os pré-requisitos do sistema.
+-   Detectar seu hardware e sugerir um papel para o nó (Servidor Principal, Worker GPU, etc.).
+-   Guiá-lo através de um menu interativo para uma instalação completa ou customizada.
+
+### Instalação Automatizada
+Para **instalação automatizada** (sem prompts), use a flag `--auto-role`:
 ```bash
-./auto_setup.sh
+bash install.sh --auto-role
 ```
 
-### 🔧 Instalação Manual (Avançado)
-
-Para controle total do processo de instalação:
-
+### Instalação Personalizada
+Para escolher componentes específicos:
 ```bash
-bash install.sh
-```
-
-**Recursos do Instalador Manual:**
-- Verificação completa de pré-requisitos
-- Detecção automática de hardware
-- Sugestão de papel do nó (Servidor/Worker)
-- Menu interativo com opções customizadas
-
-### ⚙️ Instalação Personalizada
-
-Escolha componentes específicos através do menu interativo:
-
-```bash
-./install_unified.sh
-# Escolha opção 2 (Instalação Personalizada)
-```
-
-### 🔍 Verificação da Instalação
-
-Verifique o status da instalação a qualquer momento:
-
-```bash
-./install_unified.sh
-# Escolha opção 3 (Verificar Status da Instalação)
+bash install.sh --custom
 ```
 
 ## 🛠️ Uso (Painel de Controle)
