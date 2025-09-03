@@ -1,4 +1,6 @@
 #!/bin/bash
+# Local: scripts/installation/setup_spyder.sh
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 # Script para instalação do Spyder IDE
 # Otimizado para desenvolvimento científico e integração com Cluster AI
 

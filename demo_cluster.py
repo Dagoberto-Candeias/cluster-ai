@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Local: demo_cluster.py
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 """
 Demonstração do Cluster AI - Processamento Distribuído com Dask
 

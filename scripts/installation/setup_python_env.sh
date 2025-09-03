@@ -1,4 +1,6 @@
 #!/bin/bash
+# Local: scripts/installation/setup_python_env.sh
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 # Script de Setup para o Ambiente Python Universal
 # Cria um ambiente virtual e instala todas as dependências de Python.
 
@@ -50,3 +52,4 @@ main() {
 }
 
 main
+>>>>>>> 

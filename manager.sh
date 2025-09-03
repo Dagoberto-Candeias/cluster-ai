@@ -1,4 +1,6 @@
 #!/bin/bash
+# Local: manager.sh
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 
 # =============================================================================
 # Cluster AI - Gerenciador do Cluster

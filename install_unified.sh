@@ -1,4 +1,6 @@
 #!/bin/bash
+# Local: install_unified.sh
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 
 # =============================================================================
 # Cluster AI - Instalador Unificado e Modular

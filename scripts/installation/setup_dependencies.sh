@@ -1,4 +1,6 @@
 #!/bin/bash
+# Local: scripts/installation/setup_dependencies.sh
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 # Script de Setup para Dependências do Sistema
 # Instala pacotes, atualiza o sistema e configura o Docker.
 
