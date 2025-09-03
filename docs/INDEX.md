@@ -23,7 +23,7 @@ Bem-vindo à documentação completa do Cluster AI! Este índice organiza todos 
 
 ### Desenvolvimento
 -   **[Plano de Desenvolvimento](guides/development-plan.md)**: Roadmap, arquitetura e melhores práticas.
--   **[Biblioteca de Prompts](guides/prompts_desenvolvedores_completo.md)**: Prompts avançados para desenvolvimento com IA.
+-   **[Catálogos de Prompts](guides/README.md)**: Coleção completa de prompts especializados por perfil profissional.
 -   **[Ambiente Python](guides/python-setup.md)**: Configuração de ambientes virtuais e dependências.
 
 ### Operações
@@ -148,3 +148,24 @@ Bem-vindo à documentação completa do Cluster AI! Este índice organiza todos 
 ---
 
 *Índice gerado automaticamente - Última atualização: $(date +%Y-%m-%d)*
+
+## 📚 Catálogos de Prompts por Perfil
+
+### 👨‍💻 Para Desenvolvedores
+- **[Prompts para Desenvolvedores Cluster-AI](guides/prompts_desenvolvedores_cluster_ai.md)**: Desenvolvimento, debugging, otimização e arquitetura do Cluster-AI (16 prompts).
+- **[Prompts para DevOps Cluster-AI](guides/prompts_devops_cluster_ai.md)**: IaC, CI/CD, containers, automação e orquestração (18 prompts).
+
+### 🛠️ Para Administradores de Sistema
+- **[Prompts para Administradores Cluster-AI](guides/prompts_administradores_cluster_ai.md)**: Instalação, configuração, gerenciamento de infraestrutura e manutenção (16 prompts).
+
+### 🔒 Para Profissionais de Segurança
+- **[Prompts para Segurança Cluster-AI](guides/prompts_seguranca_cluster_ai.md)**: Análise de ameaças, controles de segurança, compliance e resposta a incidentes (18 prompts).
+
+### 📊 Para Profissionais de Monitoramento
+- **[Prompts para Monitoramento Cluster-AI](guides/prompts_monitoramento_cluster_ai.md)**: Métricas, logging, tracing, alerting e observabilidade (18 prompts).
+
+### 🎓 Para Estudantes e Aprendizes
+- **[Prompts para Estudantes Cluster-AI](guides/prompts_estudantes_cluster_ai.md)**: Aprendizado, tutoria, análise de código e contribuição para estudantes (15 prompts).
+
+### 📚 Catálogos Gerais (Legado)
+- **[Prompts Gerais Cluster-AI](guides/prompts_cluster_ai.md)**: Coleção original de prompts para desenvolvimento e operação geral.
