@@ -129,3 +129,11 @@ secrets/
 *_key.key
 ssl/
 tls/
+
+# Logs específicos do ambiente local
+logs/dask_scheduler.log
+logs/install_*.log
+
+# Backups de configuração
+cluster.conf.backup
+config/cluster.conf.backup
