@@ -132,10 +132,20 @@ discover_workers() {
     section "Descoberta Automática de Workers"
 
     log "Procurando workers Android na rede local..."
-    warn "Esta funcionalidade está em desenvolvimento"
 
-    # TODO: Implementar descoberta automática via nmap ou similar
-    echo "Por enquanto, use a opção de adicionar manualmente"
+    # Verificar se o script de descoberta automática existe
+    local auto_discover_script="$PROJECT_ROOT/scripts/deployment/auto_discover_workers.sh"
+
+    if [ -f "$auto_discover_script" ]; then
+        log "Executando descoberta automática..."
+        bash "$auto_discover_script"
+    else
+        warn "Script de descoberta automática não encontrado: $auto_discover_script"
+        echo "Para usar a descoberta automática, execute:"
+        echo "  bash scripts/deployment/auto_discover_workers.sh"
+        echo
+        echo "Alternativamente, use a opção de adicionar manualmente"
+    fi
 }
 
 # Mostrar instruções para o Android
