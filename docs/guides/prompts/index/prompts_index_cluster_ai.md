@@ -15,9 +15,14 @@ O Cluster-AI possui um sistema organizado de prompts especializados, divididos e
 | **Desenvolvedores** | 16+ | Desenvolvimento, Troubleshooting | CodeLlama |
 | **Segurança** | 15+ | Hardening, Compliance | Mixtral |
 | **Monitoramento** | 12+ | Observabilidade, Alertas | CodeLlama |
-| **Administradores** | 10+ | Gestão de Sistema | Mixtral |
+| **Administradores** | 27+ | Gestão de Sistema, Redes | Mixtral |
 | **Estudantes** | 8+ | Aprendizado, Tutoriais | Llama 3 |
 | **Multimodal/RAG** | 6+ | IA, Processamento | Mixtral |
+| **Negócios** | 12+ | Estratégia, Gestão Empresarial | Mixtral |
+| **Financeiro** | 12+ | Análises, Projeções | Mixtral |
+| **Auditoria** | 12+ | Compliance, Controles | Mixtral |
+| **Desenvolvedores IA** | 12+ | ML, MLOps, IA | CodeLlama |
+| **Aprendizado IA** | 15+ | Ensino de IA, ML, DS | Llama 3/CodeLlama |
 
 ### Specialized Catalogs (Catálogos Especializados)
 | Catálogo | Prompts | Foco | Modelo Principal |
@@ -155,6 +160,121 @@ O Cluster-AI possui um sistema organizado de prompts especializados, divididos e
 - **5.9** Cloud Migration Strategy
 - **5.10** Cloud Cost Optimization
 
+### 6. 💼 NEGÓCIOS & GESTÃO EMPRESARIAL (12 prompts)
+
+#### Estratégia Empresarial
+- **6.1** Análise SWOT para Empresas
+- **6.2** Planejamento Estratégico de Expansão
+- **6.3** Gestão de Portfólio de Produtos
+
+#### Gestão Operacional
+- **6.4** Otimização de Processos Empresariais
+- **6.5** Gestão de Equipe e Talentos
+- **6.6** Gestão de Orçamento e Custos
+
+#### Marketing e Vendas
+- **6.7** Estratégia de Marketing Digital
+- **6.8** Otimização de Funil de Vendas
+- **6.9** Gestão de Relacionamento com Clientes
+
+#### Inovação e Transformação
+- **6.10** Estratégia de Inovação
+- **6.11** Transformação Digital Empresarial
+- **6.12** Gestão de Mudanças Organizacionais
+
+### 7. 💰 ANÁLISES FINANCEIRAS (12 prompts)
+
+#### Análise Financeira Geral
+- **7.1** Análise de Custos Operacionais
+- **7.2** Projeção de Receitas e Cenários
+- **7.3** Valuation e Precificação de Produto
+
+#### Gestão de Capital de Giro
+- **7.4** Análise de Capital de Giro
+- **7.5** Gestão de Inadimplência e Crédito
+- **7.6** Otimização de Fluxo de Caixa
+
+#### Projeções Financeiras
+- **7.7** Projeções de Recebíveis
+- **7.8** Projeções de Lucro e Rentabilidade
+- **7.9** Análise de Investimento e ROI
+
+#### Análise de Riscos
+- **7.10** Análise de Riscos Financeiros
+- **7.11** Orçamento e Controle Financeiro
+- **7.12** Relatórios Financeiros Executivos
+
+### 8. 🔍 AUDITORIA & COMPLIANCE (12 prompts)
+
+#### Auditoria Operacional
+- **8.1** Auditoria de Processos Operacionais
+- **8.2** Auditoria de Segurança da Informação
+- **8.3** Auditoria de Continuidade de Negócios
+
+#### Auditoria Financeira
+- **8.4** Auditoria de Controles Internos
+- **8.5** Auditoria de Conformidade Regulatória
+- **8.6** Auditoria de Gestão de Riscos
+
+#### Auditoria Técnica
+- **8.7** Auditoria de Infraestrutura de TI
+- **8.8** Auditoria de Desenvolvimento de Software
+- **8.9** Auditoria de Gestão de Dados
+
+#### Reporting e Follow-up
+- **8.10** Relatório Executivo de Auditoria
+- **8.11** Plano de Ação Corretiva
+- **8.12** Monitoramento de Ações de Auditoria
+
+### 9. 🤖 DESENVOLVIMENTO DE IA (12 prompts)
+
+#### Desenvolvimento de Modelos
+- **9.1** Arquitetura de Modelo de IA
+- **9.2** Otimização de Performance de Modelo
+- **9.3** Fine-tuning e Adaptação de Modelo
+
+#### Integração e Deployment
+- **9.4** API de Inferência de IA
+- **9.5** Pipeline de MLOps
+- **9.6** Integração com Sistemas Existentes
+
+#### Qualidade e Testes
+- **9.7** Estratégia de Testes para IA
+- **9.8** Debugging de Modelo de IA
+- **9.9** Validação e Verificação de Modelo
+
+#### Ética e Governança
+- **9.10** Análise de Viés e Fairness
+- **9.11** Governança de Dados para IA
+- **9.12** Documentação e Transparência
+
+### 10. 📚 APRENDIZADO DE IA E DATA SCIENCE (15 prompts)
+
+#### Fundamentos de IA e ML
+- **10.1** Introdução aos Conceitos Básicos
+- **10.2** Matemática Essencial para IA
+- **10.3** Python para Data Science e IA
+
+#### Machine Learning Prático
+- **10.4** Algoritmos de Classificação
+- **10.5** Algoritmos de Regressão
+- **10.6** Técnicas de Pré-processamento de Dados
+
+#### Deep Learning e Redes Neurais
+- **10.7** Redes Neurais Artificiais Básicas
+- **10.8** Redes Neurais Convolucionais (CNN)
+- **10.9** Processamento de Linguagem Natural (NLP)
+
+#### Projetos Práticos e Aplicações
+- **10.10** Projeto Completo de Classificação
+- **10.11** Sistema de Recomendação
+- **10.12** Análise de Séries Temporais
+
+#### Aprendizado Avançado e Pesquisa
+- **10.13** Reinforcement Learning
+- **10.14** AutoML e Automated Machine Learning
+- **10.15** IA Explicável (XAI) e Interpretabilidade
+
 ---
 
 ## 🔍 MAPEAMENTO RÁPIDO POR TECNOLOGIA
@@ -237,12 +357,12 @@ instruction: "Você é um engenheiro de segurança focado em DevSecOps e complia
 
 ## 📊 ESTATÍSTICAS DO SISTEMA
 
-- **Total de Prompts**: 83+
-- **Catálogos Core**: 7 (53+ prompts)
+- **Total de Prompts**: 146+
+- **Catálogos Core**: 12 (110+ prompts)
 - **Catálogos Especializados**: 5 (50 prompts)
-- **Tecnologias Cobertas**: 15+
-- **Casos de Uso**: 25+
-- **Níveis de Complexidade**: 3 (Iniciante/Intermediário/Avançado)
+- **Tecnologias Cobertas**: 25+
+- **Casos de Uso**: 40+
+- **Níveis de Complexidade**: 4 (Iniciante/Intermediário/Avançado/Especialista)
 
 ### Distribuição por Modelo
 - **CodeLlama**: 60% (IaC, scripts, configuração)
