@@ -85,10 +85,10 @@ parse_git_branch() {
 set_prompt() {
     local venv_info=""
     if [ -n "$VIRTUAL_ENV" ]; then
-        venv_info="\[\033[1;35m\][$(basename "$VIRTUAL_ENV")]\[\033[0m\] "
+        venv_info="\[\033[1;35m\]($(basename "$VIRTUAL_ENV"))\[\033[0m\]"
     fi
 
-    PS1="${venv_info}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[33m\]$(parse_git_branch)\[\033[00m\]\$ "
+    PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[33m\]$(parse_git_branch)\[\033[00m\]\$ ${venv_info} "
 }
 PROMPT_COMMAND=set_prompt
 
