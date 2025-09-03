@@ -1,4 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
+# Local: scripts/android/setup_android_worker.sh
+# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
 # Script para configurar um dispositivo Android como um Worker do Cluster AI via Termux.
 #
 # INSTRUÇÕES:
