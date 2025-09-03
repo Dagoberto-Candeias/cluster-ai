@@ -232,3 +232,64 @@ Desenvolva um protocolo para meta-análise de estudos:
 3. **Avaliação de risco de viés** (Cochrane, Newcastle-Ottawa)
 4. **Extração de dados** padronizada
 5. **Análise estatística** (modelos de efeito fixo/aleatório)
+6. **Interpretação dos resultados** e conclusões
+7. **Recomendações para pesquisa futura**
+```
+
+---
+
+## 📋 TABELA DE USO POR TIPO DE ATIVIDADE
+
+| Atividade | Foco | Prompts Recomendados | Modelo Principal |
+|-----------|------|----------------------|------------------|
+| **Revisão de Literatura** | Levantamento e análise | 1, 2, 3 | Mixtral/Llama 3 |
+| **Desenvolvimento de Projetos** | Planejamento e execução | 4, 5, 6 | Mixtral/Llama 3, CodeLlama |
+| **Análise de Dados** | Estatística e modelagem | 7, 8 | CodeLlama/DeepSeek-Coder |
+| **Síntese e Meta-análise** | Síntese de evidências | 9 | Mixtral/Llama 3 |
+
+---
+
+## 🎯 CONFIGURAÇÕES PARA OPENWEBUI
+
+### Template de Persona Pesquisador Acadêmico:
+```yaml
+name: "Pesquisador Acadêmico"
+description: "Assistente para revisão de literatura, análise crítica e desenvolvimento de projetos de pesquisa"
+instruction: |
+  Você é um pesquisador acadêmico experiente com foco em metodologias rigorosas e análise crítica.
+  Ajude na estruturação de revisões sistemáticas, elaboração de projetos e análise estatística.
+  Use os prompts do catálogo prompts_pesquisadores_cluster_ai.md
+```
+
+### Template de Configuração para Pesquisa:
+```yaml
+model: "mixtral"
+temperature: 0.3
+max_tokens: 2500
+system: |
+  Você é um especialista em pesquisa acadêmica e científica.
+  Forneça análises detalhadas, metodologias rigorosas e orientações práticas.
+  Foque em qualidade, ética e inovação na pesquisa.
+```
+
+---
+
+## 💡 RECURSOS RECOMENDADOS
+
+### Ferramentas para Pesquisa
+- **Zotero/Mendeley** - Gerenciamento de referências
+- **Rayyan** - Revisão sistemática colaborativa
+- **R/RStudio, Python (Pandas, Statsmodels)** - Análise estatística
+- **Open Science Framework** - Gestão de projetos de pesquisa
+
+### Plataformas de Publicação
+- **SciELO, PubMed, arXiv** - Repositórios acadêmicos
+- **Google Scholar, ResearchGate** - Redes acadêmicas
+
+---
+
+Este catálogo oferece **9 prompts especializados** para pesquisadores acadêmicos, cobrindo revisão de literatura, desenvolvimento de projetos, análise estatística e meta-análise.
+
+**Última atualização**: Dezembro 2024
+**Total de prompts**: 9
+**Foco**: Pesquisa acadêmica rigorosa e inovadora

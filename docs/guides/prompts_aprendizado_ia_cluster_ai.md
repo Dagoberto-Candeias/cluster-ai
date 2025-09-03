@@ -408,16 +408,275 @@ Ensine técnicas de interpretabilidade e explicabilidade em IA:
 5. **Casos de uso** onde interpretabilidade é crítica
 ```
 
+### 16. Conceitos Fundamentais de Estatística
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um professor de estatística aplicada à IA]
+
+Ensine os conceitos fundamentais de estatística para ciência de dados:
+
+**Tópicos essenciais:**
+- Tipos de dados (qualitativos/quantitativos, discretos/contínuos)
+- Medidas de tendência central (média, mediana, moda)
+- Medidas de dispersão (variância, desvio padrão, amplitude)
+- Distribuições de frequência e histogramas
+- Correlação vs causalidade
+
+**Aplicação prática:** [relacionar com análise de dados em ML]
+**Ferramentas:** [Python com pandas, numpy, scipy]
+
+**Solicito:**
+1. **Explicação intuitiva** de cada conceito
+2. **Exemplos práticos** com dados reais
+3. **Implementação em Python** para cálculos
+4. **Interpretação** dos resultados estatísticos
+5. **Aplicações em ML** e tomada de decisão
+```
+
+### 17. Distribuições de Probabilidade
+**Modelo**: CodeLlama/DeepSeek-Coder
+
+```
+[Instrução: Atue como um especialista em probabilidade e estatística]
+
+Ensine distribuições de probabilidade essenciais para ML:
+
+**Distribuições fundamentais:**
+- Distribuição Normal (Gaussiana)
+- Distribuição Binomial e Poisson
+- Distribuição Exponencial e Gamma
+- Distribuição t-Student e F
+- Distribuição Qui-Quadrado
+
+**Aplicações em ML:** [modelos probabilísticos, testes de hipóteses]
+**Bibliotecas:** [scipy.stats, numpy.random]
+
+**Solicito:**
+1. **Propriedades matemáticas** de cada distribuição
+2. **Parâmetros e formas** características
+3. **Implementação prática** em Python
+4. **Aplicações em ML** e inferência estatística
+5. **Visualizações** e interpretação gráfica
+```
+
+### 18. Testes de Hipóteses e Inferência Estatística
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um estatístico especializado em testes de hipóteses]
+
+Ensine metodologia de testes de hipóteses para validação de modelos:
+
+**Tipos de testes:**
+- Testes paramétricos (t-test, ANOVA, correlação de Pearson)
+- Testes não-paramétricos (Mann-Whitney, Kruskal-Wallis, Spearman)
+- Testes de qui-quadrado para independência
+- Testes de normalidade (Shapiro-Wilk, Kolmogorov-Smirnov)
+
+**Conceitos fundamentais:** [p-valor, nível de significância, poder do teste]
+**Aplicações:** [validação A/B, comparação de modelos, análise de features]
+
+**Solicito:**
+1. **Lógica dos testes** de hipóteses passo-a-passo
+2. **Escolha adequada** do teste estatístico
+3. **Implementação prática** com scipy e statsmodels
+4. **Interpretação de resultados** e p-valores
+5. **Limitações e armadilhas** comuns
+```
+
+### 19. Análise de Regressão e Correlação
+**Modelo**: CodeLlama/DeepSeek-Coder
+
+```
+[Instrução: Atue como um especialista em modelos de regressão]
+
+Ensine técnicas avançadas de análise de regressão:
+
+**Técnicas de regressão:**
+- Regressão linear múltipla
+- Regressão polinomial e não-linear
+- Regressão robusta (Huber, RANSAC)
+- Análise de correlação (Pearson, Spearman, Kendall)
+- Diagnóstico de modelos (resíduos, multicolinearidade)
+
+**Métricas de avaliação:** [R², RMSE, MAE, F-statistic]
+**Ferramentas:** [statsmodels, scikit-learn, seaborn]
+
+**Solicito:**
+1. **Fundamentos matemáticos** da regressão
+2. **Implementação completa** em Python
+3. **Análise de diagnóstico** e validação de pressupostos
+4. **Seleção de variáveis** e feature engineering
+5. **Interpretação prática** dos coeficientes
+```
+
+### 20. Estatística Não-Paramétrica
+**Modelo**: CodeLlama/DeepSeek-Coder
+
+```
+[Instrução: Atue como um especialista em métodos não-paramétricos]
+
+Ensine técnicas estatísticas não-paramétricas para dados não-normais:
+
+**Métodos não-paramétricos:**
+- Testes de sinais e Wilcoxon
+- Teste de Mann-Whitney U
+- Teste de Kruskal-Wallis
+- Correlação de Spearman e Kendall
+- Bootstrap e reamostragem
+
+**Quando usar:** [dados não-normais, amostras pequenas, distribuições desconhecidas]
+**Vantagens:** [robustez, flexibilidade, menos pressupostos]
+
+**Solicito:**
+1. **Comparação** com métodos paramétricos
+2. **Implementação prática** dos testes
+3. **Interpretação de resultados** não-paramétricos
+4. **Aplicações em ML** e análise de dados
+5. **Limitações e melhores práticas**
+```
+
+### 21. Análise Multivariada
+**Modelo**: CodeLlama/DeepSeek-Coder
+
+```
+[Instrução: Atue como um especialista em análise multivariada]
+
+Ensine técnicas de análise multivariada para datasets complexos:
+
+**Técnicas multivariadas:**
+- Análise de Componentes Principais (PCA)
+- Análise Fatorial
+- Análise de Agrupamento (Cluster Analysis)
+- Análise Discriminante
+- Análise de Correspondência
+
+**Aplicações:** [redução de dimensionalidade, segmentação, visualização]
+**Bibliotecas:** [scikit-learn, statsmodels, seaborn]
+
+**Solicito:**
+1. **Fundamentos matemáticos** de cada técnica
+2. **Implementação passo-a-passo** em Python
+3. **Interpretação de resultados** e loadings
+4. **Visualização de dados** multidimensionais
+5. **Aplicações práticas** em projetos de ML
+```
+
+### 22. Estatística Bayesiana
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um especialista em estatística bayesiana]
+
+Ensine princípios da estatística bayesiana aplicada a ML:
+
+**Conceitos fundamentais:**
+- Teorema de Bayes e probabilidade condicional
+- Distribuições a priori e a posteriori
+- Inferência bayesiana vs frequentista
+- MCMC (Markov Chain Monte Carlo)
+- Modelos bayesianos em ML
+
+**Aplicações modernas:** [redes bayesianas, Bayesian optimization]
+**Ferramentas:** [PyMC3, Stan, TensorFlow Probability]
+
+**Solicito:**
+1. **Intuição bayesiana** vs abordagem frequentista
+2. **Implementação prática** de modelos simples
+3. **MCMC e sampling** para inferência
+4. **Aplicações em ML** (Naive Bayes, Bayesian Neural Networks)
+5. **Vantagens e desafios** da abordagem bayesiana
+```
+
+### 23. Controle Estatístico de Processo (CEP)
+**Modelo**: CodeLlama/DeepSeek-Coder
+
+```
+[Instrução: Atue como um especialista em controle de qualidade]
+
+Ensine técnicas de Controle Estatístico de Processo para monitoramento:
+
+**Ferramentas de CEP:**
+- Gráficos de controle (X-bar, R, p, c)
+- Capability analysis (Cp, Cpk)
+- Análise de Pareto
+- Diagramas de causa e efeito (Ishikawa)
+- Six Sigma methodology
+
+**Aplicações:** [monitoramento de processos, garantia de qualidade]
+**Ferramentas:** [Python com pandas, matplotlib, scipy]
+
+**Solicito:**
+1. **Fundamentos do CEP** e gráficos de controle
+2. **Implementação prática** em Python
+3. **Análise de capability** e performance
+4. **Identificação de causas** de variação
+5. **Aplicações em ML** e otimização de processos
+```
+
+### 24. Amostragem e Pesquisa por Survey
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um especialista em métodos de amostragem]
+
+Ensine técnicas de amostragem estatística para pesquisa e ML:
+
+**Métodos de amostragem:**
+- Amostragem aleatória simples
+- Amostragem estratificada
+- Amostragem por conglomerados
+- Amostragem sistemática
+- Técnicas de survey (questionários, entrevistas)
+
+**Conceitos importantes:** [tamanho da amostra, erro de amostragem, power analysis]
+**Aplicações:** [pesquisa de mercado, validação de modelos, A/B testing]
+
+**Solicito:**
+1. **Cálculo de tamanho** de amostra adequado
+2. **Implementação prática** de métodos de amostragem
+3. **Análise de viés** e erro de amostragem
+4. **Design de surveys** e questionários
+5. **Análise de resposta** e tratamento de missing data
+```
+
+### 25. Estatística Computacional e Simulação
+**Modelo**: CodeLlama/DeepSeek-Coder
+
+```
+[Instrução: Atue como um especialista em métodos computacionais]
+
+Ensine técnicas de estatística computacional e simulação:
+
+**Técnicas computacionais:**
+- Monte Carlo simulation
+- Bootstrap e reamostragem
+- Cross-validation para validação de modelos
+- Métodos de otimização numérica
+- Algoritmos de sampling (MCMC, Gibbs)
+
+**Aplicações:** [estimação robusta, validação de modelos, otimização]
+**Bibliotecas:** [numpy, scipy, scikit-learn, pymc3]
+
+**Solicito:**
+1. **Implementação de Monte Carlo** para estimação
+2. **Bootstrap** para intervalos de confiança
+3. **Simulação de distribuições** complexas
+4. **Otimização numérica** para ML
+5. **Aplicações práticas** em projetos de data science
+```
+
 ---
 
 ## 📋 TABELA DE USO POR NÍVEL DE CONHECIMENTO
 
 | Nível | Foco | Prompts Recomendados | Modelo Principal |
 |-------|------|----------------------|------------------|
-| **Iniciante** | Conceitos básicos | 1, 2, 3 | Llama 3 |
-| **Intermediário** | Algoritmos práticos | 4, 5, 6, 7 | CodeLlama |
-| **Avançado** | Deep Learning | 8, 9, 10, 11 | DeepSeek-Coder |
-| **Especialista** | Pesquisa aplicada | 12, 13, 14, 15 | Mixtral |
+| **Iniciante** | Conceitos básicos | 1, 2, 3, 16 | Llama 3 |
+| **Intermediário** | Algoritmos práticos | 4, 5, 6, 7, 17, 18 | CodeLlama |
+| **Avançado** | Deep Learning | 8, 9, 10, 11, 19, 20, 21 | DeepSeek-Coder |
+| **Especialista** | Pesquisa aplicada | 12, 13, 14, 15, 22, 23, 24, 25 | Mixtral |
 
 ---
 
@@ -478,9 +737,9 @@ system: |
 
 ---
 
-Este catálogo oferece **15 prompts especializados** para aprendizado em IA e Data Science, abrangendo desde conceitos básicos até técnicas avançadas de pesquisa.
+Este catálogo oferece **25 prompts especializados** para aprendizado em IA e Data Science, abrangendo desde conceitos básicos até técnicas avançadas de pesquisa e estatística aplicada.
 
 **Última atualização**: Dezembro 2024
-**Total de prompts**: 15
+**Total de prompts**: 25
 **Níveis de dificuldade**: Iniciante → Especialista
-**Foco**: Aprendizado prático e aplicado de IA
+**Foco**: Aprendizado prático e aplicado de IA com ênfase em estatística

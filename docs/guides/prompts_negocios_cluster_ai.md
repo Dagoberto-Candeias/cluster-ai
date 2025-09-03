@@ -279,6 +279,143 @@ Desenvolva plano de gestão de mudanças para adoção do Cluster-AI:
 5. **Métricas de adoção** e sucesso da mudança
 ```
 
+### 13. Dashboard Executivo de BI
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um especialista em business intelligence e dashboards executivos]
+
+Desenvolva dashboard executivo completo para monitoramento do Cluster-AI:
+
+**Indicadores estratégicos:** [KPIs principais, métricas de performance]
+**Público-alvo:** [executivos, gestores, stakeholders]
+**Frequência de atualização:** [tempo real, diária, semanal]
+**Ferramentas disponíveis:** [Power BI, Tableau, Looker, custom]
+
+**Solicito:**
+1. **Estrutura do dashboard** com seções lógicas
+2. **KPIs prioritários** por área de negócio
+3. **Visualizações adequadas** para cada tipo de dado
+4. **Alertas e thresholds** para indicadores críticos
+5. **Drill-down capabilities** para análise detalhada
+6. **Mobile responsiveness** e acessibilidade
+```
+
+### 14. Análise de Dados Empresariais
+**Modelo**: Mixtral/CodeLlama
+
+```
+[Instrução: Atue como um analista de business intelligence sênior]
+
+Realize análise completa de dados empresariais para tomada de decisão:
+
+**Dados disponíveis:** [fontes, volume, qualidade, estrutura]
+**Objetivos de análise:** [tendências, padrões, anomalias, previsões]
+**Ferramentas disponíveis:** [SQL, Python, R, Excel, BI tools]
+**Prazo de entrega:** [urgente, padrão, estratégico]
+
+**Solicito:**
+1. **Perfil dos dados** e limpeza necessária
+2. **Análise exploratória** (EDA) completa
+3. **Identificação de padrões** e insights relevantes
+4. **Segmentação de clientes/usuários** se aplicável
+5. **Análise de correlação** entre variáveis
+6. **Recomendações acionáveis** baseadas nos dados
+7. **Visualizações impactantes** para apresentação
+```
+
+### 15. KPIs e Métricas de Performance
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um especialista em métricas de performance empresarial]
+
+Desenvolva sistema completo de KPIs para o Cluster-AI:
+
+**Áreas de negócio:** [produto, vendas, marketing, operações, financeiro]
+**Objetivos estratégicos:** [crescimento, eficiência, satisfação, inovação]
+**Níveis organizacionais:** [estratégico, tático, operacional]
+**Frequência de medição:** [diária, semanal, mensal, trimestral]
+
+**Solicito:**
+1. **Mapeamento de objetivos** para KPIs
+2. **Definição clara** de cada indicador
+3. **Fórmulas de cálculo** precisas
+4. **Metas e benchmarks** realistas
+5. **Responsáveis** por cada KPI
+6. **Sistema de acompanhamento** e reporting
+7. **Ações corretivas** para desvios
+```
+
+### 16. Relatórios de Inteligência de Mercado
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um analista de inteligência de mercado]
+
+Elabore relatório completo de inteligência de mercado para o Cluster-AI:
+
+**Mercado analisado:** [segmento, região, concorrência]
+**Objetivos do relatório:** [oportunidades, ameaças, tendências]
+**Fontes de dados:** [primárias, secundárias, surveys]
+**Período de análise:** [atual, tendências futuras]
+
+**Solicito:**
+1. **Análise de mercado** (tamanho, crescimento, segmentação)
+2. **Perfil da concorrência** (forças, fraquezas, estratégias)
+3. **Análise de clientes** (necessidades, comportamento, satisfação)
+4. **Tendências tecnológicas** relevantes
+5. **Oportunidades de inovação** identificadas
+6. **Recomendações estratégicas** baseadas na análise
+7. **Plano de ação** com prioridades e responsáveis
+```
+
+### 17. Previsão de Tendências de Negócios
+**Modelo**: Mixtral/CodeLlama
+
+```
+[Instrução: Atue como um especialista em forecasting e análise preditiva]
+
+Desenvolva modelo de previsão de tendências para o Cluster-AI:
+
+**Variáveis a prever:** [demanda, receita, custos, satisfação]
+**Período de previsão:** [curto prazo, médio prazo, longo prazo]
+**Dados históricos:** [quantidade, qualidade, período disponível]
+**Precisão requerida:** [qualitativa, quantitativa, intervalos de confiança]
+
+**Solicito:**
+1. **Análise de séries temporais** dos dados históricos
+2. **Identificação de padrões** sazonais e tendências
+3. **Seleção de modelos** apropriados (ARIMA, ML, deep learning)
+4. **Validação cruzada** e teste de performance
+5. **Cenários alternativos** (otimista/base/pessimista)
+6. **Intervalos de confiança** para as previsões
+7. **Recomendações estratégicas** baseadas nas previsões
+```
+
+### 18. Análise de Concorrência e Benchmarking
+**Modelo**: Mixtral/Llama 3
+
+```
+[Instrução: Atue como um analista competitivo especializado]
+
+Realize análise completa de concorrência e benchmarking para o Cluster-AI:
+
+**Concorrentes diretos:** [principais players do mercado]
+**Concorrentes indiretos:** [soluções alternativas]
+**Critérios de comparação:** [preço, qualidade, inovação, suporte]
+**Mercado de referência:** [benchmarks globais, regionais]
+
+**Solicito:**
+1. **Mapeamento competitivo** detalhado
+2. **Análise SWOT** de cada concorrente
+3. **Benchmarking de produtos/serviços**
+4. **Gap analysis** (lacunas identificadas)
+5. **Estratégias de diferenciação** recomendadas
+6. **Monitoramento competitivo** contínuo
+7. **Plano de ação** para ganhar vantagem competitiva
+```
+
 ---
 
 ## 📋 TABELA DE USO POR CENÁRIO

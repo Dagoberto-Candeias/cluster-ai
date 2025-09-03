@@ -18,11 +18,13 @@ O Cluster-AI possui um sistema organizado de prompts especializados, divididos e
 | **Administradores** | 27+ | Gestão de Sistema, Redes | Mixtral |
 | **Estudantes** | 8+ | Aprendizado, Tutoriais | Llama 3 |
 | **Multimodal/RAG** | 6+ | IA, Processamento | Mixtral |
-| **Negócios** | 12+ | Estratégia, Gestão Empresarial | Mixtral |
+| **Negócios** | 18+ | Estratégia, Gestão Empresarial, BI | Mixtral |
 | **Financeiro** | 12+ | Análises, Projeções | Mixtral |
 | **Auditoria** | 12+ | Compliance, Controles | Mixtral |
 | **Desenvolvedores IA** | 12+ | ML, MLOps, IA | CodeLlama |
-| **Aprendizado IA** | 15+ | Ensino de IA, ML, DS | Llama 3/CodeLlama |
+| **Aprendizado IA** | 25+ | Ensino de IA, ML, DS, Estatística | Llama 3/CodeLlama |
+| **Professores Universitários** | 12+ | Planejamento, Conteúdo, Avaliação | Llama 3/Mixtral |
+| **Pesquisadores Acadêmicos** | 9+ | Revisão, Projetos, Estatística | Mixtral/Llama 3 |
 
 ### Specialized Catalogs (Catálogos Especializados)
 | Catálogo | Prompts | Foco | Modelo Principal |
@@ -275,6 +277,45 @@ O Cluster-AI possui um sistema organizado de prompts especializados, divididos e
 - **10.14** AutoML e Automated Machine Learning
 - **10.15** IA Explicável (XAI) e Interpretabilidade
 
+### 11. 👨‍🏫 PROFESSORES UNIVERSITÁRIOS (12 prompts)
+
+#### Planejamento Pedagógico
+- **11.1** Planejamento de Disciplina
+- **11.2** Plano de Aula Individual
+- **11.3** Projeto de Ensino Inovador
+
+#### Desenvolvimento de Conteúdo
+- **11.4** Material Didático Interativo
+- **11.5** Exercícios e Atividades Práticas
+- **11.6** Estudos de Caso Acadêmicos
+
+#### Avaliação e Feedback
+- **11.7** Sistema de Avaliação Contínua
+- **11.8** Rubricas de Avaliação Detalhadas
+- **11.9** Análise de Desempenho dos Alunos
+
+#### Pesquisa e Extensão
+- **11.10** Orientação de Trabalhos Acadêmicos
+- **11.11** Projeto de Iniciação Científica
+- **11.12** Colaboração Interdisciplinar
+
+### 12. 🔬 PESQUISADORES ACADÊMICOS (9 prompts)
+
+#### Revisão de Literatura
+- **12.1** Levantamento Sistemático da Literatura
+- **12.2** Análise Crítica de Artigo Científico
+- **12.3** Mapeamento Sistemático (Scoping Review)
+
+#### Desenvolvimento de Projetos
+- **12.4** Elaboração de Projeto de Pesquisa
+- **12.5** Formulação de Hipóteses de Pesquisa
+- **12.6** Planejamento de Coleta de Dados
+
+#### Análise de Dados e Estatística
+- **12.7** Análise Estatística Avançada
+- **12.8** Modelagem Estatística e Machine Learning
+- **12.9** Meta-análise e Síntese de Evidências
+
 ---
 
 ## 🔍 MAPEAMENTO RÁPIDO POR TECNOLOGIA
@@ -357,11 +398,11 @@ instruction: "Você é um engenheiro de segurança focado em DevSecOps e complia
 
 ## 📊 ESTATÍSTICAS DO SISTEMA
 
-- **Total de Prompts**: 146+
-- **Catálogos Core**: 12 (110+ prompts)
+- **Total de Prompts**: 183+
+- **Catálogos Core**: 14 (146+ prompts)
 - **Catálogos Especializados**: 5 (50 prompts)
-- **Tecnologias Cobertas**: 25+
-- **Casos de Uso**: 40+
+- **Tecnologias Cobertas**: 30+
+- **Casos de Uso**: 50+
 - **Níveis de Complexidade**: 4 (Iniciante/Intermediário/Avançado/Especialista)
 
 ### Distribuição por Modelo
@@ -406,6 +447,6 @@ instruction: "Você é um engenheiro de segurança focado em DevSecOps e complia
 
 ---
 
-**Última atualização**: Outubro 2024
-**Versão**: 1.0
-**Total de prompts indexados**: 83+
+**Última atualização**: Dezembro 2024
+**Versão**: 1.1
+**Total de prompts indexados**: 183+
