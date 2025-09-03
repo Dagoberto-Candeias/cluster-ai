@@ -1,0 +1,195 @@
+name: Cluster AI CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+
+jobs:
+  test-multiple-distros:
+    name: Test on ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [ubuntu-20.04, ubuntu-22.04, debian-11, debian-12]
+    container:
+      image: ${{ matrix.distro }}
+      options: --privileged
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        apt update
+        apt install -y curl git sudo bash jq
+        
+    - name: Run distribution tests
+      run: |
+        chmod +x scripts/validation/test_multiple_distros.sh
+        ./scripts/validation/test_multiple_distros.sh --html
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.distro }}
+        path: |
+          /tmp/cluster_ai_test_results.json
+          /tmp/cluster_ai_test_report.html
+          /tmp/cluster_ai_distro_test.log
+
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: ShellCheck
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: 'scripts'
+        
+    - name: Markdown lint
+      uses: avto-dev/markdown-lint@v1
+      with:
+        args: '*.md docs/**/*.md'
+        
+    - name: Check broken links
+      run: |
+        chmod +x scripts/documentation/consolidate_docs.sh
+        ./scripts/documentation/consolidate_docs.sh
+
+  performance-test:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run performance tests
+      run: |
+        chmod +x scripts/optimization/performance_optimizer.sh
+        ./scripts/optimization/performance_optimizer.sh
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: |
+          /tmp/cluster_ai_benchmark.json
+          /tmp/cluster_ai_optimization_report.md
+          /tmp/cluster_ai_optimization.log
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check documentation
+      run: |
+        # Verificar se todos os arquivos necessários existem
+        required_files=(
+          "README.md"
+          "CONTRIBUTING.md"
+          "LICENSE.txt"
+          "docs/README_PRINCIPAL.md"
+          "docs/manuals/INSTALACAO.md"
+          "docs/manuals/OLLAMA.md"
+          "docs/guides/QUICK_START.md"
+          "docs/guides/TROUBLESHOOTING.md"
+          "GUIA_PRATICO_CLUSTER_AI.md"
+        )
+        
+        missing_files=()
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            missing_files+=("$file")
+          fi
+        done
+        
+        if [ ${#missing_files[@]} -gt 0 ]; then
+          echo "Missing documentation files:"
+          printf '%s\n' "${missing_files[@]}"
+          exit 1
+        fi
+        
+        echo "All documentation files present ✅"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Semgrep scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: p/security-audit
+        
+    - name: Check for secrets
+      uses: gitleaks/gitleaks-action@v2
+      with:
+        config-path: .gitleaks.toml
+
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Generate deployment preview
+      run: |
+        echo "🚀 Deployment Preview for PR #${{ github.event.pull_request.number }}"
+        echo "📊 Changes: ${{ github.event.pull_request.changed_files }} files"
+        echo "🔗 URL: https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+        
+        # Gerar relatório de mudanças
+        git diff --name-only origin/main...HEAD > changes.txt
+        echo "📋 Changed files:"
+        cat changes.txt
+
+  notify:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs: [test-multiple-distros, code-quality, performance-test, documentation, security-scan]
+    if: always()
+    steps:
+    - name: Send notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#github-actions'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  update-badges:
+    name: Update Badges
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Update status badge
+      run: |
+        # Gerar badge baseado no último status
+        status="passing"
+        color="green"
+        echo "{\"schemaVersion\": 1, \"label\": \"CI/CD\", \"message\": \"$status\", \"color\": \"$color\"}" > badge.json
+        
+        # Atualizar README com badge (se necessário)
+        sed -i 's/!\[CI\/CD\].*/![CI\/CD](https:\/\/img.shields.io\/badge\/CI%2FCD-$status-$color)/' README.md
+
+env:
+  PYTHONUNBUFFERED: 1
+  CI: true
