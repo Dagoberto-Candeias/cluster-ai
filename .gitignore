@@ -137,3 +137,13 @@ logs/install_*.log
 # Backups de configuração
 cluster.conf.backup
 config/cluster.conf.backup
+
+# Run directory (process IDs, sockets, etc.)
+run/
+*.pid
+*.sock
+
+# Additional security
+*.p8
+*.jks
+*.keystore

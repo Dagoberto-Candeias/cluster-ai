@@ -206,7 +206,7 @@ main() {
     if ! check_ollama_installed; then
         error "Ollama não está instalado neste sistema."
         echo "Para instalar o Ollama, execute primeiro:"
-        echo "curl --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 -fsSL https://ollama.com/install.sh | sh"
+        echo "curl --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 -fsSL https://ollama.com/install.sh | sh"
         echo "Ou execute o script principal de instalação do Cluster AI:"
         echo "./install_cluster.sh"
         return 1

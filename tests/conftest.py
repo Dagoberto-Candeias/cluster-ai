@@ -291,3 +291,15 @@ def pytest_collection_modifyitems(config, items):
         # Adicionar marcador 'smoke' automaticamente para testes em tests/smoke/
         elif "tests/smoke/" in str(item.fspath):
             item.add_marker(pytest.mark.smoke)
+
+
+def pytest_configure(config):
+    """Configurar pytest com marcadores customizados"""
+    config.addinivalue_line("markers", "unit: Testes unitários")
+    config.addinivalue_line("markers", "integration: Testes de integração")
+    config.addinivalue_line("markers", "e2e: Testes end-to-end")
+    config.addinivalue_line("markers", "performance: Testes de performance")
+    config.addinivalue_line("markers", "security: Testes de segurança")
+    config.addinivalue_line("markers", "slow: Testes que demoram mais")
+    config.addinivalue_line("markers", "smoke: Testes de fumaça para saúde básica da aplicação")
+    config.addinivalue_line("markers", "skip_ci: Testes para pular em ambientes de CI")

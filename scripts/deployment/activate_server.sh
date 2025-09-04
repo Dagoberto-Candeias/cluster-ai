@@ -10,14 +10,14 @@ set -euo pipefail
 
 # --- Configuração Inicial ---
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
+LIB_DIR="${PROJECT_ROOT}/scripts/lib"
 
 # Carregar funções comuns
-if [ ! -f "${UTILS_DIR}/common.sh" ]; then
+if [ ! -f "${LIB_DIR}/common.sh" ]; then
     echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
     exit 1
 fi
-source "${UTILS_DIR}/common.sh"
+source "${LIB_DIR}/common.sh"
 
 # --- Constantes ---
 SERVICES_CONFIG="${PROJECT_ROOT}/configs/services.conf"
@@ -26,39 +26,6 @@ CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
 
 # --- Funções ---
 
-# Funções auxiliares
-section() {
-    echo
-    echo "=============================="
-    echo " $1"
-    echo "=============================="
-}
-
-subsection() {
-    echo
-    echo "---- $1 ----"
-}
-
-progress() {
-    echo "[...] $1"
-}
-
-success() {
-    echo "[SUCCESS] $1"
-}
-
-error() {
-    echo "[ERROR] $1"
-}
-
-warn() {
-    echo "[WARN] $1"
-}
-
-info() {
-    echo "[INFO] $1"
-}
-
 # Verifica pré-requisitos do sistema
 check_prerequisites() {
     section "Verificando Pré-requisitos"
@@ -66,10 +33,6 @@ check_prerequisites() {
     local missing_deps=()
 
     # Funções auxiliares
-    command_exists() {
-        command -v "$1" >/dev/null 2>&1
-    }
-
     # Verificar comandos essenciais
     if ! command_exists docker; then
         missing_deps+=("docker")
@@ -107,10 +70,13 @@ check_configuration() {
         return 1
     fi
 
-    # Carregar configuração básica se existir
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE" 2>/dev/null || true
-    fi
+    # Carregar configurações usando a nova função
+    DASK_SCHEDULER_PORT=$(get_config_value "dask" "scheduler_port" "$CONFIG_FILE" "8786")
+    DASK_DASHBOARD_PORT=$(get_config_value "dask" "dashboard_port" "$CONFIG_FILE" "8787")
+    OLLAMA_PORT=$(get_config_value "services" "ollama_port" "$CONFIG_FILE" "11434")
+    OPENWEBUI_PORT=$(get_config_value "services" "openwebui_port" "$CONFIG_FILE" "3000")
+
+    info "Configurações carregadas do formato INI."
 
     success "Configuração carregada"
     return 0
@@ -147,8 +113,8 @@ start_docker() {
 start_dask() {
     subsection "Iniciando Dask"
 
-    local scheduler_port="${DASK_SCHEDULER_PORT:-8786}"
-    local dashboard_port="${DASK_DASHBOARD_PORT:-8787}"
+    local scheduler_port="$DASK_SCHEDULER_PORT"
+    local dashboard_port="$DASK_DASHBOARD_PORT"
 
     # Função auxiliar para verificar porta
     is_port_open() {
@@ -162,60 +128,20 @@ start_dask() {
 
     progress "Iniciando Dask Scheduler..."
 
-    # Criar script temporário para iniciar Dask
-    cat > /tmp/start_dask.sh << 'EOF'
-#!/bin/bash
-source .venv/bin/activate 2>/dev/null || true
-cd /home/dcm/Projetos/cluster-ai
-python -c "
-import dask
-from dask.distributed import Client, LocalCluster
-import time
-import os
+    local dask_starter_script="${PROJECT_ROOT}/scripts/dask/start_dask_cluster.py"
+    if [ ! -f "$dask_starter_script" ]; then
+        error "Script de inicialização do Dask não encontrado: $dask_starter_script"
+        return 1
+    fi
 
-print('Iniciando cluster Dask com segurança...')
+    # Ativar ambiente virtual se existir
+    if [ -d "${PROJECT_ROOT}/.venv" ]; then
+        source "${PROJECT_ROOT}/.venv/bin/activate"
+    fi
 
-# Configurações de segurança
-cert_file = 'certs/dask_cert.pem'
-key_file = 'certs/dask_key.pem'
-auth_token = 'secure_token_12345'
-
-security = {
-    'tls': {
-        'cert': cert_file,
-        'key': key_file
-    },
-    'require_encryption': True,
-    'auth': auth_token
-}
-
-cluster = LocalCluster(
-    n_workers=2,
-    threads_per_worker=2,
-    dashboard_address=':8787',
-    processes=False,
-    security=security
-)
-client = Client(cluster)
-print(f'Dask Dashboard: https://localhost:8787/status')
-print(f'Dask Scheduler: {cluster.scheduler_address}')
-print('Dask iniciado com TLS e autenticação. Pressione Ctrl+C para parar.')
-
-try:
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    print('Encerrando Dask...')
-    client.close()
-    cluster.close()
-"
-EOF
-
-    chmod +x /tmp/start_dask.sh
-
-    # Iniciar Dask em background
-    nohup /tmp/start_dask.sh > /tmp/dask.log 2>&1 &
-    echo $! > /tmp/dask.pid
+    # Iniciar Dask em background (modo desenvolvimento sem TLS)
+    nohup bash -c "DASK_DEV_MODE=true python3 '$dask_starter_script' '$PROJECT_ROOT'" > "${PROJECT_ROOT}/logs/dask_cluster.log" 2>&1 &
+    echo $! > "${PROJECT_ROOT}/run/dask.pid"
 
     # Aguardar inicialização
     local retries=10
@@ -238,7 +164,7 @@ EOF
 start_ollama() {
     subsection "Iniciando Ollama"
 
-    local port="${OLLAMA_PORT:-11434}"
+    local port="$OLLAMA_PORT"
 
     if is_port_open "$port"; then
         success "Ollama já está ativo (porta $port)"
@@ -280,7 +206,7 @@ start_ollama() {
 start_openwebui() {
     subsection "Iniciando OpenWebUI"
 
-    local port="${OPENWEBUI_PORT:-3000}"
+    local port="$OPENWEBUI_PORT"
 
     if is_port_open "$port"; then
         success "OpenWebUI já está ativo (porta $port)"
@@ -371,31 +297,31 @@ verify_services() {
     fi
 
     # Dask
-    if is_port_open "${DASK_SCHEDULER_PORT:-8786}"; then
-        success "📊 Dask Scheduler: Ativo (porta ${DASK_SCHEDULER_PORT:-8786})"
+    if is_port_open "$DASK_SCHEDULER_PORT"; then
+        success "📊 Dask Scheduler: Ativo (porta $DASK_SCHEDULER_PORT)"
     else
         error "📊 Dask Scheduler: Inativo"
         all_good=false
     fi
 
-    if is_port_open "${DASK_DASHBOARD_PORT:-8787}"; then
-        success "📈 Dask Dashboard: Ativo (porta ${DASK_DASHBOARD_PORT:-8787})"
+    if is_port_open "$DASK_DASHBOARD_PORT"; then
+        success "📈 Dask Dashboard: Ativo (porta $DASK_DASHBOARD_PORT)"
     else
         error "📈 Dask Dashboard: Inativo"
         all_good=false
     fi
 
     # Ollama
-    if is_port_open "${OLLAMA_PORT:-11434}"; then
-        success "🧠 Ollama: Ativo (porta ${OLLAMA_PORT:-11434})"
+    if is_port_open "$OLLAMA_PORT"; then
+        success "🧠 Ollama: Ativo (porta $OLLAMA_PORT)"
     else
         error "🧠 Ollama: Inativo"
         all_good=false
     fi
 
     # OpenWebUI
-    if is_port_open "${OPENWEBUI_PORT:-3000}"; then
-        success "🌐 OpenWebUI: Ativo (porta ${OPENWEBUI_PORT:-3000})"
+    if is_port_open "$OPENWEBUI_PORT"; then
+        success "🌐 OpenWebUI: Ativo (porta $OPENWEBUI_PORT)"
     else
         error "🌐 OpenWebUI: Inativo"
         all_good=false
@@ -464,9 +390,9 @@ main() {
     success "🎯 Ativação do servidor concluída!"
     echo
     info "Serviços disponíveis:"
-    info "  📊 Dask Dashboard: http://localhost:${DASK_DASHBOARD_PORT:-8787}"
-    info "  🌐 OpenWebUI: http://localhost:${OPENWEBUI_PORT:-3000}"
-    info "  🧠 Ollama API: http://localhost:${OLLAMA_PORT:-11434}"
+    info "  📊 Dask Dashboard: http://localhost:$DASK_DASHBOARD_PORT"
+    info "  🌐 OpenWebUI: http://localhost:$OPENWEBUI_PORT"
+    info "  🧠 Ollama API: http://localhost:$OLLAMA_PORT"
     echo
     info "Para parar todos os serviços: ./manager.sh stop"
     info "Para verificar status: ./manager.sh status"
