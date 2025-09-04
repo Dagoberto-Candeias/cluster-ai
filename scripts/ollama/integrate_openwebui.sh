@@ -34,8 +34,8 @@ check_dependencies() {
         elif command_exists dnf; then
             sudo dnf install -y jq
         else
-            error "Não foi possível instalar jq automaticamente."
-            info "Instale jq manualmente: https://stedolan.github.io/jq/"
+        error "Não foi possível instalar jq automaticamente."
+            log "Instale jq manualmente: https://stedolan.github.io/jq/"
             exit 1
         fi
         success "jq instalado."
@@ -57,12 +57,12 @@ check_openwebui() {
 
     # Verificar se OpenWebUI está rodando
     local openwebui_port="${OPENWEBUI_PORT:-3000}"
-    if is_port_open "$openwebui_port"; then
+    if port_open "$openwebui_port"; then
         success "OpenWebUI está rodando na porta $openwebui_port"
     else
         warn "OpenWebUI não está rodando na porta $openwebui_port"
-        info "Certifique-se de que o OpenWebUI está iniciado."
-        info "Execute: docker start open-webui (ou o comando apropriado)"
+        log "Certifique-se de que o OpenWebUI está iniciado."
+        log "Execute: docker start open-webui (ou o comando apropriado)"
         exit 1
     fi
 

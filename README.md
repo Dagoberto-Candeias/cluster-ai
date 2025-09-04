@@ -27,6 +27,8 @@ Sistema integrado para implantação de clusters de IA com processamento distrib
 -   **💾 Backup e Restauração**: Sistema completo para backup e restauração de configurações, modelos e dados de containers.
 -   **☁️ Gerenciamento Remoto**: Controle workers remotos via SSH, execute comandos, inicie e pare serviços.
 -   **📱 Suporte Android**: Workers Android via Termux para expansão do cluster com configuração guiada.
+-   **🔍 Descoberta Automática**: Sistema inteligente de descoberta automática de workers na rede local.
+-   **🗑️ Desinstalação Completa**: Scripts unificados para desinstalação limpa de todos os componentes.
 -   **🔧 Configuração Interativa**: Menu de configuração completo (opção 7) para setup de workers Android.
 -   **🔐 Configuração SSH**: Scripts automatizados para configuração de chaves SSH e autenticação GitHub.
 -   **🔒 Segurança**: Autenticação, validação de entrada e medidas de segurança integradas.
@@ -103,6 +105,45 @@ Verifique o status da instalação a qualquer momento:
 # Escolha opção 3 (Verificar Status da Instalação)
 ```
 
+## 🗑️ Desinstalação
+
+### Desinstalação Unificada (Recomendado)
+
+Para desinstalar qualquer componente do Cluster AI:
+
+```bash
+./scripts/maintenance/uninstall_master.sh
+```
+
+**Opções disponíveis:**
+- 🖥️ Desinstalar do Servidor Principal
+- 📱 Desinstalar Worker Android (Termux)
+- 💻 Desinstalar Estação de Trabalho
+- 🔄 Desinstalar Workers Remotos (SSH)
+- 🧹 Limpeza Completa (todos os tipos)
+- 📊 Verificar Status de Instalação
+
+### Desinstalação Específica
+
+#### Worker Android
+```bash
+# No dispositivo Android (Termux)
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/uninstall_android_worker.sh | bash
+```
+
+#### Servidor/Estação de Trabalho
+```bash
+# Scripts específicos disponíveis
+./scripts/maintenance/uninstall.sh              # Servidor
+./scripts/maintenance/uninstall_workstation.sh  # Estação de trabalho
+```
+
+### Verificação de Status
+```bash
+./scripts/maintenance/uninstall_master.sh
+# Escolha opção 6 (Verificar Status de Instalação)
+```
+
 ## 🛠️ Uso (Painel de Controle)
 
 O coração do projeto é o `manager.sh`. Ele oferece um menu interativo para controlar todos os aspectos do cluster.
@@ -115,12 +156,63 @@ O coração do projeto é o `manager.sh`. Ele oferece um menu interativo para co
 **Principais funcionalidades do painel:**
 -   **Ações em Massa**: Iniciar, parar e reiniciar todos os serviços de uma vez.
 -   **Gerenciamento Individual**: Controle fino sobre Ollama, Dask e OpenWebUI.
+-   **🔍 Descoberta Automática**: Sistema inteligente para descobrir workers automaticamente na rede.
 -   **Workers Remotos**: Adicione, configure, inicie, pare e execute comandos em nós remotos.
 -   **Workers Android**: Gerencie workers Android via Termux com configuração guiada (opção 7).
 -   **Configuração Interativa**: Menu completo para configurar workers Android e SSH (opção 7).
 -   **Diagnóstico**: Execute health checks, gere relatórios de performance e verifique a qualidade do código.
 -   **Manutenção**: Gerencie backups, restaure o sistema, atualize o projeto via Git e rotacione logs.
 -   **Otimização**: Otimize os recursos do nó local e dos workers remotos com base no hardware detectado.
+
+## 🔍 Descoberta Automática de Workers
+
+O Cluster AI inclui um sistema avançado de descoberta automática que identifica e configura workers na sua rede local.
+
+### Como Usar a Descoberta Automática
+
+#### Via Manager
+```bash
+./manager.sh
+# Escolha: "Gerenciar Workers Remotos (SSH)"
+# Escolha: "Executar Descoberta Automática"
+```
+
+#### Via Script Direto
+```bash
+./scripts/deployment/auto_discover_workers.sh
+```
+
+### Funcionalidades da Descoberta Automática
+
+-   **🔍 Escaneamento Inteligente**: Detecta dispositivos na rede local (mesma sub-rede)
+-   **🔐 Configuração SSH Automática**: Gera e copia chaves SSH automaticamente
+-   **📱 Suporte Android**: Detecta workers Android via Termux (porta 8022)
+-   **🖥️ Suporte Linux**: Detecta workers Linux (porta 22)
+-   **✅ Verificação de Cluster**: Confirma se dispositivos já têm Cluster AI instalado
+-   **📊 Relatórios Detalhados**: Mostra progresso e resultados da descoberta
+-   **🔄 Configuração Automática**: Registra workers automaticamente no cluster
+
+### Tipos de Dispositivos Detectados
+
+-   **🎯 Workers Cluster AI**: Dispositivos com Cluster AI já instalado
+-   **📱 Dispositivos Android**: Celulares/tablets com Termux
+-   **🖥️ Servidores Linux**: Outros servidores Linux na rede
+-   **❓ Dispositivos Genéricos**: Outros dispositivos com SSH ativo
+
+### Exemplo de Saída
+```
+🔍 DESCOBERTA AUTOMÁTICA DE WORKERS
+Escaneando rede 192.168.1.0/24 por portas SSH...
+
+✅ Conexão SSH estabelecida com 192.168.1.100:8022
+🎯 Worker Cluster AI encontrado: android-worker-1
+✅ Chave SSH copiada para android-worker-1
+
+📊 RELATÓRIO DE DESCOBERTA
+Workers Cluster AI descobertos: 1
+Dispositivos descobertos: 2
+Workers configurados: 1
+```
 
 ## 🏗️ Arquitetura
 
@@ -141,33 +233,39 @@ O sistema é modular, permitindo que diferentes máquinas assumam papéis espec�
 
 ## 📚 Documentação Completa
 
-A documentação detalhada está organizada no diretório `docs/`.
+### 📖 Documentação Organizada
 
-### 📖 Documentação Principal
--   **[Índice da Documentação](docs/INDEX.md)**: Ponto de entrada para todos os guias.
+Toda a documentação foi reorganizada para facilitar a navegação. Consulte:
 
-### 🚀 Guias Práticos
--   **[Guia de Início Rápido](docs/guides/quick-start.md)**: Comece a usar o cluster em minutos.
--   **[Configuração de Cluster: Servidor + Worker](docs/guides/cluster_setup_guide.md)**: Configure cluster distribuído com múltiplas máquinas.
--   **[Instalação Detalhada](docs/manuals/INSTALACAO.md)**: Guia passo-a-passo completo.
--   **[Uso Avançado](docs/guides/usage.md)**: Funcionalidades avançadas e otimização.
+#### 🚀 **Instalação e Setup**
+- **[📱 Android Workers](docs/organized/installation/ANDROID_GUIA_RAPIDO.md)** - Guia completo de instalação
+- **[🖥️ Instalação Geral](docs/organized/installation/INSTALACAO.md)** - Setup completo do sistema
+- **[🔍 Descoberta Automática](docs/organized/installation/)** - Workers na rede
 
-### 🛠️ Manuais Técnicos
--   **[Manual do Ollama](docs/manuals/ollama/)**: Modelos de IA e configuração.
--   **[Guia OpenWebUI](docs/manuals/openwebui/)**: Interface web.
--   **[Backup e Restauração](docs/manuals/BACKUP.md)**: Sistema de backup.
--   **[Android Workers](docs/manuals/ANDROID.md)**: Configuração de workers Android.
--   **[Guia Rápido Android](docs/manuals/ANDROID_GUIA_RAPIDO.md)**: Instalação simplificada em 5 minutos (inclui configuração SSH automática).
+#### 📋 **Uso e Operação**
+- **[🤖 Ollama](docs/organized/usage/OLLAMA.md)** - Como usar modelos de IA
+- **[🌐 OpenWebUI](docs/organized/usage/OPENWEBUI.md)** - Interface web
+- **[📝 Prompts](docs/organized/prompts/README.md)** - Catálogos especializados
 
-### 💡 Desenvolvimento
--   **[Biblioteca de Prompts](docs/guides/prompts_desenvolvedores_completo.md)**: Prompts avançados para desenvolvedores.
--   **[Arquitetura do Sistema](docs/guides/architecture.md)**: Detalhes técnicos da arquitetura.
--   **[Solução de Problemas](docs/guides/troubleshooting.md)**: FAQ e soluções para problemas comuns.
+#### 🔧 **Manutenção e Configuração**
+- **[💾 Backup](docs/organized/maintenance/BACKUP.md)** - Sistema de backup
+- **[⚙️ Configuração](docs/organized/maintenance/CONFIGURACAO.md)** - Configurações avançadas
+- **[🔒 Segurança](docs/organized/security/SECURITY_MEASURES.md)** - Medidas implementadas
 
-### 🔧 Configurações
--   **[Docker Compose](configs/docker/)**: Configurações Docker.
--   **[Nginx](configs/nginx/)**: Configurações de proxy reverso.
--   **[TLS/SSL](configs/tls/)**: Certificados e segurança.
+#### 📚 **Guias e Referências**
+- **[🚀 Guia Rápido](docs/organized/guides/quick-start.md)** - Início rápido
+- **[🔧 Troubleshooting](docs/organized/guides/TROUBLESHOOTING.md)** - Resolução de problemas
+- **[⚡ Otimização](docs/organized/guides/OPTIMIZATION.md)** - Performance e recursos
+
+### 🔄 **Guia de Migração**
+- **[📋 Migração da Documentação](docs/MIGRATION_GUIDE.md)** - Como navegar na nova estrutura
+- **[📖 Índice Principal](docs/organized/README.md)** - Visão geral organizada
+
+### 📖 **Documentação Original (Compatibilidade)**
+- **[Índice da Documentação](docs/INDEX.md)**: Ponto de entrada para todos os guias (estrutura antiga).
+- **[Manuais Técnicos](docs/manuals/)**: Documentação técnica detalhada.
+- **[Guias Gerais](docs/guides/)**: Guias específicos de funcionalidades.
+- **[Configurações](configs/)**: Configurações Docker, Nginx e TLS.
 
 ## 🎯 Demonstrações e Testes
 
