@@ -3,10 +3,10 @@
 
 # Navegar para o diretório do script para que os caminhos relativos funcionem
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UTILS_DIR="$SCRIPT_DIR/../utils"
+LIB_DIR="$SCRIPT_DIR/../lib"
 
 # Carregar funções comuns
-COMMON_SCRIPT_PATH="$UTILS_DIR/common.sh"
+COMMON_SCRIPT_PATH="$LIB_DIR/common.sh"
 if [ ! -f "$COMMON_SCRIPT_PATH" ]; then
     echo "ERRO: Script de funções comuns não encontrado em $COMMON_SCRIPT_PATH" >&2
     exit 1
@@ -51,7 +51,7 @@ echo "Arquivo de log para o teste: $TEST_LOG_FILE"
 echo -e "\n${CYAN}--> Fase 1: Testando com log em arquivo ATIVADO${NC}"
 export CLUSTER_AI_LOG_FILE="$TEST_LOG_FILE"
 
-log "Mensagem de info para o arquivo."
+info "Mensagem de info para o arquivo."
 warn "Mensagem de aviso para o arquivo."
 error "Mensagem de erro para o arquivo."
 
@@ -59,7 +59,7 @@ error "Mensagem de erro para o arquivo."
 echo -e "\n${CYAN}--> Fase 2: Testando com log em arquivo DESATIVADO${NC}"
 unset CLUSTER_AI_LOG_FILE
 
-log "Esta mensagem de info NÃO deve ir para o arquivo."
+info "Esta mensagem de info NÃO deve ir para o arquivo."
 warn "Este aviso NÃO deve ir para o arquivo."
 
 # --- Validação ---

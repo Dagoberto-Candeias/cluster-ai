@@ -22,19 +22,19 @@ main() {
     section "Configurando Ambiente Python Universal"
 
     if [ ! -d "$VENV_PATH" ]; then
-        log "Criando ambiente virtual em '$VENV_PATH'..."
+        log "INFO" "Criando ambiente virtual em '$VENV_PATH'..."
         python3 -m venv "$VENV_PATH"
     else
-        log "Ambiente virtual já existe em '$VENV_PATH'."
+        log "INFO" "Ambiente virtual já existe em '$VENV_PATH'."
     fi
 
-    log "Ativando ambiente virtual para instalar pacotes..."
+    log "INFO" "Ativando ambiente virtual para instalar pacotes..."
     source "$VENV_PATH/bin/activate"
 
-    log "Atualizando pip..."
+    log "INFO" "Atualizando pip..."
     pip install --upgrade pip > /dev/null
 
-    log "Instalando pacotes Python (dask, torch, fastapi, etc.)... Isso pode levar vários minutos."
+    log "INFO" "Instalando pacotes Python (dask, torch, fastapi, etc.)... Isso pode levar vários minutos."
     if ! pip install "dask[complete]" distributed numpy pandas scipy jupyterlab requests scikit-learn torch torchvision torchaudio transformers fastapi uvicorn pytest httpx > /dev/null 2>&1; then
         warn "Falha na instalação de alguns pacotes Python. Tentando instalar pacotes individualmente..."
         packages=("dask[complete]" distributed numpy pandas scipy jupyterlab requests scikit-learn torch torchvision torchaudio transformers fastapi uvicorn pytest httpx)

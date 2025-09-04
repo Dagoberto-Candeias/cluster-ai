@@ -219,6 +219,215 @@ install_custom() {
     success "Instalação personalizada concluída"
 }
 
+# Reinstalação completa
+reinstall_complete() {
+    section "🔄 Reinstalação Completa do Cluster AI"
+
+    info "Esta reinstalação irá sobrescrever todos os componentes:"
+    echo "  ✅ Dependências do sistema"
+    echo "  ✅ Ambiente Python com todas as bibliotecas"
+    echo "  ✅ Ollama (se disponível)"
+    echo "  ✅ OpenWebUI (se disponível)"
+    echo "  ✅ Configurações básicas do cluster"
+    echo
+
+    if ! confirm "Iniciar reinstalação completa?" "y"; then
+        info "Reinstalação cancelada"
+        return 0
+    fi
+
+    local start_time=$(date +%s)
+    local failed_components=()
+
+    # Executa cada componente
+    if ! install_system_dependencies; then
+        failed_components+=("Dependências do Sistema")
+    fi
+
+    if ! setup_python_environment; then
+        failed_components+=("Ambiente Python")
+    fi
+
+    setup_ollama_service
+    setup_openwebui_service
+
+    # Cria configuração básica
+    create_basic_config
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    # Relatório final
+    section "📊 Relatório da Reinstalação"
+
+    echo "Tempo total: ${duration}s"
+    echo
+
+    # Status dos componentes
+    for component in "${!COMPONENT_STATUS[@]}"; do
+        local status="${COMPONENT_STATUS[$component]}"
+        case $status in
+            SUCCESS)
+                success "$component: OK"
+                ;;
+            FAILED)
+                error "$component: FALHA"
+                ;;
+            NOT_FOUND)
+                warn "$component: NÃO ENCONTRADO"
+                ;;
+        esac
+    done
+
+    echo
+
+    # Verifica se houve falhas críticas
+    if [[ ${#failed_components[@]} -gt 0 ]]; then
+        error "Componentes com falha: ${failed_components[*]}"
+        warn "Algumas funcionalidades podem não estar disponíveis"
+        info "Execute novamente ou instale manualmente os componentes com falha"
+        return 1
+    else
+        success "🎉 Reinstalação completa realizada com sucesso!"
+        show_post_install_info
+        return 0
+    fi
+}
+
+# Reparo da instalação
+repair_installation() {
+    section "🛠️ Reparo da Instalação"
+
+    info "Verificando status da instalação atual..."
+
+    if check_installation_status; then
+        success "Instalação está OK. Nenhum reparo necessário."
+        return 0
+    fi
+
+    info "Detectados componentes faltantes. Iniciando reparo..."
+
+    local failed_components=()
+
+    # Verifica e reinstala componentes faltantes
+    if ! command_exists python3; then
+        if ! install_system_dependencies; then
+            failed_components+=("Dependências do Sistema")
+        fi
+    fi
+
+    if ! dir_exists "${PROJECT_ROOT}/.venv"; then
+        if ! setup_python_environment; then
+            failed_components+=("Ambiente Python")
+        fi
+    fi
+
+    if ! command_exists ollama; then
+        setup_ollama_service
+    fi
+
+    # Verifica OpenWebUI (mais complexo, assume que se não estiver rodando, precisa reinstalar)
+    # Para simplificar, sempre tenta configurar
+    setup_openwebui_service
+
+    # Recria configuração se necessário
+    if ! file_exists "$CONFIG_FILE"; then
+        create_basic_config
+    fi
+
+    if [[ ${#failed_components[@]} -gt 0 ]]; then
+        error "Falha no reparo de: ${failed_components[*]}"
+        return 1
+    else
+        success "🎉 Reparo da instalação concluído com sucesso!"
+        return 0
+    fi
+}
+
+# Desinstalação
+uninstall_components() {
+    section "🗑️ Desinstalação do Cluster AI"
+
+    info "Esta operação irá remover os componentes instalados:"
+    echo "  ❌ Ambiente Python virtual"
+    echo "  ❌ Serviços Ollama e OpenWebUI"
+    echo "  ❌ Configurações do cluster"
+    echo "  ❌ Arquivos de backup (opcional)"
+    echo
+
+    if ! confirm "Iniciar desinstalação? Esta ação não pode ser desfeita completamente." "n"; then
+        info "Desinstalação cancelada"
+        return 0
+    fi
+
+    local start_time=$(date +%s)
+    local failed_removals=()
+
+    # Para o cluster se estiver rodando
+    if file_exists "${PROJECT_ROOT}/manager.sh"; then
+        info "Parando serviços do cluster..."
+        bash "${PROJECT_ROOT}/manager.sh" stop 2>/dev/null || true
+    fi
+
+    # Remove ambiente virtual
+    if dir_exists "${PROJECT_ROOT}/.venv"; then
+        if rm -rf "${PROJECT_ROOT}/.venv"; then
+            success "Ambiente virtual removido"
+        else
+            error "Falha ao remover ambiente virtual"
+            failed_removals+=("Ambiente Virtual")
+        fi
+    fi
+
+    # Para e remove serviços
+    for service in ollama openwebui; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            if sudo systemctl stop "$service" && sudo systemctl disable "$service"; then
+                success "Serviço parado: $service"
+            else
+                warn "Falha ao parar serviço: $service"
+            fi
+        fi
+    done
+
+    # Remove arquivos de configuração
+    if file_exists "$CONFIG_FILE"; then
+        if rm "$CONFIG_FILE"; then
+            success "Arquivo de configuração removido"
+        else
+            warn "Falha ao remover arquivo de configuração"
+        fi
+    fi
+
+    # Remove backups se confirmado
+    if dir_exists "${PROJECT_ROOT}/backups"; then
+        if confirm "Remover diretório de backups?" "n"; then
+            if rm -rf "${PROJECT_ROOT}/backups"; then
+                success "Backups removidos"
+            else
+                warn "Falha ao remover backups"
+            fi
+        fi
+    fi
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    section "📊 Relatório da Desinstalação"
+
+    echo "Tempo total: ${duration}s"
+    echo
+
+    if [[ ${#failed_removals[@]} -gt 0 ]]; then
+        error "Falhas na remoção: ${failed_removals[*]}"
+        return 1
+    else
+        success "🎉 Desinstalação concluída com sucesso!"
+        info "Para reinstalar, execute o instalador novamente."
+        return 0
+    fi
+}
+
 # Cria configuração básica
 create_basic_config() {
     subsection "Criando Configuração Básica"
@@ -385,13 +594,26 @@ show_menu() {
     echo "   - Escolha quais componentes instalar"
     echo "   - Maior controle sobre o processo"
     echo
+    echo "🔄 MANUTENÇÃO:"
+    echo "3) 🔄 Reinstalação Completa"
+    echo "   - Executa instalação completa novamente"
+    echo "   - Sobrescreve componentes existentes"
+    echo
+    echo "4) 🛠️  Reparo da Instalação"
+    echo "   - Verifica e reinstala componentes faltantes"
+    echo "   - Corrige problemas de instalação"
+    echo
+    echo "5) 🗑️  Desinstalação"
+    echo "   - Remove componentes instalados"
+    echo "   - Usa sistema de rollback para reversão"
+    echo
     echo "🔍 DIAGNÓSTICO:"
-    echo "3) 📊 Verificar Status da Instalação"
+    echo "6) 📊 Verificar Status da Instalação"
     echo "   - Verifica componentes instalados"
     echo "   - Identifica problemas"
     echo
     echo "📚 INFORMAÇÕES:"
-    echo "4) ℹ️  Sobre o Instalador"
+    echo "7) ℹ️  Sobre o Instalador"
     echo "   - Informações sobre o processo"
     echo
     echo "0) ❌ Sair"
@@ -434,10 +656,9 @@ show_about() {
     confirm "Voltar ao menu principal?" "y" || exit 0
 }
 
-# =============================================================================
-# FUNÇÃO PRINCIPAL
-# =============================================================================
 
+
+# Atualiza o menu principal para chamar as novas funções
 main() {
     # Verificações iniciais
     if is_root; then
@@ -455,7 +676,7 @@ main() {
         show_menu
 
         local choice
-        read -p "Digite sua opção (0-4): " choice
+        read -p "Digite sua opção (0-7): " choice
 
         case $choice in
             1)
@@ -480,6 +701,36 @@ main() {
                 fi
                 ;;
             3)
+                # Reinstalação completa
+                reinstall_complete
+                echo
+                if confirm "Voltar ao menu?" "y"; then
+                    continue
+                else
+                    break
+                fi
+                ;;
+            4)
+                # Reparo da instalação
+                repair_installation
+                echo
+                if confirm "Voltar ao menu?" "y"; then
+                    continue
+                else
+                    break
+                fi
+                ;;
+            5)
+                # Desinstalação
+                uninstall_components
+                echo
+                if confirm "Voltar ao menu?" "y"; then
+                    continue
+                else
+                    break
+                fi
+                ;;
+            6)
                 # Verificar instalação
                 check_installation_status
                 echo
@@ -489,7 +740,7 @@ main() {
                     break
                 fi
                 ;;
-            4)
+            7)
                 # Sobre
                 show_about
                 ;;

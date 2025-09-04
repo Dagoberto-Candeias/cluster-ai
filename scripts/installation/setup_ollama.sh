@@ -24,11 +24,11 @@ OLLAMA_MODELS=(
 # Instala o serviço Ollama
 install_ollama_service() {
     if command_exists ollama; then
-        log "Ollama já está instalado."
+        log "INFO" "Ollama já está instalado."
         return 0
     fi
 
-    log "Instalando Ollama..."
+    log "INFO" "Instalando Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
 
     if ! command_exists ollama; then
@@ -40,7 +40,7 @@ install_ollama_service() {
 
 # Configura o serviço Ollama (systemd)
 configure_ollama_service() {
-    log "Configurando serviço Ollama para iniciar com o sistema e escutar em todas as interfaces..."
+    log "INFO" "Configurando serviço Ollama para iniciar com o sistema e escutar em todas as interfaces..."
     sudo systemctl enable ollama >/dev/null 2>&1
 
     # Configurar para escutar em todas as interfaces e otimizar para GPU
@@ -92,13 +92,13 @@ download_models() {
         return 1
     fi
 
-    log "Iniciando download dos modelos essenciais do Ollama..."
+    log "INFO" "Iniciando download dos modelos essenciais do Ollama..."
     
     local failed_models=()
     local skipped_models=()
     
     for model in "${OLLAMA_MODELS[@]}"; do
-        log "Verificando modelo: $model..."
+        log "INFO" "Verificando modelo: $model..."
         
         # Verificar requisitos antes de baixar
         case $model in

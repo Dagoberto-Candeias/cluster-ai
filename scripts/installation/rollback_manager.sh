@@ -35,7 +35,7 @@ register_rollback_action() {
     local action="$1"
     local description="$2"
     ROLLBACK_ACTIONS+=("$action|$description")
-    log "Registrada ação de rollback: $description"
+    log "INFO" "Registrada ação de rollback: $description"
 }
 
 # Função para executar rollback de arquivo
@@ -196,7 +196,7 @@ rollback_custom() {
     local command="$2"
     local description="$3"
 
-    log "Executando rollback personalizado: $description"
+    info "Executando rollback personalizado: $description"
     if eval "$command" 2>/dev/null; then
         success "Rollback personalizado executado: $description"
         ((ROLLBACK_SUCCESS++))
@@ -308,9 +308,9 @@ execute_rollback() {
 
     # Resultado final
     echo ""
-    log "Resumo do Rollback:"
-    log "  - Ações bem-sucedidas: $ROLLBACK_SUCCESS"
-    log "  - Ações falhadas: $ROLLBACK_FAILED"
+    info "Resumo do Rollback:"
+    info "  - Ações bem-sucedidas: $ROLLBACK_SUCCESS"
+    info "  - Ações falhadas: $ROLLBACK_FAILED"
 
     if [ $ROLLBACK_FAILED -eq 0 ]; then
         success "✅ Rollback executado com sucesso!"
@@ -402,7 +402,7 @@ main() {
                 exit 1
             fi
 
-            log "Executando rollback automático com arquivo mais recente: $latest_rollback"
+            info "Executando rollback automático com arquivo mais recente: $latest_rollback"
             execute_rollback "$latest_rollback"
             ;;
         help|*)

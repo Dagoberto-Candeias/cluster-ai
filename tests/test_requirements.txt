@@ -1,0 +1,65 @@
+# Dependências para testes do Cluster AI
+# ======================================
+
+# Framework de testes principal
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-html>=4.1.0
+pytest-xdist>=3.5.0
+pytest-mock>=3.12.0
+pytest-asyncio>=0.21.0
+
+# Testes de API e web
+requests-mock>=1.11.0
+responses>=0.24.0
+httpx>=0.25.0
+
+# Mocks e fixtures
+freezegun>=1.2.0
+faker>=20.0.0
+
+# Testes de performance
+pytest-benchmark>=4.0.0
+
+# Relatórios e cobertura
+coverage>=7.3.0
+allure-pytest>=2.13.0
+
+# Testes de segurança
+bandit>=1.7.0
+safety>=2.3.0
+
+# Utilitários de teste
+pyfakefs>=5.2.0
+testfixtures>=7.2.0
+
+# Testes de scripts Bash
+# bats-core>=1.8.0  # Instalar via sistema (apt/yum/brew)
+
+# Dependências específicas do projeto (para testes)
+dask[complete]>=2023.8.0
+distributed>=2023.8.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Para testes de ML (opcional)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Para testes de API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Utilitários
+psutil>=5.9.0
+py-cpuinfo>=9.0.0
+
+# Logging estruturado
+structlog>=23.0.0
+
+# Para desenvolvimento de testes
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+pre-commit>=3.5.0

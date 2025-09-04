@@ -37,7 +37,7 @@ update_system_packages() {
 
     case $OS in
         ubuntu|debian)
-            log "Atualizando sistema Ubuntu/Debian..."
+            log "INFO" "Atualizando sistema Ubuntu/Debian..."
 
             # Executar atualização com retry e progresso
             if run_long_command "sudo apt-get update" "Atualizando lista de pacotes" 120; then
@@ -55,7 +55,7 @@ update_system_packages() {
             fi
             ;;
         manjaro)
-            log "Atualizando sistema Manjaro..."
+            log "INFO" "Atualizando sistema Manjaro..."
 
             if run_long_command "sudo pacman -Syu --noconfirm" "Atualizando sistema Manjaro" 600; then
                 success "Sistema Manjaro atualizado"
@@ -65,7 +65,7 @@ update_system_packages() {
             fi
             ;;
         centos)
-            log "Atualizando sistema CentOS..."
+            log "INFO" "Atualizando sistema CentOS..."
 
             if command_exists dnf; then
                 if run_long_command "sudo dnf update -y" "Atualizando sistema CentOS (DNF)" 600; then
@@ -107,7 +107,7 @@ install_package_with_fallback() {
     local package="$1"
     local fallback_packages=("${@:2}")
     
-    log "Instalando pacote: $package"
+    log "INFO" "Instalando pacote: $package"
     
     case $OS in
         ubuntu|debian)
@@ -163,7 +163,7 @@ install_package_with_fallback() {
 
 # Instala uma lista de pacotes de dependência com tratamento de erros e progresso
 install_dependency_packages() {
-    log "Instalando pacotes de dependência..."
+    log "INFO" "Instalando pacotes de dependência..."
 
     # Verificar privilégios sudo antes de prosseguir
     if ! check_sudo_privileges; then
@@ -245,7 +245,7 @@ install_dependency_packages() {
 # Configura o Docker pós-instalação
 configure_docker() {
     if command_exists docker; then
-        log "Configurando e iniciando serviço Docker..."
+        log "INFO" "Configurando e iniciando serviço Docker..."
         sudo systemctl enable docker
         sudo systemctl start docker
         sudo usermod -aG docker "$USER"

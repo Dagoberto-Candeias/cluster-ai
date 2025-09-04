@@ -72,7 +72,7 @@ retry_command() {
     local exit_code=1
 
     while [ $attempt -le $max_attempts ]; do
-        log "Tentativa $attempt/$max_attempts: $description"
+        log "INFO" "Tentativa $attempt/$max_attempts: $description"
 
         if eval "$command"; then
             success "$description executado com sucesso na tentativa $attempt"
@@ -106,7 +106,7 @@ retry_with_backoff() {
     local delay="$base_delay"
 
     while [ $attempt -le $max_attempts ]; do
-        log "Tentativa $attempt/$max_attempts: $description (delay: ${delay}s)"
+        log "INFO" "Tentativa $attempt/$max_attempts: $description (delay: ${delay}s)"
 
         if eval "$command"; then
             success "$description executado com sucesso na tentativa $attempt"

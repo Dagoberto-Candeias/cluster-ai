@@ -22,7 +22,7 @@ CONTAINER_NAME="open-webui"
 # --- Funções ---
 
 get_optimized_limits() {
-    log "Calculando limites de recursos otimizados para o container..."
+    log "INFO" "Calculando limites de recursos otimizados para o container..."
     if [ ! -f "$OPTIMIZER_SCRIPT" ]; then
         error "Script otimizador não encontrado em $OPTIMIZER_SCRIPT"
         # Retorna valores padrão se o otimizador não for encontrado
@@ -44,7 +44,7 @@ main() {
 
     if sudo docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         success "O container '$CONTAINER_NAME' já existe. Nenhuma ação necessária."
-        log "Para recriá-lo, pare e remova o container primeiro: sudo docker stop $CONTAINER_NAME && sudo docker rm $CONTAINER_NAME"
+        log "INFO" "Para recriá-lo, pare e remova o container primeiro: sudo docker stop $CONTAINER_NAME && sudo docker rm $CONTAINER_NAME"
         return 0
     fi
 
@@ -52,15 +52,15 @@ main() {
     local cpus; cpus=$(echo "$settings" | grep "DOCKER_OPENWEBUI_CPUS" | cut -d= -f2)
     local memory; memory=$(echo "$settings" | grep "DOCKER_OPENWEBUI_MEMORY" | cut -d= -f2)
 
-    log "Criando container '$CONTAINER_NAME' com os seguintes limites:"
-    log "  -> CPUs: $cpus"
-    log "  -> Memória: $memory"
+    log "INFO" "Criando container '$CONTAINER_NAME' com os seguintes limites:"
+    log "INFO" "  -> CPUs: $cpus"
+    log "INFO" "  -> Memória: $memory"
 
     if confirm_operation "Deseja continuar com a criação do container?"; then
-        log "Baixando a imagem mais recente do OpenWebUI..."
+        log "INFO" "Baixando a imagem mais recente do OpenWebUI..."
         sudo docker pull ghcr.io/open-webui/open-webui:main
 
-        log "Criando e iniciando o container..."
+        log "INFO" "Criando e iniciando o container..."
         sudo docker run -d -p 3000:8080 \
             --add-host=host.docker.internal:host-gateway \
             --name "$CONTAINER_NAME" \
@@ -74,7 +74,7 @@ main() {
 
         if sudo docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
             success "Container '$CONTAINER_NAME' criado e iniciado com sucesso!"
-            log "Acesse a interface em: http://localhost:3000"
+            log "INFO" "Acesse a interface em: http://localhost:3000"
         else
             error "Falha ao criar o container '$CONTAINER_NAME'. Verifique os logs do Docker."
             return 1
