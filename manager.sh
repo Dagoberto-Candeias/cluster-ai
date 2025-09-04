@@ -493,7 +493,9 @@ EOF
                         read name ip user port <<< "$worker_info"
                         log "Testando conexão com $name ($ip:$port)..."
 
-                        if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -p "$port" "$user@$ip" "echo 'Worker $name conectado!'"; then
+                        # Adiciona a chave do host ao known_hosts para segurança
+                        ssh-keyscan -p "$port" -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null
+                        if ssh -o ConnectTimeout=10 -p "$port" "$user@$ip" "echo 'Worker $name conectado!'"; then
                             success "Conexão com $name estabelecida com sucesso!"
                             # Atualizar status
                             sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active/" "$config_file"
@@ -545,7 +547,9 @@ EOF
                         local name ip user port status
                         read name ip user port status <<< "$line"
 
-                        if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
+                        # Adiciona a chave do host ao known_hosts para segurança
+                        ssh-keyscan -p "$port" -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null
+                        if ssh -o ConnectTimeout=5 -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
                             sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active/" "$config_file"
                             ((updated++))
                         else
@@ -572,6 +576,33 @@ EOF
 }
 
 # =============================================================================
+# FUNÇÃO PARA INSTRUÇÕES DO WORKER ANDROID
+# =============================================================================
+
+show_android_setup_instructions() {
+    section "Instruções para Configurar Worker Android (Termux)"
+
+    info "Este processo automatiza a configuração do seu dispositivo Android como um worker."
+    echo
+    echo "PASSO 1: No seu dispositivo Android, abra o aplicativo Termux."
+    echo
+    echo "PASSO 2: Copie e cole o comando abaixo no Termux e pressione Enter."
+    echo "         Este comando fará o download e executará o script de configuração automática."
+    echo
+    echo -e "${YELLOW}--------------------------------------------------------------------------------${NC}"
+    echo -e "${YELLOW}curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash${NC}"
+    echo -e "${YELLOW}--------------------------------------------------------------------------------${NC}"
+    echo
+    echo "PASSO 3: Siga as instruções no Termux."
+    echo "         Ao final, o script exibirá a ${GREEN}chave SSH pública${NC} e o ${GREEN}IP${NC} do seu dispositivo."
+    echo
+    echo "PASSO 4: Volte para este menu e use a opção 'Gerenciar Workers Remotos (SSH)' para"
+    echo "         adicionar o novo worker usando as informações fornecidas pelo script."
+    echo
+    success "Após esses passos, seu worker Android estará pronto para ser usado!"
+}
+
+# =============================================================================
 # FUNÇÃO PARA CONFIGURAR CLUSTER (IMPLEMENTAÇÃO DA OPÇÃO 7)
 # =============================================================================
 
@@ -591,13 +622,7 @@ configure_cluster() {
             manage_remote_workers
             ;;
         2)
-            echo "Configurando Worker Android (Termux)..."
-            # Chamar script de configuração do servidor para worker Android
-            if [ -f "${SCRIPT_DIR}/scripts/android/configure_android_worker_server.sh" ]; then
-                bash "${SCRIPT_DIR}/scripts/android/configure_android_worker_server.sh"
-            else
-                error "Script de configuração do worker Android não encontrado."
-            fi
+            show_android_setup_instructions
             ;;
         0)
             return

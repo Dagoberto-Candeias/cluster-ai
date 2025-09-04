@@ -253,6 +253,12 @@ main() {
     echo "2. Execute o script de instalação se desejar reinstalar"
     echo "3. Verifique se não há processos remanescentes"
 
+    # Verificação final
+    if pgrep -f "dask-worker" >/dev/null 2>&1; then
+        warn "Atenção: Processos 'dask-worker' ainda estão em execução."
+        warn "Pode ser necessário pará-los manualmente com 'pkill -f dask-worker'."
+    fi
+
     echo
     success "Desinstalação concluída com sucesso!"
 }

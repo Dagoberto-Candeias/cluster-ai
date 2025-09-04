@@ -1,11 +1,12 @@
-# 🚀 Guia Rápido - Worker Android (Fácil)
+# 🚀 Guia Rápido - Worker Android
 
 ## Sumário
 - [Pré-requisitos](#pré-requisitos)
-- [Instalação Passo a Passo](#instalação-passo-a-passo)
+- [Método 1: Instalação Automática (Recomendado)](#método-1-instalação-automática-recomendado)
+- [Método 2: Descoberta Automática pelo Servidor](#método-2-descoberta-automática-pelo-servidor)
+- [Método 3: Instalação Manual (Avançado)](#método-3-instalação-manual-avançado)
 - [Desinstalação](#desinstalação)
 - [Solução de Problemas](#solução-de-problemas)
-- [Instalação Offline](#instalação-offline-último-recurso)
 - [Checklist Final](#checklist-final)
 - [Contato/Suporte](#contato-suporte)
 
@@ -13,23 +14,65 @@
 
 ## 📋 Pré-requisitos
 
-- Dispositivo Android com Termux instalado ([F-Droid](https://f-droid.org/packages/com.termux/) ou Google Play)
-- Conexão Wi-Fi estável
+- Dispositivo Android com **Termux** instalado (recomendado via [F-Droid](https://f-droid.org/packages/com.termux/)).
+- Conexão Wi-Fi estável (o Android e o servidor devem estar na mesma rede).
 - Pelo menos 20% de bateria
-- Acesso ao seu repositório privado no GitHub (via SSH ou Token)
 
 ---
 
-## 🛠️ Instalação Passo a Passo
+## 🚀 Método 1: Instalação Automática (Recomendado)
 
-### 1. Preparar o Termux
+Este método configura o worker Android com um único comando.
+
+1.  **No seu dispositivo Android, abra o Termux e execute:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
+    ```
+
+    > **Nota de Segurança**: O comando `curl | bash` é conveniente, mas executa um script diretamente da internet. Para maior segurança, você pode clonar o repositório primeiro e executar o script localmente:
+    > ```bash
+    > git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
+    > bash cluster-ai/scripts/android/setup_android_worker.sh
+    > ```
+
+2.  O script irá:
+    - Instalar todas as dependências necessárias (Git, Python, OpenSSH).
+    - Gerar uma chave SSH para comunicação com o servidor.
+    - Clonar o repositório do `cluster-ai`.
+    - Iniciar o serviço SSH na porta 8022.
+    - Exibir as informações necessárias para registrar o worker no servidor.
+
+3.  **No servidor principal, siga as instruções exibidas no Termux**: Use o `manager.sh` para adicionar o worker, informando o IP e a chave pública que o script forneceu.
+
+---
+
+## 🔍 Método 2: Descoberta Automática pelo Servidor
+
+Se o seu dispositivo Android já possui o Termux e o OpenSSH instalados, você pode usar a descoberta automática do servidor.
+
+1.  **No Termux, instale e inicie o `sshd`:**
+    ```bash
+    pkg install openssh
+    sshd
+    ```
+
+2.  **No servidor principal, execute o `manager.sh`:**
+    ```bash
+    ./manager.sh
+    ```
+    - Escolha a opção "Gerenciar Workers Remotos (SSH)".
+    - Selecione "Executar Descoberta Automática".
+    - O sistema irá escanear a rede, encontrar seu dispositivo Android e guiar você na configuração.
+
+---
+
+## 🛠️ Método 3: Instalação Manual (Avançado)
+
+Use este método apenas se a instalação automática falhar.
+
+### 1. Preparar o Termux e Dependências
 ```bash
 termux-setup-storage
-```
-Conceda as permissões solicitadas.
-
-### 2. Instalar Dependências
-```bash
 pkg update -y
 pkg install -y openssh python git curl unzip
 ```

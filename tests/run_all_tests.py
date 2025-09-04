@@ -99,20 +99,19 @@ def create_reports_dir():
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     return REPORTS_DIR
 
-def run_unit_tests(args):
-    """Executa testes unitários"""
-    print_section("TESTES UNITÁRIOS")
+def build_pytest_command(args, test_path, html_report_name):
+    """Constrói o comando base do pytest com opções comuns."""
+    cmd = ["python", "-m", "pytest", test_path]
 
-    cmd = [
-        "python", "-m", "pytest",
-        "tests/unit/",
-        "-v",
-        "--tb=short",
-        "--cov=.",
-        "--cov-report=html:tests/reports/coverage_unit",
-        "--cov-report=xml:tests/reports/coverage_unit.xml",
-        "--html=tests/reports/unit_tests.html"
-    ]
+    # Adiciona o arquivo de configuração se especificado
+    if args.env and args.env != "dev":
+        config_file = f"pytest.{args.env}.ini"
+        if (PROJECT_ROOT / config_file).exists():
+            cmd.extend(["-c", config_file])
+            print_info(f"Usando configuração: {config_file}")
+
+    # Adiciona o relatório HTML
+    cmd.append(f"--html=tests/reports/{html_report_name}")
 
     if args.fail_fast:
         cmd.append("--exitfirst")
@@ -120,100 +119,46 @@ def run_unit_tests(args):
     if args.parallel:
         cmd.extend(["-n", "auto"])
 
+    if args.last_failed:
+        cmd.append("--last-failed")
+
+    return cmd
+
+def run_pytest_suite(args, test_type, description, test_path):
+    """Executa uma suíte de testes pytest genérica, encapsulando a lógica comum."""
+    print_section(description)
+    html_report_name = f"{test_type}_tests.html"
+    cmd = build_pytest_command(args, test_path, html_report_name)
     success, duration = run_command(
         " ".join(cmd),
-        "Testes unitários Python"
+        f"Testes de {test_type}"
     )
+    return success, duration, test_type
 
-    return success, duration, "unit"
+def run_unit_tests(args):
+    """Executa testes unitários"""
+    return run_pytest_suite(args, "unit", "TESTES UNITÁRIOS", "tests/unit/")
 
 def run_integration_tests(args):
     """Executa testes de integração"""
-    print_section("TESTES DE INTEGRAÇÃO")
-
-    cmd = [
-        "python", "-m", "pytest",
-        "tests/integration/",
-        "-v",
-        "--tb=short",
-        "--html=tests/reports/integration_tests.html"
-    ]
-
-    if args.fail_fast:
-        cmd.append("--exitfirst")
-
-    success, duration = run_command(
-        " ".join(cmd),
-        "Testes de integração"
-    )
-
-    return success, duration, "integration"
+    return run_pytest_suite(args, "integration", "TESTES DE INTEGRAÇÃO", "tests/integration/")
 
 def run_e2e_tests(args):
     """Executa testes end-to-end"""
-    print_section("TESTES END-TO-END")
-
-    cmd = [
-        "python", "-m", "pytest",
-        "tests/e2e/",
-        "-v",
-        "--tb=short",
-        "--html=tests/reports/e2e_tests.html"
-    ]
-
-    if args.fail_fast:
-        cmd.append("--exitfirst")
-
-    success, duration = run_command(
-        " ".join(cmd),
-        "Testes end-to-end"
-    )
-
-    return success, duration, "e2e"
+    return run_pytest_suite(args, "e2e", "TESTES END-TO-END", "tests/e2e/")
 
 def run_performance_tests(args):
     """Executa testes de performance"""
-    print_section("TESTES DE PERFORMANCE")
-
-    cmd = [
-        "python", "-m", "pytest",
-        "tests/performance/",
-        "-v",
-        "--tb=short",
-        "--html=tests/reports/performance_tests.html"
-    ]
-
-    if args.fail_fast:
-        cmd.append("--exitfirst")
-
-    success, duration = run_command(
-        " ".join(cmd),
-        "Testes de performance"
-    )
-
-    return success, duration, "performance"
+    return run_pytest_suite(args, "performance", "TESTES DE PERFORMANCE", "tests/performance/")
 
 def run_security_tests(args):
     """Executa testes de segurança"""
-    print_section("TESTES DE SEGURANÇA")
+    return run_pytest_suite(args, "security", "TESTES DE SEGURANÇA", "tests/security/")
 
-    cmd = [
-        "python", "-m", "pytest",
-        "tests/security/",
-        "-v",
-        "--tb=short",
-        "--html=tests/reports/security_tests.html"
-    ]
+def run_smoke_tests(args):
+    """Executa testes de fumaça (smoke tests)"""
+    return run_pytest_suite(args, "smoke", "TESTES DE FUMAÇA (SMOKE TESTS)", "tests/smoke/")
 
-    if args.fail_fast:
-        cmd.append("--exitfirst")
-
-    success, duration = run_command(
-        " ".join(cmd),
-        "Testes de segurança"
-    )
-
-    return success, duration, "security"
 
 def run_bash_tests(args):
     """Executa testes de scripts Bash"""
@@ -261,8 +206,14 @@ def run_coverage_analysis():
     """Executa análise de cobertura"""
     print_section("ANÁLISE DE COBERTURA")
 
+    # Gera o relatório combinado em HTML e XML a partir dos dados acumulados
+    cmd = (
+        "python -m coverage html -d tests/reports/coverage_combined && "
+        "python -m coverage xml -o tests/reports/coverage_combined.xml && "
+        "python -m coverage report --fail-under=80"
+    )
     success, duration = run_command(
-        "python -m coverage report --fail-under=80",
+        cmd,
         "Relatório de cobertura de código"
     )
 
@@ -292,20 +243,20 @@ def generate_summary_report(results, total_time):
     print()
 
     # Cobertura (se disponível)
-    coverage_file = REPORTS_DIR / "coverage_unit.xml"
+    coverage_file = REPORTS_DIR / "coverage_combined.xml"
     if coverage_file.exists():
         try:
             import xml.etree.ElementTree as ET
             tree = ET.parse(coverage_file)
             root = tree.getroot()
-            coverage = root.get('line-rate')
+            coverage = float(root.get('line-rate', 0))
             if coverage:
-                coverage_pct = float(coverage) * 100
+                coverage_pct = coverage * 100
                 print(f"📊 Cobertura de código: {coverage_pct:.1f}%")
                 if coverage_pct >= 80:
                     print_success("Cobertura atende ao requisito mínimo (80%)")
                 else:
-                    print_error("Cobertura abaixo do mínimo requerido")
+                    print_error(f"Cobertura de {coverage_pct:.1f}% abaixo do mínimo requerido (80%)")
         except Exception as e:
             print_warning(f"Não foi possível ler cobertura: {e}")
 
@@ -342,21 +293,24 @@ def main():
     parser.add_argument("--e2e", action="store_true", help="Executar apenas testes end-to-end")
     parser.add_argument("--performance", action="store_true", help="Executar apenas testes de performance")
     parser.add_argument("--security", action="store_true", help="Executar apenas testes de segurança")
+    parser.add_argument("--smoke", action="store_true", help="Executar apenas testes de fumaça (smoke tests)")
     parser.add_argument("--bash", action="store_true", help="Executar apenas testes Bash")
     parser.add_argument("--lint", action="store_true", help="Executar apenas verificação de código")
     parser.add_argument("--coverage", action="store_true", help="Executar apenas análise de cobertura")
     parser.add_argument("--fail-fast", action="store_true", help="Parar na primeira falha")
     parser.add_argument("--parallel", action="store_true", help="Executar testes em paralelo")
+    parser.add_argument("--env", choices=['dev', 'ci'], default='dev', help="Especificar o ambiente para usar a configuração pytest correta (dev ou ci)")
+    parser.add_argument("--last-failed", "--lf", action="store_true", help="Executar apenas os testes que falharam na última execução")
     parser.add_argument("--no-lint", action="store_true", help="Pular verificação de código")
     parser.add_argument("--no-coverage", action="store_true", help="Pular análise de cobertura")
 
     args = parser.parse_args()
 
     # Verificar se pelo menos um tipo de teste foi especificado
-    test_types = [args.unit, args.integration, args.e2e, args.performance, args.security, args.bash, args.lint, args.coverage]
+    test_types = [args.unit, args.integration, args.e2e, args.performance, args.security, args.smoke, args.bash, args.lint, args.coverage]
     if not any(test_types) and not args.no_lint and not args.no_coverage:
         # Executar todos os testes por padrão
-        args.unit = args.integration = args.e2e = args.performance = args.security = args.bash = True
+        args.unit = args.integration = args.e2e = args.performance = args.security = args.smoke = args.bash = True
         if not args.no_lint:
             args.lint = True
         if not args.no_coverage:
@@ -410,6 +364,14 @@ def main():
 
         if args.security:
             success, duration, test_type = run_security_tests(args)
+            results.append({
+                "type": test_type,
+                "success": success,
+                "duration": duration
+            })
+
+        if args.smoke:
+            success, duration, test_type = run_smoke_tests(args)
             results.append({
                 "type": test_type,
                 "success": success,

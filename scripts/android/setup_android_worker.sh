@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Local: scripts/android/setup_android_worker.sh
-# Autor: Nome: Dagoberto Candeias. email: betoallnet@gmail.com telefone/whatsapp: +5511951754945
+# Autor: Dagoberto Candeias <betoallnet@gmail.com>
 # Script para configurar um dispositivo Android como um Worker do Cluster AI via Termux.
 #
 # INSTRUÇÕES:
@@ -43,10 +43,10 @@ main() {
     log "Isso pode levar alguns minutos..."
 
     # Instalar com timeout para evitar travamentos
-    if timeout 300 pkg install -y openssh python git ncurses-utils 2>&1; then
+    if timeout 300 pkg install -y openssh python git ncurses-utils curl >/dev/null 2>&1; then
         success "Dependências instaladas com sucesso"
     else
-        error "Falha ao instalar dependências"
+        error "Falha ao instalar dependências. Verifique sua conexão com a internet."
         exit 1
     fi
 
@@ -56,20 +56,12 @@ main() {
         log "Gerando chave SSH para o dispositivo..."
         ssh-keygen -t rsa -b 4096 -N "" -f "$HOME/.ssh/id_rsa"
     fi
-    
-    log "Para se conectar a este worker a partir do seu servidor, você precisará da chave pública:"
-    warn "Copie a chave abaixo e adicione ao arquivo ~/.ssh/authorized_keys no seu servidor principal."
-    echo -e "${YELLOW}"
-    cat "$HOME/.ssh/id_rsa.pub"
-    echo -e "${NC}"
-    
-    read -p "Pressione Enter após copiar a chave para continuar..."
 
     log "Iniciando o servidor SSH na porta 8022..."
     sshd
-    
+
     local user; user=$(whoami)
-    local ip; ip=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1)
+    local ip; ip=$(ip route get 1 | awk '{print $7; exit}')
     success "Servidor SSH iniciado! Conecte-se com: ssh $user@$ip -p 8022"
 
     # 4. Clonar o repositório do Cluster AI
@@ -92,13 +84,13 @@ main() {
                 echo "🔧 SOLUÇÕES PARA REPOSITÓRIO PRIVADO:"
                 echo "1. Configure sua chave SSH no GitHub:"
                 echo "   - Vá em: https://github.com/settings/keys"
-                echo "   - Adicione a chave: $(cat $HOME/.ssh/id_rsa.pub)"
+                echo "   - Adicione a chave pública que será exibida no final."
                 echo
                 echo "2. Ou use token de acesso pessoal:"
                 echo "   - Crie token em: https://github.com/settings/tokens"
                 echo "   - Execute: git clone https://TOKEN@github.com/Dagoberto-Candeias/cluster-ai.git"
                 echo
-                echo "3. Execute novamente após configurar autenticação"
+                echo "3. Execute este script novamente após configurar a autenticação."
                 exit 1
             fi
         fi
@@ -106,15 +98,35 @@ main() {
         log "Projeto já existe, atualizando..."
         cd "$HOME/Projetos/cluster-ai"
         if ! git pull >/dev/null 2>&1; then
-            warn "Falha ao atualizar, pode precisar de autenticação"
+            warn "Falha ao atualizar. Pode ser necessário configurar autenticação."
+        else
+            success "Projeto atualizado com sucesso."
         fi
     fi
 
     section "Configuração Concluída!"
     success "Seu dispositivo Android está pronto para ser usado como um worker."
-    info "No seu servidor principal, adicione a seguinte linha ao arquivo ~/.cluster_config/nodes_list.conf:"
-    warn "$(hostname) $ip $user 8022"
-    info "Lembre-se de usar a porta 8022 para conexões SSH."
+    echo
+    info "Para registrar este worker no servidor principal, siga os passos:"
+    echo
+    echo -e "1. ${YELLOW}Copie a chave SSH pública abaixo:${NC}"
+    echo "--------------------------------------------------"
+    cat "$HOME/.ssh/id_rsa.pub"
+    echo "--------------------------------------------------"
+    echo
+    echo "2. No servidor principal, execute o gerenciador:"
+    echo "   ./manager.sh"
+    echo
+    echo "3. Escolha a opção 'Configurar Cluster' e depois 'Gerenciar Workers Remotos (SSH)'."
+    echo
+    echo "4. Adicione um novo worker com as seguintes informações:"
+    echo -e "   - ${YELLOW}Nome do Worker:${NC} android-$(hostname)"
+    echo -e "   - ${YELLOW}IP do Worker:${NC} $ip"
+    echo -e "   - ${YELLOW}Usuário SSH:${NC} $user"
+    echo -e "   - ${YELLOW}Porta SSH:${NC} 8022"
+    echo -e "   - ${YELLOW}Chave Pública:${NC} (Cole a chave que você copiou)"
+    echo
+    info "Após o registro, o servidor poderá se conectar e gerenciar este worker."
 }
 
 main

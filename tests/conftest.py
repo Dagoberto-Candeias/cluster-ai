@@ -49,9 +49,10 @@ def setup_test_environment():
 
 
 @pytest.fixture
-def temp_dir():
+def temp_dir(request):
     """Fixture que fornece um diretório temporário para testes"""
-    test_temp_dir = TEST_CONFIG["temp_dir"] / f"test_{pytest.current_test.name}"
+    test_name = request.node.name
+    test_temp_dir = TEST_CONFIG["temp_dir"] / f"test_{test_name}"
     test_temp_dir.mkdir(parents=True, exist_ok=True)
     return test_temp_dir
 
@@ -68,7 +69,6 @@ def temp_file_with_content(temp_dir):
     return file_path, content
 
 
-@pytest.fixture(params=["admin", "guest"])
 @pytest.fixture(params=[
     pytest.param("admin", marks=pytest.mark.slow, id="admin_user"),
     pytest.param("guest", id="guest_user")
@@ -89,6 +89,27 @@ def user_account(request):
     yield user_data
     
     print(f"\n[TEARDOWN] Limpando usuário do tipo: {user_type}")
+
+
+@pytest.fixture
+def user_account_factory():
+    """
+    Fixture que implementa o padrão 'factory as a fixture'.
+    Retorna uma função que pode ser usada para criar múltiplos tipos de usuários
+    dentro de um mesmo teste.
+    """
+    def _create_user(user_type="guest", custom_permissions=None):
+        if user_type == "admin":
+            permissions = ["read", "write", "delete"]
+            username = "admin_factory_user"
+        else: # guest
+            permissions = ["read"]
+            username = "guest_factory_user"
+
+        if custom_permissions is not None:
+            permissions = custom_permissions
+        return {"username": username, "type": user_type, "permissions": permissions}
+    return _create_user
 
 
 @pytest.fixture
@@ -128,11 +149,12 @@ def real_dask_cluster():
     Fixture que inicia um cluster Dask real (LocalCluster) para testes de integração
     e garante seu encerramento ao final dos testes do módulo.
     """
-    from demo_cluster import demo_basica as create_cluster
+    from dask.distributed import LocalCluster, Client
     cluster = None
     client = None
     try:
-        cluster, client = create_cluster()
+        cluster = LocalCluster(n_workers=2, threads_per_worker=2, processes=False)
+        client = Client(cluster)
         print(f"\nCluster Dask de integração iniciado em: {cluster.scheduler_address}")
         yield client  # Disponibiliza o cliente para os testes
     finally:
@@ -243,18 +265,6 @@ def mock_file_operations():
         }
 
 
-# Configurações do pytest
-def pytest_configure(config):
-    """Configuração adicional do pytest"""
-    # Marcadores customizados
-    config.addinivalue_line("markers", "unit: Testes unitários")
-    config.addinivalue_line("markers", "integration: Testes de integração")
-    config.addinivalue_line("markers", "e2e: Testes end-to-end")
-    config.addinivalue_line("markers", "performance: Testes de performance")
-    config.addinivalue_line("markers", "security: Testes de segurança")
-    config.addinivalue_line("markers", "slow: Testes que demoram mais")
-
-
 def pytest_collection_modifyitems(config, items):
     """Modificar itens de teste coletados"""
     for item in items:
@@ -277,3 +287,7 @@ def pytest_collection_modifyitems(config, items):
         # Adicionar marcador 'security' automaticamente para testes em tests/security/
         elif "tests/security/" in str(item.fspath):
             item.add_marker(pytest.mark.security)
+
+        # Adicionar marcador 'smoke' automaticamente para testes em tests/smoke/
+        elif "tests/smoke/" in str(item.fspath):
+            item.add_marker(pytest.mark.smoke)
