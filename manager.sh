@@ -462,6 +462,11 @@ show_menu() {
     
     echo -e "\n${BLUE}📚 AJUDA${NC}"
     echo "25) 📚 Documentação (Em desenvolvimento)"
+    echo -e "\n${PURPLE}🗂️ MENUS${NC}"
+    echo " 5) 🔧 Manutenção & Diagnóstico"
+    echo " 6) ⚙️ Configuração & Ferramentas"
+    echo " 7) ℹ️ Informações & Ajuda"
+
     echo
     echo "0) ❌ Sair"
     echo
@@ -944,6 +949,9 @@ process_menu_choice() {
         23) manage_security ;;
         24) start_monitor ;;
         25) warn "Documentação - Em desenvolvimento" ;;
+        5) show_maintenance_submenu ;;
+        6) show_tools_submenu ;;
+        7) show_help_submenu ;;
         0)
             success "Gerenciador encerrado."
             return 1 # Sinaliza para sair do loop
@@ -1074,10 +1082,13 @@ main() {
         show_menu
 
         read -p "Digite sua opção (0-25): " choice
+        read -p "Digite sua opção (0-7 ou ⚡): " choice
         
         # Validação da entrada: deve ser um número ou '⚡'
         if [[ ! "$choice" =~ ^([0-9]|1[0-9]|2[0-5]|⚡)$ ]]; then
             error "Opção inválida. Por favor, digite um número de 0 a 25 ou '⚡'."
+        if [[ ! "$choice" =~ ^([0-7]|⚡)$ ]]; then
+            error "Opção inválida. Por favor, digite um número de 0 a 7 ou '⚡'."
             sleep 2
         else
             # Processa a escolha e verifica se deve sair
