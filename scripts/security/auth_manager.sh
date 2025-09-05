@@ -17,15 +17,53 @@ if [ ! -f "${UTILS_DIR}/common.sh" ]; then
 fi
 source "${UTILS_DIR}/common.sh"
 
+# Verificar se função de auditoria existe
+if ! type security_audit_log >/dev/null 2>&1; then
+    security_audit_log() {
+        local action="$1"
+        local details="$2"
+        local log_file="${PROJECT_ROOT}/logs/security_audit.log"
+        mkdir -p "$(dirname "$log_file")"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [$action] $details" >> "$log_file"
+    }
+fi
+
 # Criar diretório de configuração se não existir
 mkdir -p "$CONFIG_DIR"
 
+# Função para verificar integridade do arquivo de configuração
+verify_config_integrity() {
+    if [ -f "$AUTH_CONFIG" ]; then
+        # Verificar permissões do arquivo
+        local perms
+        perms=$(stat -c '%a' "$AUTH_CONFIG" 2>/dev/null || stat -f '%A' "$AUTH_CONFIG" 2>/dev/null || echo "unknown")
+
+        if [ "$perms" != "600" ]; then
+            warn "Permissões inseguras no arquivo de autenticação ($perms). Corrigindo..."
+            chmod 600 "$AUTH_CONFIG"
+            security_audit_log "CONFIG_PERMS_FIXED" "File: $AUTH_CONFIG, Old perms: $perms, New perms: 600"
+        fi
+
+        # Verificar se arquivo contém apenas linhas válidas
+        local invalid_lines
+        invalid_lines=$(grep -v '^[^:]*:[^:]*:[^:]*$' "$AUTH_CONFIG" | wc -l)
+
+        if [ "$invalid_lines" -gt 0 ]; then
+            error "Arquivo de configuração contém linhas inválidas. Backup criado."
+            cp "$AUTH_CONFIG" "${AUTH_CONFIG}.backup.$(date +%s)"
+            security_audit_log "CONFIG_CORRUPTION_DETECTED" "Invalid lines: $invalid_lines"
+        fi
+    fi
+}
+
 # ==================== FUNÇÕES DE AUTENTICAÇÃO ====================
 
-# Função para gerar hash de senha (usando sha256sum)
+# Função para gerar hash de senha seguro (usando sha256sum com salt)
 generate_password_hash() {
     local password="$1"
-    echo -n "$password" | sha256sum | cut -d' ' -f1
+    local salt
+    salt=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' ')
+    echo -n "${salt}${password}" | sha256sum | cut -d' ' -f1 | sed "s/$/:${salt}/"
 }
 
 # Função para verificar senha
@@ -38,15 +76,22 @@ verify_password() {
         return 1
     fi
 
-    local stored_hash
-    stored_hash=$(grep "^${username}:" "$AUTH_CONFIG" | cut -d':' -f2)
+    local stored_data
+    stored_data=$(grep "^${username}:" "$AUTH_CONFIG" | cut -d':' -f2-3)
 
-    if [ -z "$stored_hash" ]; then
+    if [ -z "$stored_data" ]; then
+        return 1
+    fi
+
+    local stored_hash stored_salt
+    IFS=':' read -r stored_hash stored_salt <<< "$stored_data"
+
+    if [ -z "$stored_hash" ] || [ -z "$stored_salt" ]; then
         return 1
     fi
 
     local input_hash
-    input_hash=$(generate_password_hash "$password")
+    input_hash=$(echo -n "${stored_salt}${password}" | sha256sum | cut -d' ' -f1)
 
     if [ "$input_hash" = "$stored_hash" ]; then
         return 0
@@ -55,11 +100,35 @@ verify_password() {
     fi
 }
 
+# Função para validar força da senha
+validate_password_strength() {
+    local password="$1"
+
+    # Verificar comprimento mínimo
+    if [ ${#password} -lt 8 ]; then
+        error "Senha deve ter pelo menos 8 caracteres."
+        return 1
+    fi
+
+    # Verificar se contém letras maiúsculas, minúsculas, números e caracteres especiais
+    if ! echo "$password" | grep -q '[A-Z]' || ! echo "$password" | grep -q '[a-z]' || ! echo "$password" | grep -q '[0-9]'; then
+        error "Senha deve conter pelo menos uma letra maiúscula, uma minúscula e um número."
+        return 1
+    fi
+
+    return 0
+}
+
 # Função para adicionar usuário
 add_user() {
     local username="$1"
     local password="$2"
     local role="${3:-user}"
+
+    # Validar força da senha
+    if ! validate_password_strength "$password"; then
+        return 1
+    fi
 
     if [ ! -f "$AUTH_CONFIG" ]; then
         touch "$AUTH_CONFIG"
@@ -168,22 +237,45 @@ list_users() {
     done < "$AUTH_CONFIG"
 }
 
+# Função para gerar senha segura aleatória
+generate_secure_password() {
+    local length="${1:-12}"
+    openssl rand -base64 48 2>/dev/null | tr -d "=+/" | cut -c1-"$length" || {
+        # Fallback se openssl não estiver disponível
+        head -c 32 /dev/urandom | base64 | tr -d "=+/" | cut -c1-"$length"
+    }
+}
+
 # Função para inicializar autenticação (criar usuário admin se não existir)
 initialize_auth() {
     if [ ! -f "$AUTH_CONFIG" ] || [ ! -s "$AUTH_CONFIG" ]; then
         section "Inicializando Sistema de Autenticação"
-        warn "Nenhum usuário configurado. Criando usuário administrador padrão..."
+        warn "Nenhum usuário configurado. Criando usuário administrador..."
 
         local default_admin="admin"
-        local default_password="clusterai2024"
+        local secure_password
+        secure_password=$(generate_secure_password 16)
 
-        add_user "$default_admin" "$default_password" "admin"
+        # Criar usuário sem validação de força (uma vez só para setup inicial)
+        if [ ! -f "$AUTH_CONFIG" ]; then
+            touch "$AUTH_CONFIG"
+            chmod 600 "$AUTH_CONFIG"
+        fi
 
-        warn "USUÁRIO ADMINISTRADOR CRIADO:"
-        warn "  Usuário: $default_admin"
-        warn "  Senha: $default_password"
-        warn "  ⚠️  ALTERE A SENHA PADRÃO IMEDIATAMENTE APÓS O PRIMEIRO LOGIN!"
+        local password_hash
+        password_hash=$(generate_password_hash "$secure_password")
+
+        echo "${default_admin}:${password_hash}:admin" >> "$AUTH_CONFIG"
+
+        success "USUÁRIO ADMINISTRADOR CRIADO:"
+        info "  Usuário: $default_admin"
+        info "  Senha: $secure_password"
+        warn "  ⚠️  ANOTE ESTA SENHA E ALTERE-A IMEDIATAMENTE APÓS O PRIMEIRO LOGIN!"
+        warn "  ⚠️  ESTA É A ÚNICA VEZ QUE A SENHA SERÁ EXIBIDA!"
         echo ""
+
+        # Log de segurança para criação do usuário inicial
+        security_audit_log "ADMIN_USER_CREATED" "Username: $default_admin"
     fi
 }
 
@@ -270,6 +362,9 @@ process_auth_menu_choice() {
 main() {
     # Verificar se está rodando como root
     check_root_user "Gerenciador de Autenticação" || exit 1
+
+    # Verificar integridade da configuração
+    verify_config_integrity
 
     # Inicializar autenticação se necessário
     initialize_auth

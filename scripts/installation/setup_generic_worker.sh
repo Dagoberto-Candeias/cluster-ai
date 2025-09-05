@@ -232,6 +232,25 @@ main() {
         fi
     }
 
+    # Função para copiar a chave SSH para o servidor
+    copy_ssh_key_to_server() {
+        local server_ip="$1"
+        local server_user="$2"
+
+        if ! command_exists ssh-copy-id; then
+            warn "Comando 'ssh-copy-id' não encontrado. Pulando cópia automática da chave."
+            warn "Você precisará registrar o worker manualmente."
+            return 1
+        fi
+
+        info "Tentando copiar a chave SSH para o servidor $server_ip..."
+        info "Você precisará digitar a senha do usuário '${server_user}' no servidor UMA ÚNICA VEZ."
+        if ssh-copy-id -p 22 "${server_user}@${server_ip}"; then
+            success "Chave SSH copiada com sucesso para o servidor!"
+            return 0
+        fi
+    }
+
     # Função para registrar worker no servidor
     register_worker() {
         local server_ip="$1"
@@ -257,10 +276,17 @@ main() {
 }
 EOF
 
+        local server_user="dcm" # Use a dedicated user on the server for registration
+
+        # Tenta copiar a chave SSH primeiro para automatizar o login
+        if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "${server_user}@${server_ip}" "echo 'OK'" >/dev/null 2>&1; then
+            copy_ssh_key_to_server "$server_ip" "$server_user"
+        fi
+
         # Enviar registro via SCP
-        if scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$reg_file" "root@$server_ip:/tmp/"; then
+        if scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$reg_file" "${server_user}@${server_ip}:/tmp/"; then
             # Executar script de registro no servidor
-            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "root@$server_ip" "
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "${server_user}@${server_ip}" "
                 if [ -f /opt/cluster-ai/scripts/management/worker_registration.sh ]; then
                     bash /opt/cluster-ai/scripts/management/worker_registration.sh /tmp/worker_registration_${worker_name}.json
                     rm -f /tmp/worker_registration_${worker_name}.json

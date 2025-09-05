@@ -235,6 +235,48 @@ do_restore_local_config() {
     fi
 }
 
+# Função para restaurar logs a partir de um arquivo de arquivamento
+do_restore_logs() {
+    if ! list_backups_by_type "logs_archive_" "Logs Arquivados"; then
+        return 1
+    fi
+
+    echo ""
+    read -p "Digite o número do backup de logs que deseja restaurar: " choice
+
+    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/logs_archive_*.tar.gz* 2>/dev/null)
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#backups[@]} ]; then
+        error "Seleção inválida."
+        return 1
+    fi
+
+    local backup_to_restore="${backups[$((choice-1))]}"
+    local log_dir="${PROJECT_ROOT}/logs"
+
+    subsection "Restaurando Backup de Logs"
+    log "Backup selecionado: $(basename "$backup_to_restore")"
+    audit_log "RESTORE_LOGS_START" "Backup: $(basename "$backup_to_restore")"
+
+    warn "Esta operação irá sobrescrever o conteúdo do diretório de logs: $log_dir"
+    if ! confirm_operation "Deseja continuar com a restauração?"; then
+        log "Restauração de logs cancelada."
+        audit_log "RESTORE_LOGS_CANCEL" "User cancelled operation"
+        return 0
+    fi
+
+    progress "Extraindo logs do arquivo de arquivamento..."
+    # O arquivamento foi feito com -C, então os caminhos são relativos ao diretório de logs.
+    if tar -xzf "$backup_to_restore" -C "$log_dir/"; then
+        success "🎉 Logs restaurados com sucesso para o diretório '$log_dir'."
+        audit_log "RESTORE_LOGS_SUCCESS" "Successfully restored $(basename "$backup_to_restore")"
+    else
+        error "Falha ao extrair o arquivo de backup."
+        warn "O arquivo pode estar corrompido."
+        audit_log "RESTORE_LOGS_FAIL" "Failed to restore $(basename "$backup_to_restore")"
+        return 1
+    fi
+}
+
 # --- Menu Principal ---
 main() {
     while true; do
@@ -242,14 +284,20 @@ main() {
         section "Gerenciador de Restauração - Cluster AI"
         echo "1. 🖧 Restaurar um Worker Remoto para um novo dispositivo"
         echo "2. 🖥️ Restaurar Backup Local (Configurações, Modelos, etc.)"
+        echo "2. 🖥️ Restaurar Backup de Configurações Locais"
+        echo "3. 📜 Restaurar Logs a partir de um Arquivo"
         echo "---"
         echo "3. ↩️ Voltar ao menu principal"
         read -p "Selecione uma opção [1-3]: " choice
+        echo "0. ↩️ Voltar ao menu principal"
+        read -p "Selecione uma opção [0-3]: " choice
 
         case $choice in
             1) do_restore_remote_worker ;;
             2) do_restore_local_config ;;
             3) break ;;
+            3) do_restore_logs ;;
+            0) break ;;
             *) warn "Opção inválida." ;;
         esac
         read -p "Pressione Enter para continuar..."

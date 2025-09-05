@@ -29,6 +29,33 @@ if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
+# Função para validar IP
+validate_ip_address() {
+    local ip="$1"
+    if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Função para validar porta
+validate_port() {
+    local port="$1"
+    if [[ $port =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Função para sanitizar entrada (prevenir command injection)
+sanitize_input() {
+    local input="$1"
+    # Remover caracteres perigosos
+    echo "$input" | sed 's/[^a-zA-Z0-9._-]//g'
+}
+
 # Configurações padrão
 NODE_IP="${NODE_IP:-192.168.0.2}"
 DASK_SCHEDULER_PORT="${DASK_SCHEDULER_PORT:-8786}"
@@ -40,6 +67,47 @@ SECONDARY_IP="${NODE_IP_SECONDARY:-192.168.0.3}"
 SECONDARY_PORT="${DASK_SCHEDULER_SECONDARY_PORT:-8788}"
 
 LOG_FILE="${PROJECT_ROOT}/logs/firewall.log"
+
+# Função para logging de segurança
+firewall_security_log() {
+    local action="$1"
+    local details="$2"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] FIREWALL [$action] $details" >> "$LOG_FILE"
+}
+
+# Função para validar configurações críticas
+validate_firewall_config() {
+    local errors=0
+
+    log "Validando configurações do firewall..."
+
+    # Validar IPs
+    for ip_var in NODE_IP WORKER_MANJARO_IP SECONDARY_IP; do
+        local ip_value="${!ip_var}"
+        if ! validate_ip_address "$ip_value"; then
+            error "IP inválido para $ip_var: $ip_value"
+            ((errors++))
+        fi
+    done
+
+    # Validar portas
+    for port_var in DASK_SCHEDULER_PORT DASK_DASHBOARD_PORT OLLAMA_PORT OPENWEBUI_PORT SECONDARY_PORT; do
+        local port_value="${!port_var}"
+        if ! validate_port "$port_value"; then
+            error "Porta inválida para $port_var: $port_value"
+            ((errors++))
+        fi
+    done
+
+    if [ $errors -gt 0 ]; then
+        error "Encontradas $errors configurações inválidas. Abortando configuração do firewall."
+        exit 1
+    fi
+
+    success "Configurações validadas com sucesso."
+}
 
 # Função para detectar gerenciador de firewall
 detect_firewall_manager() {
@@ -54,9 +122,38 @@ detect_firewall_manager() {
     fi
 }
 
+# Função para configurar proteção contra ataques de força bruta
+configure_brute_force_protection() {
+    local firewall_type="$1"
+
+    log "Configurando proteção contra ataques de força bruta..."
+
+    case "$firewall_type" in
+        ufw)
+            # Limitar conexões SSH
+            sudo ufw limit ssh/tcp
+            firewall_security_log "BRUTE_FORCE_PROTECTION" "SSH rate limiting enabled"
+            ;;
+        firewalld)
+            # Adicionar rate limiting para SSH
+            sudo firewall-cmd --permanent --add-rich-rule="rule service name='ssh' limit value='10/m' accept"
+            firewall_security_log "BRUTE_FORCE_PROTECTION" "SSH rate limiting enabled"
+            ;;
+        iptables)
+            # Implementar rate limiting básico
+            sudo iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --set
+            sudo iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 4 -j DROP
+            firewall_security_log "BRUTE_FORCE_PROTECTION" "SSH rate limiting enabled"
+            ;;
+    esac
+}
+
 # Função para configurar UFW
 configure_ufw() {
     section "Configurando UFW Firewall"
+
+    # Validar configurações antes de prosseguir
+    validate_firewall_config
 
     log "Habilitando UFW..."
     sudo ufw --force enable
@@ -65,28 +162,40 @@ configure_ufw() {
     sudo ufw default deny incoming
     sudo ufw default allow outgoing
 
+    # Configurar proteção contra brute force
+    configure_brute_force_protection "ufw"
+
     log "Permitindo portas do Cluster AI..."
 
     # Portas do scheduler primário
     sudo ufw allow from "${WORKER_MANJARO_IP}" to any port "${DASK_SCHEDULER_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${WORKER_MANJARO_IP} -> port ${DASK_SCHEDULER_PORT} (TCP)"
     sudo ufw allow from "${SECONDARY_IP}" to any port "${DASK_SCHEDULER_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${SECONDARY_IP} -> port ${DASK_SCHEDULER_PORT} (TCP)"
 
     # Porta do dashboard
     sudo ufw allow from "${WORKER_MANJARO_IP}" to any port "${DASK_DASHBOARD_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${WORKER_MANJARO_IP} -> port ${DASK_DASHBOARD_PORT} (TCP)"
     sudo ufw allow from "${SECONDARY_IP}" to any port "${DASK_DASHBOARD_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${SECONDARY_IP} -> port ${DASK_DASHBOARD_PORT} (TCP)"
 
     # Porta do scheduler secundário
     sudo ufw allow from "${WORKER_MANJARO_IP}" to "${SECONDARY_IP}" port "${SECONDARY_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${WORKER_MANJARO_IP} -> ${SECONDARY_IP}:${SECONDARY_PORT} (TCP)"
     sudo ufw allow from "${NODE_IP}" to "${SECONDARY_IP}" port "${SECONDARY_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${NODE_IP} -> ${SECONDARY_IP}:${SECONDARY_PORT} (TCP)"
 
     # Porta do Ollama (apenas local)
     sudo ufw allow from 127.0.0.1 to any port "${OLLAMA_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow localhost -> port ${OLLAMA_PORT} (TCP)"
 
     # Porta do OpenWebUI
     sudo ufw allow from "${WORKER_MANJARO_IP}" to any port "${OPENWEBUI_PORT}" proto tcp
+    firewall_security_log "RULE_ADDED" "UFW: Allow ${WORKER_MANJARO_IP} -> port ${OPENWEBUI_PORT} (TCP)"
 
     # SSH (essencial para administração)
     sudo ufw allow ssh
+    firewall_security_log "RULE_ADDED" "UFW: Allow SSH from any"
 
     log "Recarregando UFW..."
     sudo ufw reload
@@ -208,6 +317,31 @@ show_firewall_status() {
     esac
 }
 
+# Função para detectar IPs suspeitos
+detect_suspicious_ips() {
+    section "Detectando IPs Suspeitos"
+
+    local suspicious_log="${PROJECT_ROOT}/logs/suspicious_ips.log"
+    local blocked_ips=0
+
+    # Verificar logs do sistema para tentativas de acesso suspeitas
+    if [ -f /var/log/auth.log ]; then
+        local suspicious_attempts
+        suspicious_attempts=$(grep -i "failed\|invalid\|unauthorized" /var/log/auth.log | grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' | sort | uniq -c | sort -nr | head -10)
+
+        if [ -n "$suspicious_attempts" ]; then
+            warn "Detectadas tentativas de acesso suspeitas:"
+            echo "$suspicious_attempts"
+
+            # Log dos IPs suspeitos
+            echo "$suspicious_attempts" >> "$suspicious_log"
+            firewall_security_log "SUSPICIOUS_IPS_DETECTED" "Multiple failed login attempts from various IPs"
+        fi
+    fi
+
+    success "Verificação de IPs suspeitos concluída."
+}
+
 # Função para testar conectividade
 test_connectivity() {
     section "Testando Conectividade do Firewall"
@@ -215,23 +349,32 @@ test_connectivity() {
     log "Testando conexão com scheduler primário..."
     if timeout 5 bash -c "echo >/dev/tcp/${NODE_IP}/${DASK_SCHEDULER_PORT}" 2>/dev/null; then
         success "✅ Scheduler primário acessível"
+        firewall_security_log "CONNECTIVITY_TEST" "Scheduler primary accessible on ${NODE_IP}:${DASK_SCHEDULER_PORT}"
     else
         warn "❌ Scheduler primário não acessível"
+        firewall_security_log "CONNECTIVITY_TEST" "Scheduler primary NOT accessible on ${NODE_IP}:${DASK_SCHEDULER_PORT}"
     fi
 
     log "Testando conexão com dashboard..."
     if timeout 5 bash -c "echo >/dev/tcp/${NODE_IP}/${DASK_DASHBOARD_PORT}" 2>/dev/null; then
         success "✅ Dashboard acessível"
+        firewall_security_log "CONNECTIVITY_TEST" "Dashboard accessible on ${NODE_IP}:${DASK_DASHBOARD_PORT}"
     else
         warn "❌ Dashboard não acessível"
+        firewall_security_log "CONNECTIVITY_TEST" "Dashboard NOT accessible on ${NODE_IP}:${DASK_DASHBOARD_PORT}"
     fi
 
     log "Testando conexão com Ollama (local)..."
     if timeout 5 bash -c "echo >/dev/tcp/127.0.0.1/${OLLAMA_PORT}" 2>/dev/null; then
         success "✅ Ollama acessível localmente"
+        firewall_security_log "CONNECTIVITY_TEST" "Ollama accessible locally on port ${OLLAMA_PORT}"
     else
         warn "❌ Ollama não acessível localmente"
+        firewall_security_log "CONNECTIVITY_TEST" "Ollama NOT accessible locally on port ${OLLAMA_PORT}"
     fi
+
+    # Executar detecção de IPs suspeitos
+    detect_suspicious_ips
 }
 
 # Função principal

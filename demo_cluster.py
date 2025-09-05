@@ -167,13 +167,13 @@ def demo_data_science():
             soma = array_grande.sum()
 
             logger.info(f"Média: {media.compute()}")
-            logger.info(f"Desvio padrão: {std.compute()}")
-            logger.info(f"Soma: {soma.compute()}")
+            logger.info(f"Desvio padrão: {std.compute():.4f}")
+            logger.info(f"Soma: {soma.compute():.4f}")
 
 
 def main():
     """Função principal"""
-    logger.info("🚀 INICIANDO DEMONSTRAÇÃO DO CLUSTER AI")
+    logger.info("🚀 INICIANDO DEMONSTRAÇÃO DO CLUSTER AI 🚀")
     logger.info("=" * 50)
 
     try:

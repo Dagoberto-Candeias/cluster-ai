@@ -39,6 +39,11 @@
 - [x] Verificação de IPs e portas
 - [x] Prevenção de registros duplicados
 - [x] Comunicação segura via SSH
+- [x] **Testes de segurança automatizados** (`tests/security/`)
+  - Testes de permissões de arquivos
+  - Validação de entrada e sanitização
+  - Testes de autenticação e controle de acesso
+  - Cobertura completa de vulnerabilidades comuns
 
 ### ✅ 5. Documentação Completa
 - [x] **Guia completo criado** (`PLUG_AND_PLAY_WORKERS_README.md`)

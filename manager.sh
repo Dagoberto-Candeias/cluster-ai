@@ -50,6 +50,47 @@ show_banner() {
     echo
 }
 
+# Inicia um processo em background, salva seu PID e log.
+# Uso: start_process <nome_serviço> <arquivo_pid> <comando> <arquivo_log>
+start_process() {
+    local service_name="$1"
+    local pid_file="$2"
+    local command_to_run="$3"
+    local log_file="$4"
+    local venv_path="${PROJECT_ROOT}/.venv"
+
+    # Verifica se o diretório de PID existe
+    mkdir -p "$(dirname "$pid_file")"
+
+    # Verifica se o processo já está rodando
+    if [ -f "$pid_file" ] && ps -p "$(cat "$pid_file")" > /dev/null; then
+        success "$service_name já está em execução (PID: $(cat "$pid_file"))."
+        return 0
+    fi
+
+    progress "Iniciando $service_name..."
+
+    # Ativa o ambiente virtual para executar o comando
+    source "${venv_path}/bin/activate"
+
+    # Executa o comando em background
+    nohup ${command_to_run} > "$log_file" 2>&1 &
+    local pid=$!
+
+    # Desativa o ambiente virtual
+    deactivate
+
+    # Salva o PID
+    echo "$pid" > "$pid_file"
+    sleep 2 # Dá um tempo para o processo iniciar
+
+    if ps -p "$pid" > /dev/null; then
+        success "$service_name iniciado com sucesso (PID: $pid)."
+    else
+        error "Falha ao iniciar $service_name. Verifique o log: $log_file"
+    fi
+}
+
 # =============================================================================
 # FUNÇÃO UNIFICADA DE STATUS
 # =============================================================================
@@ -200,6 +241,197 @@ show_status() {
     display_cluster_status "simple"
 }
 
+# Função para verificar o status de todos os workers (manuais e automáticos)
+check_all_workers_status() {
+    section "Verificando Status de Todos os Workers"
+
+    local remote_workers_conf="$HOME/.cluster_config/nodes_list.conf"
+    local auto_workers_conf="$HOME/.cluster_config/workers.conf"
+    local total_workers=0
+    local online_workers=0
+
+    # --- Processar workers manuais ---
+    if [ -f "$remote_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$remote_workers_conf" | grep -q .; then
+        subsection "Workers Manuais ($remote_workers_conf)"
+        
+        # Usar um loop while com process substitution para evitar subshell
+        while IFS= read -r line; do
+            local name ip user port status
+            read -r name ip user port status <<< "$line"
+            
+            ((total_workers++))
+            echo -n -e "  -> Testando ${YELLOW}$name${NC} ($user@$ip:$port)... "
+            
+            if ssh -o BatchMode=yes -o ConnectTimeout=5 -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
+                echo -e "${GREEN}ONLINE${NC}"
+                ((online_workers++))
+                sed -i "s/^\($name $ip $user $port\).*/\1 active/" "$remote_workers_conf"
+            else
+                echo -e "${RED}OFFLINE${NC}"
+                sed -i "s/^\($name $ip $user $port\).*/\1 inactive/" "$remote_workers_conf"
+            fi
+        done < <(grep -vE '^\s*#|^\s*$' "$remote_workers_conf")
+    fi
+
+    # --- Processar workers registrados automaticamente ---
+    if [ -f "$auto_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$auto_workers_conf" | grep -q .; then
+        subsection "Workers Registrados Automaticamente ($auto_workers_conf)"
+        
+        while IFS= read -r line; do
+            local name ip user port status timestamp
+            read -r name ip user port status timestamp <<< "$line"
+
+            ((total_workers++))
+            echo -n -e "  -> Testando ${YELLOW}$name${NC} ($user@$ip:$port)... "
+
+            if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
+                echo -e "${GREEN}ONLINE${NC}"
+                ((online_workers++))
+                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active $(date +%s)/" "$auto_workers_conf"
+            else
+                echo -e "${RED}OFFLINE${NC}"
+                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port inactive $(date +%s)/" "$auto_workers_conf"
+            fi
+        done < <(grep -vE '^\s*#|^\s*$' "$auto_workers_conf")
+    fi
+
+    subsection "Resumo da Verificação"
+    if [ $total_workers -eq 0 ]; then
+        warn "Nenhum worker configurado para verificação."
+    else
+        success "Verificação concluída: ${GREEN}$online_workers de $total_workers${NC} workers estão online."
+    fi
+}
+
+# --- Funções do Sub-menu de Informações do Sistema ---
+
+show_general_system_info() {
+    subsection "Informações Gerais do Sistema"
+    local os; os=$(detect_os)
+    local distro; distro=$(detect_linux_distro)
+    local arch; arch=$(detect_arch)
+    info "Sistema Operacional: $os"
+    info "Distribuição: $distro"
+    info "Arquitetura: $arch"
+    info "Hostname: $(hostname)"
+    info "Kernel: $(uname -r)"
+    info "Diretório do Projeto: $PROJECT_ROOT"
+}
+
+show_cpu_details() {
+    subsection "Detalhes da CPU"
+    if command_exists lscpu; then
+        lscpu | grep -E 'Architecture|CPU op-mode|CPU\(s\)|Model name|Vendor ID|CPU MHz|L1d cache|L1i cache|L2 cache|L3 cache'
+    else
+        warn "Comando 'lscpu' não encontrado. Mostrando informações de /proc/cpuinfo."
+        grep -E 'model name|vendor_id|cpu cores|cpu MHz' /proc/cpuinfo | uniq
+    fi
+}
+
+show_memory_details() {
+    subsection "Detalhes da Memória"
+    if command_exists free; then
+        info "Uso de Memória (free -h):"
+        free -h
+        echo
+    fi
+    if command_exists vmstat; then
+        info "Estatísticas de Memória Virtual (vmstat -s):"
+        vmstat -s | head -n 8
+    else
+        warn "Comandos 'free' ou 'vmstat' não encontrados."
+    fi
+}
+
+show_disk_details() {
+    subsection "Detalhes do Disco"
+    if command_exists df; then
+        info "Uso do Sistema de Arquivos (df -hT):"
+        df -hT --exclude-type=tmpfs --exclude-type=squashfs
+        echo
+    fi
+    if command_exists lsblk; then
+        info "Dispositivos de Bloco (lsblk):"
+        lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+    else
+         warn "Comandos 'df' ou 'lsblk' não encontrados."
+    fi
+}
+
+# Sub-menu para a opção "Informações do Sistema"
+show_system_info_submenu() {
+    while true; do
+        section "ℹ️  Informações do Sistema"
+        echo "1) Informações Gerais"
+        echo "2) Detalhes da CPU"
+        echo "3) Detalhes da Memória"
+        echo "4) Detalhes do Disco"
+        echo "5) Processos com Maior Consumo"
+        echo "0) Voltar ao Menu Principal"
+        echo
+
+        read -p "Digite sua opção: " choice
+
+        case $choice in
+            1) show_general_system_info ;;
+            2) show_cpu_details ;;
+            3) show_memory_details ;;
+            4) show_disk_details ;;
+            5)
+                local filter_user=""
+                local filter_command=""
+                while true; do
+                    show_top_processes "$filter_user" "$filter_command"
+                    echo
+                    if [ -n "$filter_user" ] || [ -n "$filter_command" ]; then
+                        echo -e "${YELLOW}Filtros ativos: [Usuário: ${filter_user:-nenhum}] [Comando: ${filter_command:-nenhum}]${NC}"
+                    fi
+                    echo "Opções:"
+                    echo "  'k' - Matar (kill) um processo"
+                    echo "  'f' - Filtrar a lista"
+                    echo "  'r' - Atualizar a lista"
+                    echo "  'c' - Limpar filtros"
+                    echo "  'q' - Voltar ao menu anterior"
+                    echo
+                    read -p "Digite sua opção [k/f/r/c/q]: " action
+
+                    case $action in
+                        k|K) kill_process_interactive ;;
+                        f|F)
+                            subsection "Filtrar Lista de Processos"
+                            read -p "Filtrar por nome de usuário (deixe em branco para ignorar): " filter_user
+                            read -p "Filtrar por nome de comando (deixe em branco para ignorar): " filter_command
+                            info "Filtros aplicados. A lista será atualizada."
+                            sleep 1
+                            ;;
+                        r|R)
+                            info "Atualizando lista..."
+                            sleep 1
+                            continue
+                            ;;
+                        c|C)
+                            if [ -n "$filter_user" ] || [ -n "$filter_command" ]; then
+                                filter_user=""
+                                filter_command=""
+                                success "Filtros removidos."
+                            else
+                                info "Nenhum filtro ativo para limpar."
+                            fi
+                            sleep 1
+                            ;;
+                        q|Q) break ;;
+                        *) error "Opção inválida." ;;
+                    esac
+                done
+                ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        echo
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
 # Menu principal
 show_menu() {
     subsection "Menu Principal"
@@ -213,81 +445,31 @@ show_menu() {
     echo " 4) 📈 Status Detalhado do Cluster"
     
     echo -e "\n${YELLOW}🔧 MANUTENÇÃO & DIAGNÓSTICO${NC}"
-    echo " 5) 🧹 Limpeza de Arquivos (Logs, PIDs)"
-    echo " 6)  Visualizar Logs do Sistema"
-    echo " 7) 🔄 Atualizar Sistema (Git Pull)"
-    echo " 8) 🧪 Executar Testes & Diagnóstico"
-    echo " 9) 💾 Backup e Restauração"
-    echo "10) 🗓️  Agendar Limpeza Automática (Cron)"
-    echo "11) 🧩 Instalar Dependências (openssl, pv)"
-    echo "18) 🔎 Executar Linter (Qualidade do Código)"
+    echo " 5) 🧹 Limpeza Geral (Logs, PIDs)"
+    echo " 6) ️ Arquivar Logs (Compacta e Limpa)"
+    echo " 7) 🧽 Limpar TODOS os Logs"
+    echo " 8) 🩺 Verificar Status dos Workers"
+    echo " 9) 📜 Visualizar Logs do Sistema"
+    echo "10) 🧪 Executar Testes & Diagnóstico"
+    echo "11) 🔎 Executar Linter (Qualidade do Código)"
+    echo "12) ℹ️  Informações do Sistema"
 
     echo -e "\n${PURPLE}⚙️ CONFIGURAÇÃO & FERRAMENTAS${NC}"
-    echo "12)  Configurar Workers (Remoto/Android)"
-    echo "13) 💻 Gerenciador VSCode"
-    echo "14) 🔒 Ferramentas de Segurança"
-    echo "15) ⚡ Otimizador de Performance"
-    echo "16) 📊 Monitor Central"
+    echo "13) 🧩 Instalar Dependências (openssl, pv)"
+    echo "14) 💾 Backup e Restauração"
+    echo "15) 🗓️  Agendar Limpeza Automática (Cron)"
+    echo "16) 🔄 Atualizar Sistema (Git Pull)"
+    echo "17) ⚙️  Configurar Workers (Remoto/Android)"
+    echo "18) ⚡ Otimizador de Performance"
+    echo "19) 💻 Gerenciador VSCode"
+    echo "20) 🔒 Ferramentas de Segurança"
+    echo "21) 📊 Monitor Central"
     
     echo -e "\n${BLUE}📚 AJUDA${NC}"
-    echo "17) 📚 Documentação (Em desenvolvimento)"
+    echo "22) 📚 Documentação (Em desenvolvimento)"
     echo
     echo "0) ❌ Sair"
     echo
-}
-
-# Inicia o cluster
-start_cluster() {
-    section "Iniciando Cluster AI"
-
-    # Verifica configuração
-    if ! file_exists "$CONFIG_FILE"; then
-        error "Arquivo de configuração não encontrado"
-        info "Execute ./install.sh primeiro"
-        return 1
-    fi
-
-    # Carrega configurações usando a nova função
-    DASK_SCHEDULER_PORT=$(get_config_value "dask" "scheduler_port" "$CONFIG_FILE" "8786")
-    OLLAMA_PORT=$(get_config_value "services" "ollama_port" "$CONFIG_FILE" "11434")
-    OPENWEBUI_PORT=$(get_config_value "services" "openwebui_port" "$CONFIG_FILE" "3000")
-
-
-    # Inicia Docker se necessário
-    if command_exists docker; then
-        progress "Iniciando Docker..."
-        sudo systemctl start docker 2>/dev/null || true
-    fi
-
-    # Inicia Dask
-    progress "Iniciando Dask..."
-    if ! is_port_open "$DASK_SCHEDULER_PORT"; then
-        # Aqui seria o comando para iniciar Dask
-        info "Dask scheduler seria iniciado na porta $DASK_SCHEDULER_PORT"
-    fi
-
-    # Inicia Ollama
-    progress "Iniciando Ollama..."
-    if ! is_port_open "$OLLAMA_PORT"; then
-        # Aqui seria o comando para iniciar Ollama
-        info "Ollama seria iniciado na porta $OLLAMA_PORT"
-    fi
-
-    # Inicia OpenWebUI
-    progress "Iniciando OpenWebUI..."
-    if ! is_port_open "$OPENWEBUI_PORT"; then
-        # Aqui seria o comando para iniciar OpenWebUI
-        info "OpenWebUI seria iniciado na porta $OPENWEBUI_PORT"
-    fi
-
-    # Inicia Nginx
-    progress "Iniciando Nginx..."
-    if command_exists nginx; then
-        sudo systemctl start nginx 2>/dev/null || true
-    fi
-
-    success "Cluster iniciado com sucesso!"
-    show_status
 }
 
 # Para um processo usando seu arquivo PID
@@ -331,28 +513,100 @@ stop_process_by_pid() {
     rm -f "$pid_file"
 }
 
+# Inicia o cluster
+start_cluster() {
+    section "Iniciando Cluster AI"
+    mkdir -p "${PROJECT_ROOT}/run" "${PROJECT_ROOT}/logs"
+
+    # Verifica configuração
+    if ! file_exists "$CONFIG_FILE"; then
+        error "Arquivo de configuração não encontrado: $CONFIG_FILE"
+        info "Execute ./install.sh primeiro"
+        return 1
+    fi
+
+    # Inicia o Cluster Dask usando o script Python unificado
+    # Este script gerencia o scheduler e os workers locais em um único processo.
+    local dask_cmd="python3 \"${PROJECT_ROOT}/scripts/dask/start_dask_cluster.py\" \"$PROJECT_ROOT\""
+    local dask_pid_file="${PROJECT_ROOT}/run/dask_cluster.pid"
+    start_process "Dask Cluster" "$dask_pid_file" "$dask_cmd" "${PROJECT_ROOT}/logs/dask_cluster.log"
+
+    # Inicia Ollama (como serviço systemd)
+    progress "Verificando serviço Ollama..."
+    if command_exists systemctl && sudo systemctl is-active --quiet ollama; then
+        success "Ollama já está ativo."
+    elif command_exists systemctl; then
+        progress "Iniciando serviço Ollama..."
+        sudo systemctl start ollama 2>/dev/null || warn "Falha ao iniciar serviço Ollama. Pode não estar instalado."
+    fi
+
+    # Inicia OpenWebUI (container Docker)
+    progress "Verificando container OpenWebUI..."
+    if command_exists docker; then
+        if sudo docker ps --format '{{.Names}}' | grep -q "^open-webui$"; then
+            success "Container OpenWebUI já está em execução."
+        elif sudo docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
+            progress "Iniciando container OpenWebUI parado..."
+            sudo docker start open-webui
+            success "Container OpenWebUI iniciado."
+        else
+            warn "Container OpenWebUI não encontrado. Execute 'setup_openwebui.sh' para criá-lo."
+        fi
+    else
+        warn "Docker não encontrado. Pulando verificação do OpenWebUI."
+    fi
+
+    # Inicia Nginx
+    progress "Verificando serviço Nginx..."
+    if command_exists nginx && command_exists systemctl; then
+        if sudo systemctl is-active --quiet nginx; then
+            success "Nginx já está ativo."
+        else
+            progress "Iniciando Nginx..."
+            sudo systemctl start nginx 2>/dev/null || true
+        fi
+    fi
+
+    echo
+    success "Comandos de inicialização do cluster enviados."
+    echo
+    show_status
+}
+
 # Para o cluster
 stop_cluster() {
     section "Parando Cluster AI"
 
     info "Parando todos os serviços gerenciados..."
 
-    # Para Dask Cluster usando seu PID
-    stop_process_by_pid "Dask Cluster" "${PROJECT_ROOT}/run/dask.pid"
+    # Para o Cluster Dask unificado
+    stop_process_by_pid "Dask Cluster" "${PROJECT_ROOT}/run/dask_cluster.pid"
+
+    # Para Ollama (serviço systemd)
+    if command_exists systemctl && sudo systemctl is-active --quiet ollama; then
+        progress "Parando serviço Ollama..."
+        sudo systemctl stop ollama
+        success "Serviço Ollama parado."
+    fi
+
+    # Para OpenWebUI (container Docker)
+    if command_exists docker && sudo docker ps --format '{{.Names}}' | grep -q "^open-webui$"; then
+        progress "Parando container OpenWebUI..."
+        sudo docker stop open-webui
+        success "Container OpenWebUI parado."
+    fi
 
     # Para Nginx
     if command_exists nginx && pgrep nginx >/dev/null; then
+        progress "Parando Nginx..."
         sudo systemctl stop nginx 2>/dev/null || true
         success "Nginx parado"
     fi
 
-    # Para containers Docker
-    if command_exists docker; then
-        docker stop $(docker ps -q) 2>/dev/null || true
-        success "Containers Docker parados"
-    fi
-
+    echo
     success "Cluster parado com sucesso!"
+    echo
+    show_status
 }
 
 # Reinicia o cluster
@@ -714,23 +968,27 @@ process_menu_choice() {
     case $choice in
         1) start_cluster ;;
         2) stop_cluster ;;
-        3) restart_cluster ;;
+        3) restart_cluster ;; # Corrigido para chamar a função correta
         "⚡") quick_start_cluster ;;
         4) show_detailed_status ;;
-        5) run_cleanup ;;
-        6) view_system_logs ;;
-        7) run_updater ;;
-        8) run_tests ;;
-        9) manage_backup_restore ;;
-        10) setup_cron_job ;;
-        11) install_dependencies ;;
-        12) configure_cluster ;;
-        13) manage_vscode ;;
-        14) manage_security ;;
-        15) run_optimizer ;;
-        16) start_monitor ;;
-        17) warn "Documentação - Em desenvolvimento" ;;
-        18) run_linter ;;
+        5) run_cleanup ;; # Limpeza geral
+        6) archive_logs ;;
+        7) clear_all_logs ;;
+        8) check_all_workers_status ;;
+        9) view_system_logs ;;
+        10) run_tests ;;
+        11) run_linter ;;
+        12) show_system_info_submenu ;;
+        13) install_dependencies ;;
+        14) manage_backup_restore ;;
+        15) setup_cron_job ;;
+        16) run_updater ;;
+        17) configure_cluster ;;
+        18) run_optimizer ;;
+        19) manage_vscode ;;
+        20) manage_security ;;
+        21) start_monitor ;;
+        22) warn "Documentação - Em desenvolvimento" ;;
         0)
             info "Gerenciador encerrado"
             return 1 # Sinaliza para sair do loop
@@ -783,6 +1041,10 @@ main() {
             show_detailed_status
             exit 0
             ;;
+        check-workers|workers-status)
+            check_all_workers_status
+            exit 0
+            ;;
         test)
             run_tests
             exit 0
@@ -822,7 +1084,17 @@ main() {
             run_cleanup
             exit 0
             ;;
+        cleanup-logs)
+            clear_all_logs
+            exit 0
+            ;;
+        archive-logs)
+            shift # remove 'archive-logs'
+            archive_logs "$@"
+            exit 0
+            ;;
         setup-cron)
+            # Renamed to manage_cron_jobs internally
             setup_cron_job
             exit 0
             ;;
@@ -846,11 +1118,11 @@ main() {
         display_cluster_status "simple"
         show_menu
 
-        read -p "Digite sua opção (0-17): " choice
+        read -p "Digite sua opção (0-22): " choice
 
         # Validação da entrada: deve ser um número ou '⚡'
-        if [[ ! "$choice" =~ ^([0-9]|1[0-8]|⚡)$ && "$choice" != "18" ]]; then
-            error "Opção inválida. Por favor, digite um número de 0 a 18 ou '⚡'."
+        if [[ ! "$choice" =~ ^([0-9]|1[0-9]|2[0-2]|⚡)$ ]]; then
+            error "Opção inválida. Por favor, digite um número de 0 a 22 ou '⚡'."
             sleep 2
         else
             # Processa a escolha e verifica se deve sair
@@ -953,6 +1225,204 @@ clear_specific_log() {
     fi
 }
 
+# Agenda a limpeza automática de logs usando cron
+# Agora é um menu para gerenciar todas as tarefas agendadas
+setup_cron_job() {
+    if ! command_exists crontab; then
+        error "Comando 'crontab' não encontrado. Não é possível agendar tarefas."
+        info "Instale o cliente cron do seu sistema (ex: sudo apt install cron)."
+        return 1
+    fi
+
+    while true; do
+        section "🗓️ Gerenciador de Tarefas Agendadas (Cron)"
+        echo "1) Agendar Arquivamento Semanal de Logs (Recomendado)"
+        echo "2) Agendar Limpeza Semanal de Logs"
+        echo "3) Remover Tarefa Agendada"
+        echo "4) Ver Tarefas Agendadas do Cluster AI"
+        echo "0) Voltar"
+        echo
+        read -p "Digite sua opção: " choice
+
+        case $choice in
+            1)
+                local archive_cmd="cd \"${PROJECT_ROOT}\" && ./manager.sh archive-logs --force >> \"${PROJECT_ROOT}/logs/cron_cleanup.log\" 2>&1"
+                local archive_schedule="0 3 * * 0" # Domingo às 3h
+                add_cron_job "Arquivamento Semanal de Logs" "$archive_cmd" "$archive_schedule"
+                ;;
+            2)
+                local cleanup_cmd="cd \"${PROJECT_ROOT}\" && ./manager.sh cleanup-logs --force >> \"${PROJECT_ROOT}/logs/cron_cleanup.log\" 2>&1"
+                local cleanup_schedule="0 4 * * 0" # Domingo às 4h
+                add_cron_job "Limpeza Semanal de Logs" "$cleanup_cmd" "$cleanup_schedule"
+                ;;
+            3)
+                remove_cron_job
+                ;;
+            4)
+                view_cron_jobs
+                ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
+# Função auxiliar para adicionar uma tarefa ao cron
+add_cron_job() {
+    local job_name="$1"
+    local cron_command="$2"
+    local cron_schedule="$3"
+    local cron_job="${cron_schedule} ${cron_command}"
+
+    subsection "Agendando: $job_name"
+
+    if crontab -l 2>/dev/null | grep -qF -- "$cron_command"; then
+        success "A tarefa '$job_name' já está agendada."
+        return
+    fi
+
+    if ! confirm_operation "Deseja adicionar a tarefa '$job_name' ao seu agendador?"; then
+        info "Agendamento cancelado."
+        return
+    fi
+
+    (crontab -l 2>/dev/null; echo "# Tarefa do Cluster AI: $job_name"; echo "$cron_job") | crontab -
+
+    if crontab -l | grep -qF -- "$cron_command"; then
+        success "🎉 Tarefa '$job_name' agendada com sucesso!"
+    else
+        error "Falha ao agendar a tarefa '$job_name'."
+    fi
+}
+
+# Função auxiliar para remover uma tarefa do cron
+remove_cron_job() {
+    subsection "Removendo Tarefa Agendada"
+    local cron_jobs
+    mapfile -t cron_jobs < <(crontab -l 2>/dev/null | grep 'Cluster AI')
+
+    if [ ${#cron_jobs[@]} -eq 0 ]; then
+        warn "Nenhuma tarefa do Cluster AI encontrada para remover."
+        return
+    fi
+
+    info "Selecione a tarefa para remover:"
+    select job in "${cron_jobs[@]}" "Cancelar"; do
+        if [[ "$job" == "Cancelar" ]]; then
+            info "Remoção cancelada."
+            break
+        elif [ -n "$job" ]; then
+            (crontab -l | grep -vF "$job") | crontab -
+            success "Tarefa removida com sucesso."
+            break
+        else
+            error "Seleção inválida."
+        fi
+    done
+}
+
+# Função para visualizar tarefas agendadas
+view_cron_jobs() {
+    subsection "Tarefas Agendadas do Cluster AI"
+    if ! crontab -l 2>/dev/null | grep -q 'Cluster AI'; then
+        warn "Nenhuma tarefa do Cluster AI agendada."
+    else
+        crontab -l | grep --color=always -E 'Cluster AI|$'
+    fi
+}
+
+# Limpa todos os arquivos de log
+clear_all_logs() {
+    local force_mode=false
+    if [[ "$1" == "--force" ]]; then
+        force_mode=true
+    fi
+
+    section "🧽 Limpeza de Todos os Logs"
+    local log_dir="${PROJECT_ROOT}/logs"
+
+    if [ ! -d "$log_dir" ]; then
+        warn "Diretório de logs não encontrado em '$log_dir'."
+        return 1
+    fi
+
+    # Usar find para ser mais robusto com nomes de arquivos
+    local log_files
+    mapfile -t log_files < <(find "$log_dir" -maxdepth 1 -type f -name "*.log")
+
+    if [ ${#log_files[@]} -eq 0 ]; then
+        success "Nenhum arquivo .log para limpar em '$log_dir'."
+        return 0
+    fi
+
+    info "Os seguintes arquivos de log serão ESVAZIADOS (não removidos):"
+    for file in "${log_files[@]}"; do
+        echo "  - $(basename "$file") ($(du -h "$file" | cut -f1))"
+    done
+    echo
+
+    if [[ "$force_mode" == true ]] || confirm_operation "Você tem certeza que deseja limpar todos esses logs?"; then
+        progress "Limpando logs..."
+        for file in "${log_files[@]}"; do
+            > "$file"
+        done
+        success "Todos os arquivos de log foram limpos."
+    else
+        info "Operação de limpeza cancelada."
+    fi
+}
+
+# Arquiva e limpa todos os arquivos de log
+archive_logs() {
+    local force_mode=false
+    if [[ "$1" == "--force" ]]; then
+        force_mode=true
+    fi
+
+    section "🗄️ Arquivamento de Logs"
+    local log_dir="${PROJECT_ROOT}/logs"
+    local backup_dir="${PROJECT_ROOT}/backups"
+    mkdir -p "$backup_dir"
+
+    if [ ! -d "$log_dir" ]; then
+        warn "Diretório de logs não encontrado em '$log_dir'."
+        return 1
+    fi
+
+    local log_files
+    mapfile -t log_files < <(find "$log_dir" -maxdepth 1 -type f -name "*.log")
+
+    if [ ${#log_files[@]} -eq 0 ]; then
+        success "Nenhum arquivo .log para arquivar em '$log_dir'."
+        return 0
+    fi
+
+    local archive_name="logs_archive_$(date +%Y-%m-%d_%H%M%S).tar.gz"
+    local archive_path="${backup_dir}/${archive_name}"
+
+    info "Os seguintes arquivos de log serão arquivados e depois limpos:"
+    for file in "${log_files[@]}"; do
+        echo "  - $(basename "$file") ($(du -h "$file" | cut -f1))"
+    done
+    echo
+    info "O arquivo de arquivamento será salvo em: ${backup_dir}/${archive_name}"
+
+    if [[ "$force_mode" == true ]] || confirm_operation "Você tem certeza que deseja arquivar e limpar esses logs?"; then
+        progress "Criando arquivo de arquivamento..."
+        if tar -czf "$archive_path" -C "$log_dir" $(for file in "${log_files[@]}"; do echo "$(basename "$file")"; done); then
+            success "Arquivo de arquivamento criado com sucesso: $archive_path"
+            progress "Limpando arquivos de log originais..."
+            for file in "${log_files[@]}"; do > "$file"; done
+            success "Arquivos de log originais foram limpos."
+        else
+            error "Falha ao criar o arquivo de arquivamento. Os logs não foram limpos."
+        fi
+    else
+        info "Operação de arquivamento cancelada."
+    fi
+}
+
 # Visualiza logs do sistema
 view_system_logs() {
     section "📋 Visualizador de Logs do Sistema"
@@ -960,7 +1430,7 @@ view_system_logs() {
     while true; do
         subsection "Selecione o log que deseja visualizar"
         echo "1) Log de Ativação do Servidor (server_activation.log)"
-        echo "2) Log do Cluster Dask (dask_cluster.log)"
+        echo "2) 🚀 Log Principal do Cluster Dask (dask_cluster.log)"
         echo "3) Log do Ollama (via journalctl ou docker)"
         echo "4) Log do OpenWebUI (via docker)"
         echo "5) Log de Limpeza Automática (cron_cleanup.log)"
@@ -978,7 +1448,7 @@ view_system_logs() {
 
         case $choice in
             1) log_file="${PROJECT_ROOT}/logs/server_activation.log" ;;
-            2) log_file="${PROJECT_ROOT}/logs/dask_cluster.log" ;;
+            2) log_file="${PROJECT_ROOT}/logs/dask_cluster.log" ;; # Log principal do Dask
             3)
                 if command_exists journalctl && sudo journalctl -u ollama -n 1 >/dev/null 2>&1; then
                     log_cmd="sudo journalctl -u ollama -f -n 200"
