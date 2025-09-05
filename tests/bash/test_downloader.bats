@@ -4,8 +4,8 @@
 # Testes para o script downloader.sh, com mocking do comando curl.
 
 setup_file() {
-    load "$BATS_TEST_DIRNAME/../libs/bats-support/load.bash"
-    load "$BATS_TEST_DIRNAME/../libs/bats-assert/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-support/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-assert/load.bash"
 
     # Cria um diretório temporário para os "downloads"
     TEST_DIR="$(mktemp -d)"

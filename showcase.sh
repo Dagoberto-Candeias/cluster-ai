@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # 🎯 SCRIPT DE SHOWCASE UNIFICADO - CLUSTER AI
-# Ponto de entrada único para demonstrar todas as funcionalidades do sistema.
+# Ponto de entrada para demonstrar as funcionalidades do sistema.
 #
 
 set -euo pipefail
@@ -119,7 +119,7 @@ show_main_banner() {
 ║                                                              ║
 ║           🎯 SHOWCASE UNIFICADO - CLUSTER AI 🎯              ║
 ║                                                              ║
-║      Explore todas as funcionalidades inteligentes do        ║
+║      Explore as funcionalidades inteligentes do              ║
 ║      nosso sistema de forma organizada e interativa.         ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝

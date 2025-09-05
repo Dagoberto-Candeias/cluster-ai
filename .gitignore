@@ -147,3 +147,4 @@ run/
 *.p8
 *.jks
 *.keystore
+*.pyc

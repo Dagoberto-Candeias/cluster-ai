@@ -6,8 +6,8 @@
 setup() {
     # Carrega as bibliotecas de asserção e suporte do BATS.
     # O caminho é relativo ao diretório do arquivo de teste.
-    load "$BATS_TEST_DIRNAME/../libs/bats-support/load.bash"
-    load "$BATS_TEST_DIRNAME/../libs/bats-assert/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-support/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-assert/load.bash"
 
     # Carrega o script que contém as funções a serem testadas.
     # É importante carregar a biblioteca de funções comuns primeiro, pois manager.sh depende dela.

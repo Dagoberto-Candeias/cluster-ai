@@ -5,8 +5,8 @@
 
 setup() {
     # Carrega as bibliotecas de asserção
-    load "$BATS_TEST_DIRNAME/../libs/bats-support/load.bash"
-    load "$BATS_TEST_DIRNAME/../libs/bats-assert/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-support/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-assert/load.bash"
 
     # O script a ser testado
     SCRIPT_TO_TEST="$BATS_TEST_DIRNAME/../../scripts/utils/set_cluster_env.sh"

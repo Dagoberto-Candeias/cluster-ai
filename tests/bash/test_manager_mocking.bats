@@ -5,8 +5,8 @@
 
 setup() {
     # Carrega as bibliotecas de asserção
-    load "$BATS_TEST_DIRNAME/../libs/bats-support/load.bash"
-    load "$BATS_TEST_DIRNAME/../libs/bats-assert/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-support/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-assert/load.bash"
 
     # Carrega as funções do manager e suas dependências
     source "$BATS_TEST_DIRNAME/../../scripts/lib/common.sh"

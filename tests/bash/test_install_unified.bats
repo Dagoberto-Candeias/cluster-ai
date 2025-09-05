@@ -5,16 +5,16 @@
 
 setup() {
     # Carrega as bibliotecas de asserção e suporte do BATS, que foram adicionadas como submódulos.
-    load "$BATS_TEST_DIRNAME/../libs/bats-support/load.bash"
-    load "$BATS_TEST_DIRNAME/../libs/bats-assert/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-support/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-assert/load.bash"
+
+    # Define uma variável de projeto raiz para o teste
+    export PROJECT_ROOT="/tmp/test_project"
+    mkdir -p "$PROJECT_ROOT"
 
     # Carrega o script que queremos testar.
     # Isso torna as funções do script disponíveis para os testes.
     source "$BATS_TEST_DIRNAME/../../install_unified.sh"
-
-    # Define uma variável de projeto raiz para o teste
-    PROJECT_ROOT="/tmp/test_project"
-    mkdir -p "$PROJECT_ROOT"
 }
 
 teardown() {

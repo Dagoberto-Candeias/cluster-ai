@@ -6,8 +6,8 @@
 setup_file() {
     # Esta função é executada UMA VEZ antes de todos os testes neste arquivo.
     # Ideal para setups caros e que não mudam entre os testes.
-    load "$BATS_TEST_DIRNAME/../libs/bats-support/load.bash"
-    load "$BATS_TEST_DIRNAME/../libs/bats-assert/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-support/load.bash"
+    load "$BATS_TEST_DIRNAME/libs/bats-assert/load.bash"
 
     # 1. Cria o ambiente de teste temporário UMA VEZ.
     TEST_ROOT="$(mktemp -d)"

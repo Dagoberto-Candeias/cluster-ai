@@ -17,6 +17,7 @@ set -euo pipefail  # Modo estrito: para em erros, variáveis não definidas e fa
 # Carrega funções comuns
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR" # Assumindo que manager.sh está na raiz
+CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
 source "${SCRIPT_DIR}/scripts/lib/common.sh"
 
 # Função de log adicional (se não estiver definida em common.sh)
@@ -35,6 +36,66 @@ confirm_operation() {
         return 1
     fi
 }
+# =============================================================================
+# FUNÇÕES DE GERENCIAMENTO DE SERVIÇOS
+# =============================================================================
+
+# Gerencia um serviço systemd (start, stop)
+# Uso: manage_systemd_service <start|stop> <nome_serviço>
+manage_systemd_service() {
+    local action="$1"
+    local service="$2"
+
+    if ! command_exists systemctl; then
+        return 1
+    fi
+
+    case "$action" in
+        start)
+            if ! sudo systemctl is-active --quiet "$service"; then
+                progress "Iniciando serviço $service..."
+                sudo systemctl start "$service" 2>/dev/null || warn "Falha ao iniciar serviço $service. Pode não estar instalado."
+            fi
+            ;;
+        stop)
+            if sudo systemctl is-active --quiet "$service"; then
+                progress "Parando serviço $service..."
+                sudo systemctl stop "$service"
+            fi
+            ;;
+    esac
+}
+
+# Gerencia um container Docker (start, stop)
+# Uso: manage_docker_container <start|stop> <nome_container>
+manage_docker_container() {
+    local action="$1"
+    local container="$2"
+
+    if ! command_exists docker; then
+        return 1
+    fi
+
+    case "$action" in
+        start)
+            if ! sudo docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
+                if sudo docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+                    progress "Iniciando container $container parado..."
+                    sudo docker start "$container"
+                else
+                    warn "Container $container não encontrado. Execute o script de setup apropriado."
+                fi
+            fi
+            ;;
+        stop)
+            if sudo docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
+                progress "Parando container $container..."
+                sudo docker stop "$container"
+            fi
+            ;;
+    esac
+}
+
 # =============================================================================
 # FUNÇÕES DO GERENCIADOR
 # =============================================================================
@@ -140,7 +201,7 @@ display_cluster_status() {
     (is_port_open "$DASK_DASHBOARD_PORT" && success "📈 Dask Dashboard: Ativo (porta $DASK_DASHBOARD_PORT)") || warn "📈 Dask Dashboard: Inativo"
     (is_port_open "$OLLAMA_PORT" && success "🧠 Ollama: Ativo (porta $OLLAMA_PORT)") || warn "🧠 Ollama: Inativo"
     (is_port_open "$OPENWEBUI_PORT" && success "🌐 OpenWebUI: Ativo (porta $OPENWEBUI_PORT)") || warn "🌐 OpenWebUI: Inativo"
-    (command_exists nginx && pgrep nginx >/dev/null && success "🌐 Nginx: Ativo") || warn "🌐 Nginx: Inativo"
+    (command_exists nginx && command_exists systemctl && sudo systemctl is-active --quiet nginx && success "🌐 Nginx: Ativo") || warn "🌐 Nginx: Inativo"
     echo
 
     # --- Seções Detalhadas ---
@@ -170,75 +231,6 @@ display_cluster_status() {
     else
         info "Para mais detalhes, use: ./manager.sh status"
     fi
-}
-
-# Exibe status do cluster
-show_status() {
-    section "Status do Cluster"
-
-    # Verifica se configuração existe
-    if ! file_exists "$CONFIG_FILE"; then
-        warn "Arquivo de configuração não encontrado: $CONFIG_FILE"
-        info "Execute ./install.sh primeiro"
-        return 1
-    fi
-
-    # Carrega configurações usando a nova função
-    DASK_SCHEDULER_PORT=$(get_config_value "dask" "scheduler_port" "$CONFIG_FILE" "8786")
-    DASK_DASHBOARD_PORT=$(get_config_value "dask" "dashboard_port" "$CONFIG_FILE" "8787")
-    OLLAMA_PORT=$(get_config_value "services" "ollama_port" "$CONFIG_FILE" "11434")
-    OPENWEBUI_PORT=$(get_config_value "services" "openwebui_port" "$CONFIG_FILE" "3000")
-
-    info "Configurações carregadas do formato INI."
-
-    # Status dos serviços
-    echo "🔍 Verificando serviços..."
-    echo
-
-    # Docker
-    if command_exists docker && docker info >/dev/null 2>&1; then
-        success "🐳 Docker: Ativo"
-    else
-        error "🐳 Docker: Inativo"
-    fi
-
-    # Dask Scheduler
-    if is_port_open "$DASK_SCHEDULER_PORT"; then
-        success "📊 Dask Scheduler: Ativo (porta $DASK_SCHEDULER_PORT)"
-    else
-        warn "📊 Dask Scheduler: Inativo"
-    fi
-
-    # Dask Dashboard
-    if is_port_open "$DASK_DASHBOARD_PORT"; then
-        success "📈 Dask Dashboard: Ativo (porta $DASK_DASHBOARD_PORT)"
-    else
-        warn "📈 Dask Dashboard: Inativo"
-    fi
-
-    # Ollama
-    if is_port_open "$OLLAMA_PORT"; then
-        success "🧠 Ollama: Ativo (porta $OLLAMA_PORT)"
-    else
-        warn "🧠 Ollama: Inativo"
-    fi
-
-    # OpenWebUI
-    if is_port_open "$OPENWEBUI_PORT"; then
-        success "🌐 OpenWebUI: Ativo (porta $OPENWEBUI_PORT)"
-    else
-        warn "🌐 OpenWebUI: Inativo"
-    fi
-
-    # Nginx
-    if command_exists nginx && pgrep nginx >/dev/null; then
-        success "🌐 Nginx: Ativo"
-    else
-        warn "🌐 Nginx: Inativo"
-    fi
-
-    echo
-    display_cluster_status "simple"
 }
 
 # Função para verificar o status de todos os workers (manuais e automáticos)
@@ -441,32 +433,35 @@ show_menu() {
     echo " 1) ▶️  Iniciar Cluster"
     echo " 2) ⏹️  Parar Cluster"
     echo " 3) 🔄 Reiniciar Cluster"
-    echo " ⚡) Quick Start (Ativa servidor, rede e monitor)"
+    echo " ⚡) Quick-Start (Ativa servidor, rede e monitor)"
     echo " 4) 📈 Status Detalhado do Cluster"
     
     echo -e "\n${YELLOW}🔧 MANUTENÇÃO & DIAGNÓSTICO${NC}"
     echo " 5) 🧹 Limpeza Geral (Logs, PIDs)"
     echo " 6) ️ Arquivar Logs (Compacta e Limpa)"
     echo " 7) 🧽 Limpar TODOS os Logs"
-    echo " 8) 🩺 Verificar Status dos Workers"
-    echo " 9) 📜 Visualizar Logs do Sistema"
-    echo "10) 🧪 Executar Testes & Diagnóstico"
-    echo "11) 🔎 Executar Linter (Qualidade do Código)"
-    echo "12) ℹ️  Informações do Sistema"
+    echo " 8) 🧼 Limpar .bashrc (Remove configs obsoletas)"
+    echo " 9) ✅ Verificar Integridade da Refatoração"
+    echo "10)  Verificar .bashrc (Busca configs obsoletas)"
+    echo "11) 🩺 Verificar Status dos Workers"
+    echo "12) 📜 Visualizar Logs do Sistema"
+    echo "13) 🧪 Executar Testes & Diagnóstico"
+    echo "14) 🔎 Executar Linter (Qualidade do Código)"
+    echo "15) ℹ️  Informações do Sistema"
 
     echo -e "\n${PURPLE}⚙️ CONFIGURAÇÃO & FERRAMENTAS${NC}"
-    echo "13) 🧩 Instalar Dependências (openssl, pv)"
-    echo "14) 💾 Backup e Restauração"
-    echo "15) 🗓️  Agendar Limpeza Automática (Cron)"
-    echo "16) 🔄 Atualizar Sistema (Git Pull)"
-    echo "17) ⚙️  Configurar Workers (Remoto/Android)"
-    echo "18) ⚡ Otimizador de Performance"
-    echo "19) 💻 Gerenciador VSCode"
-    echo "20) 🔒 Ferramentas de Segurança"
-    echo "21) 📊 Monitor Central"
+    echo "16) 🧩 Instalar Dependências (openssl, pv)"
+    echo "17) 💾 Backup e Restauração"
+    echo "18) 🗓️  Agendar Limpeza Automática (Cron)"
+    echo "19) 🔄 Atualizar Sistema (Git Pull)"
+    echo "20) ⚙️  Configurar Workers (Remoto/Automático)"
+    echo "21) ⚡ Otimizador de Performance"
+    echo "22) 💻 Gerenciador VSCode"
+    echo "23) 🔒 Ferramentas de Segurança"
+    echo "24) 📊 Monitor Central"
     
     echo -e "\n${BLUE}📚 AJUDA${NC}"
-    echo "22) 📚 Documentação (Em desenvolvimento)"
+    echo "25) 📚 Documentação (Em desenvolvimento)"
     echo
     echo "0) ❌ Sair"
     echo
@@ -525,76 +520,33 @@ start_cluster() {
         return 1
     fi
 
-    # Inicia o Cluster Dask usando o script Python unificado
-    # Este script gerencia o scheduler e os workers locais em um único processo.
+    # Inicia Dask (gerenciado por PID)
     local dask_cmd="python3 \"${PROJECT_ROOT}/scripts/dask/start_dask_cluster.py\" \"$PROJECT_ROOT\""
     local dask_pid_file="${PROJECT_ROOT}/run/dask_cluster.pid"
     start_process "Dask Cluster" "$dask_pid_file" "$dask_cmd" "${PROJECT_ROOT}/logs/dask_cluster.log"
 
-    # Inicia Ollama (como serviço systemd)
-    progress "Verificando serviço Ollama..."
-    if command_exists systemctl && sudo systemctl is-active --quiet ollama; then
-        success "Ollama já está ativo."
-    elif command_exists systemctl; then
-        progress "Iniciando serviço Ollama..."
-        sudo systemctl start ollama 2>/dev/null || warn "Falha ao iniciar serviço Ollama. Pode não estar instalado."
-    fi
-
-    # Inicia OpenWebUI (container Docker)
-    progress "Verificando container OpenWebUI..."
-    if command_exists docker; then
-        if sudo docker ps --format '{{.Names}}' | grep -q "^open-webui$"; then
-            success "Container OpenWebUI já está em execução."
-        elif sudo docker ps -a --format '{{.Names}}' | grep -q "^open-webui$"; then
-            progress "Iniciando container OpenWebUI parado..."
-            sudo docker start open-webui
-            success "Container OpenWebUI iniciado."
-        else
-            warn "Container OpenWebUI não encontrado. Execute 'setup_openwebui.sh' para criá-lo."
-        fi
-    else
-        warn "Docker não encontrado. Pulando verificação do OpenWebUI."
-    fi
-
-    # Inicia Nginx
-    progress "Verificando serviço Nginx..."
-    if command_exists nginx && command_exists systemctl; then
-        if sudo systemctl is-active --quiet nginx; then
-            success "Nginx já está ativo."
-        else
-            progress "Iniciando Nginx..."
-            sudo systemctl start nginx 2>/dev/null || true
-        fi
-    fi
+    # Inicia serviços systemd e Docker
+    manage_systemd_service "start" "ollama"
+    manage_docker_container "start" "open-webui"
+    manage_systemd_service "start" "nginx"
 
     echo
     success "Comandos de inicialização do cluster enviados."
     echo
-    show_status
+    display_cluster_status "simple"
 }
-
 # Para o cluster
 stop_cluster() {
     section "Parando Cluster AI"
 
     info "Parando todos os serviços gerenciados..."
 
-    # Para o Cluster Dask unificado
+    # Para Dask (gerenciado por PID)
     stop_process_by_pid "Dask Cluster" "${PROJECT_ROOT}/run/dask_cluster.pid"
 
-    # Para Ollama (serviço systemd)
-    if command_exists systemctl && sudo systemctl is-active --quiet ollama; then
-        progress "Parando serviço Ollama..."
-        sudo systemctl stop ollama
-        success "Serviço Ollama parado."
-    fi
-
-    # Para OpenWebUI (container Docker)
-    if command_exists docker && sudo docker ps --format '{{.Names}}' | grep -q "^open-webui$"; then
-        progress "Parando container OpenWebUI..."
-        sudo docker stop open-webui
-        success "Container OpenWebUI parado."
-    fi
+    # Para serviços systemd e Docker
+    manage_systemd_service "stop" "ollama"
+    manage_docker_container "stop" "open-webui"
 
     # Para Nginx
     if command_exists nginx && pgrep nginx >/dev/null; then
@@ -606,7 +558,7 @@ stop_cluster() {
     echo
     success "Cluster parado com sucesso!"
     echo
-    show_status
+    display_cluster_status "simple"
 }
 
 # Reinicia o cluster
@@ -968,29 +920,32 @@ process_menu_choice() {
     case $choice in
         1) start_cluster ;;
         2) stop_cluster ;;
-        3) restart_cluster ;; # Corrigido para chamar a função correta
+        3) restart_cluster ;;
         "⚡") quick_start_cluster ;;
         4) show_detailed_status ;;
         5) run_cleanup ;; # Limpeza geral
         6) archive_logs ;;
         7) clear_all_logs ;;
-        8) check_all_workers_status ;;
-        9) view_system_logs ;;
-        10) run_tests ;;
-        11) run_linter ;;
-        12) show_system_info_submenu ;;
-        13) install_dependencies ;;
-        14) manage_backup_restore ;;
-        15) setup_cron_job ;;
-        16) run_updater ;;
-        17) configure_cluster ;;
-        18) run_optimizer ;;
-        19) manage_vscode ;;
-        20) manage_security ;;
-        21) start_monitor ;;
-        22) warn "Documentação - Em desenvolvimento" ;;
+        8) run_bashrc_cleanup ;;
+        9) run_refactoring_verification ;;
+        10) run_bashrc_check ;;
+        11) check_all_workers_status ;;
+        12) view_system_logs ;;
+        13) run_tests ;;
+        14) run_linter ;;
+        15) show_system_info_submenu ;;
+        16) install_dependencies ;;
+        17) manage_backup_restore ;;
+        18) setup_cron_job ;;
+        19) run_updater ;;
+        20) configure_cluster ;;
+        21) run_optimizer ;;
+        22) manage_vscode ;;
+        23) manage_security ;;
+        24) start_monitor ;;
+        25) warn "Documentação - Em desenvolvimento" ;;
         0)
-            info "Gerenciador encerrado"
+            success "Gerenciador encerrado."
             return 1 # Sinaliza para sair do loop
             ;;
     esac
@@ -1076,7 +1031,7 @@ main() {
             exit 0
             ;;
         security)
-            manage_security
+            manage_security "$@"
             exit 0
             ;;
         cleanup)
@@ -1118,11 +1073,11 @@ main() {
         display_cluster_status "simple"
         show_menu
 
-        read -p "Digite sua opção (0-22): " choice
-
+        read -p "Digite sua opção (0-25): " choice
+        
         # Validação da entrada: deve ser um número ou '⚡'
-        if [[ ! "$choice" =~ ^([0-9]|1[0-9]|2[0-2]|⚡)$ ]]; then
-            error "Opção inválida. Por favor, digite um número de 0 a 22 ou '⚡'."
+        if [[ ! "$choice" =~ ^([0-9]|1[0-9]|2[0-5]|⚡)$ ]]; then
+            error "Opção inválida. Por favor, digite um número de 0 a 25 ou '⚡'."
             sleep 2
         else
             # Processa a escolha e verifica se deve sair
@@ -1656,11 +1611,9 @@ EOF
 
                 # Adicionar ao arquivo
                 echo "$worker_name $worker_ip $worker_user $worker_port active" >> "$config_file"
-                success "Worker '$worker_name' adicionado à configuração"
-                ;;
-            2)
-                # ... (código anterior) ...
                 success "Worker '$worker_name' adicionado à configuração."
+
+                # Testa a conexão imediatamente para dar feedback ao usuário
                 test_worker_connection_interactive "$worker_name" "$worker_ip" "$worker_user" "$worker_port" "$config_file"
                 ;;
             3)

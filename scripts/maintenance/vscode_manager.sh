@@ -1,311 +1,200 @@
 #!/bin/bash
+# Local: scripts/maintenance/vscode_manager.sh
+# Autor: Dagoberto Candeias <betoallnet@gmail.com>
 
-# Gerenciador Completo de Performance do VSCode
-# Interface unificada para todos os recursos de otimização
+# =============================================================================
+# Cluster AI - Gerenciador Unificado do VSCode
+# =============================================================================
+# Centraliza todas as operações de diagnóstico, reparo e otimização para
+# resolver problemas de travamento, lentidão e uso excessivo de recursos.
 
-set -e
+set -euo pipefail
 
+# Carrega funções comuns
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+source "${SCRIPT_DIR}/../lib/common.sh"
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# =============================================================================
+# FUNÇÕES DE OPERAÇÃO
+# =============================================================================
 
-# Função de logging colorido
-log() {
-    echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"
-}
+show_vscode_status() {
+    subsection "🔍 Status do Ambiente VSCode"
 
-error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
-}
-
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-# Verificar dependências
-check_dependencies() {
-    local missing_deps=()
-
-    if ! command -v code >/dev/null 2>&1; then
-        missing_deps+=("VSCode (code)")
-    fi
-
-    if ! command -v jq >/dev/null 2>&1; then
-        missing_deps+=("jq")
-    fi
-
-    if [ ${#missing_deps[@]} -gt 0 ]; then
-        error "Dependências faltando: ${missing_deps[*]}"
-        return 1
-    fi
-
-    return 0
-}
-
-# Mostrar status do sistema
-show_status() {
-    log "=== Status do Sistema VSCode ==="
-
-    # Verificar se VSCode está rodando
-    if pgrep -f "code" >/dev/null 2>&1; then
-        info "VSCode: Rodando"
-
-        # Obter informações de performance
-        local pid mem_usage cpu_usage open_files
-        pid=$(pgrep -f "code" | head -1)
-        mem_usage=$(ps -p "$pid" -o pmem= 2>/dev/null | tr -d ' ' | head -1)
-        cpu_usage=$(ps -p "$pid" -o pcpu= 2>/dev/null | tr -d ' ' | head -1)
-        open_files=$(lsof -p "$pid" 2>/dev/null | wc -l)
-
-        info "PID: $pid"
-        info "Memória: ${mem_usage}%"
-        info "CPU: ${cpu_usage}%"
-        info "Arquivos abertos: $open_files"
+    # 1. Verificar processos
+    info "Verificando processos do VSCode..."
+    if pgrep -af "code" >/dev/null; then
+        success "VSCode está em execução."
+        echo "Processos encontrados:"
+        pgrep -af "code" | awk '{print "  - PID:", $1, "CMD:", $2, $3, $4}' | head -n 5
+        echo "  - Total: $(pgrep -af "code" | wc -l) processos."
     else
-        warn "VSCode: Parado"
+        warn "VSCode não está em execução."
     fi
+    echo
 
-    # Verificar auto-recuperação
-    if [ -f "/tmp/vscode_auto_recovery.pid" ]; then
-        local recovery_pid
-        recovery_pid=$(cat "/tmp/vscode_auto_recovery.pid")
-        if ps -p "$recovery_pid" >/dev/null 2>&1; then
-            info "Auto-recuperação: Ativa (PID: $recovery_pid)"
-        else
-            warn "Auto-recuperação: PID file existe mas processo parado"
-        fi
+    # 2. Verificar uso de recursos
+    info "Uso de memória e CPU (processos 'code'):"
+    if pgrep -f "code" >/dev/null; then
+        ps -C code -o %cpu,%mem,cmd --sort=-%cpu | head -n 5
     else
-        warn "Auto-recuperação: Inativa"
+        echo "Nenhum processo para analisar."
     fi
+    echo
 
-    # Verificar workspace
-    if [ -f "cluster-ai.code-workspace" ]; then
-        info "Workspace: Configurado (cluster-ai.code-workspace)"
+    # 3. Verificar configurações
+    info "Verificando arquivos de configuração..."
+    local settings_file="$HOME/.config/Code/User/settings.json"
+    if file_exists "$settings_file"; then
+        success "Arquivo de configurações encontrado: $settings_file"
     else
-        warn "Workspace: Não encontrado"
+        warn "Arquivo de configurações não encontrado."
+    fi
+}
+
+clean_caches() {
+    subsection "🧹 Limpeza de Caches e Arquivos Temporários"
+    if ! confirm "Isso irá parar o VSCode e limpar todos os caches. Deseja continuar?"; then
+        info "Limpeza cancelada."
+        return
     fi
 
+    progress "Parando todos os processos do VSCode..."
+    pkill -9 -f "code" 2>/dev/null || true
+    pkill -9 -f "vscode" 2>/dev/null || true
+    sleep 2
+
+    progress "Limpando caches..."
+    rm -rf ~/.config/Code/Cache/* 2>/dev/null || true
+    rm -rf ~/.config/Code/Code\ Cache/* 2>/dev/null || true
+    rm -rf ~/.config/Code/CachedData/* 2>/dev/null || true
+    rm -rf ~/.config/Code/User/workspaceStorage/* 2>/dev/null || true
+    rm -rf ~/.config/Code/User/globalStorage/* 2>/dev/null || true
+    rm -rf ~/.config/Code/logs/* 2>/dev/null || true
+    rm -rf /tmp/vscode-* 2>/dev/null || true
+    rm -rf /tmp/Crashpad* 2>/dev/null || true
+
+    success "Limpeza de caches concluída."
+    info "É recomendado reiniciar o VSCode."
+}
+
+reset_settings() {
+    subsection "⚙️ Resetar para Configurações Otimizadas"
+    local settings_file="$HOME/.config/Code/User/settings.json"
+
+    if ! confirm "Isso irá sobrescrever seu 'settings.json' com uma configuração otimizada para performance. Um backup será criado. Deseja continuar?"; then
+        info "Reset de configurações cancelado."
+        return
+    fi
+
+    if file_exists "$settings_file"; then
+        backup_file "$settings_file"
+    fi
+
+    progress "Aplicando configurações otimizadas..."
+    mkdir -p "$(dirname "$settings_file")"
+    cat > "$settings_file" << 'EOL'
+{
+    "telemetry.telemetryLevel": "off",
+    "extensions.autoUpdate": false,
+    "update.mode": "none",
+    "workbench.startupEditor": "none",
+    "editor.minimap.enabled": false,
+    "window.restoreWindows": "none",
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/*/**": true,
+        "**/venv/**": true,
+        "**/dist/**": true,
+        "**/build/**": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/venv": true,
+        "**/dist": true,
+        "**/build": true
+    },
+    "editor.largeFileOptimizations": true,
+    "terminal.integrated.scrollback": 1000,
+    "python.terminal.activateEnvironment": true,
+    "files.autoSave": "afterDelay"
+}
+EOL
+    success "Configurações otimizadas foram aplicadas."
+    info "Reinicie o VSCode para que as mudanças tenham efeito."
+}
+
+restart_clean() {
+    subsection "🔄 Reinicialização Limpa do VSCode"
+    if ! confirm "Isso irá forçar a parada de todas as instâncias do VSCode e iniciá-lo em modo limpo (sem extensões). Deseja continuar?"; then
+        info "Reinicialização cancelada."
+        return
+    fi
+
+    progress "Parando todos os processos do VSCode..."
+    pkill -9 -f "code" 2>/dev/null || true
+    pkill -9 -f "vscode" 2>/dev/null || true
+    sleep 2
+
+    progress "Iniciando VSCode em modo limpo..."
+    code --disable-extensions --disable-gpu > /tmp/vscode_clean_start.log 2>&1 &
+
+    info "Aguardando 10 segundos para a inicialização..."
+    sleep 10
+
+    if pgrep -f "code" >/dev/null; then
+        success "VSCode foi reiniciado em modo limpo."
+        info "Você pode reativar as extensões uma a uma para identificar a causa do problema."
+    else
+        error "Falha ao reiniciar o VSCode. Verifique o log em /tmp/vscode_clean_start.log"
+    fi
+}
+
+# =============================================================================
+# MENU E LÓGICA PRINCIPAL
+# =============================================================================
+
+show_menu() {
+    section "💻 Gerenciador Unificado do VSCode"
+    echo "Este utilitário ajuda a resolver problemas de performance e travamentos."
+    echo
+    echo "1) 🔍 Verificar Status do VSCode"
+    echo "2) 🧹 Limpar Caches e Arquivos Temporários"
+    echo "3) ⚙️  Resetar para Configurações Otimizadas (cria backup)"
+    echo "4) 🔄 Reiniciar o VSCode em Modo Limpo (sem extensões)"
+    echo "0) ↩️  Voltar ao Menu Principal"
     echo
 }
 
-# Otimização completa
-optimize_full() {
-    log "=== Otimização Completa do VSCode ==="
-
-    # Parar auto-recuperação temporariamente
-    if [ -f "/tmp/vscode_auto_recovery.pid" ]; then
-        info "Parando auto-recuperação temporariamente..."
-        "$SCRIPT_DIR/vscode_auto_recovery.sh" stop
-    fi
-
-    # Executar otimizador completo
-    info "Executando otimizador completo..."
-    "$SCRIPT_DIR/vscode_optimizer.sh" full
-
-    # Reiniciar auto-recuperação
-    info "Reiniciando auto-recuperação..."
-    "$SCRIPT_DIR/vscode_auto_recovery.sh" start
-
-    log "✅ Otimização completa finalizada!"
-}
-
-# Iniciar VSCode otimizado
-start_optimized() {
-    log "=== Iniciando VSCode Otimizado ==="
-
-    # Parar auto-recuperação temporariamente
-    if [ -f "/tmp/vscode_auto_recovery.pid" ]; then
-        "$SCRIPT_DIR/vscode_auto_recovery.sh" stop
-    fi
-
-    # Iniciar VSCode otimizado
-    "$SCRIPT_DIR/start_vscode_optimized.sh"
-
-    # Aguardar estabilização
-    sleep 5
-
-    # Reiniciar auto-recuperação
-    "$SCRIPT_DIR/vscode_auto_recovery.sh" start
-}
-
-# Gerenciar auto-recuperação
-manage_recovery() {
-    case "${2:-status}" in
-        "start")
-            log "Iniciando auto-recuperação..."
-            "$SCRIPT_DIR/vscode_auto_recovery.sh" start
-            ;;
-        "stop")
-            log "Parando auto-recuperação..."
-            "$SCRIPT_DIR/vscode_auto_recovery.sh" stop
-            ;;
-        "status")
-            "$SCRIPT_DIR/vscode_auto_recovery.sh" status
-            ;;
-        "check")
-            "$SCRIPT_DIR/vscode_auto_recovery.sh" check
-            ;;
-        *)
-            error "Comando inválido. Use: start, stop, status, check"
-            return 1
-            ;;
-    esac
-}
-
-# Monitorar performance
-monitor_performance() {
-    case "${2:-check}" in
-        "check")
-            "$SCRIPT_DIR/vscode_performance_monitor.sh" check
-            ;;
-        "fix")
-            "$SCRIPT_DIR/vscode_performance_monitor.sh" fix
-            ;;
-        "monitor")
-            warn "Iniciando monitoramento contínuo (pressione Ctrl+C para parar)..."
-            "$SCRIPT_DIR/vscode_performance_monitor.sh" monitor
-            ;;
-        *)
-            error "Comando inválido. Use: check, fix, monitor"
-            return 1
-            ;;
-    esac
-}
-
-# Limpar sistema
-clean_system() {
-    log "=== Limpando Sistema ==="
-
-    # Parar serviços
-    if [ -f "/tmp/vscode_auto_recovery.pid" ]; then
-        "$SCRIPT_DIR/vscode_auto_recovery.sh" stop
-    fi
-
-    # Parar VSCode
-    if pgrep -f "code" >/dev/null 2>&1; then
-        info "Parando VSCode..."
-        pkill -TERM -f "code" 2>/dev/null || true
-        sleep 3
-        pkill -KILL -f "code" 2>/dev/null || true
-    fi
-
-    # Limpar arquivos temporários
-    info "Limpando arquivos temporários..."
-    rm -f /tmp/vscode_*.log
-    rm -f /tmp/vscode_*.pid
-
-    # Limpar cache do VSCode
-    "$SCRIPT_DIR/vscode_optimizer.sh" clean
-
-    log "✅ Sistema limpo!"
-}
-
-# Mostrar ajuda
-show_help() {
-    cat << 'EOF'
-Gerenciador de Performance do VSCode - Cluster AI
-
-COMANDOS DISPONÍVEIS:
-
-  status              - Mostra status completo do sistema
-  optimize           - Executa otimização completa
-  start              - Inicia VSCode otimizado
-  recovery <cmd>     - Gerencia auto-recuperação
-    start            - Inicia auto-recuperação
-    stop             - Para auto-recuperação
-    status           - Mostra status da auto-recuperação
-    check            - Verificação manual
-  monitor <cmd>      - Monitora performance
-    check            - Verificação única
-    fix              - Aplica correções
-    monitor          - Monitoramento contínuo
-  clean              - Limpa sistema completamente
-  help               - Mostra esta ajuda
-
-EXEMPLOS DE USO:
-
-  # Verificar status
-  ./vscode_manager.sh status
-
-  # Otimização completa
-  ./vscode_manager.sh optimize
-
-  # Iniciar VSCode otimizado
-  ./vscode_manager.sh start
-
-  # Iniciar auto-recuperação
-  ./vscode_manager.sh recovery start
-
-  # Verificar performance
-  ./vscode_manager.sh monitor check
-
-  # Limpar tudo
-  ./vscode_manager.sh clean
-
-DICAS DE PERFORMANCE:
-
-  - Mantenha menos de 15 abas abertas
-  - Feche arquivos não utilizados
-  - Use Ctrl+Shift+P > 'Developer: Reload Window' se travar
-  - Execute otimização semanalmente
-  - Mantenha auto-recuperação ativa
-
-LOGS:
-  - /tmp/vscode_manager.log
-  - /tmp/vscode_optimizer.log
-  - /tmp/vscode_performance_monitor.log
-  - /tmp/vscode_auto_recovery.log
-EOF
-}
-
-# Função principal
 main() {
-    # Verificar dependências
-    if ! check_dependencies; then
-        exit 1
-    fi
-
-    # Processar argumentos
-    case "${1:-help}" in
-        "status")
-            show_status
-            ;;
-        "optimize")
-            optimize_full
-            ;;
-        "start")
-            start_optimized
-            ;;
-        "recovery")
-            manage_recovery "$@"
-            ;;
-        "monitor")
-            monitor_performance "$@"
-            ;;
-        "clean")
-            clean_system
-            ;;
-        "help"|"-h"|"--help")
-            show_help
-            ;;
-        *)
-            error "Comando inválido: $1"
-            echo
-            show_help
-            exit 1
-            ;;
+    # Se um argumento for passado, executa a ação diretamente
+    case "${1:-}" in
+        status) show_vscode_status; exit 0 ;;
+        clean) clean_caches; exit 0 ;;
+        reset) reset_settings; exit 0 ;;
+        restart) restart_clean; exit 0 ;;
     esac
+
+    # Menu interativo
+    while true; do
+        show_menu
+        read -p "Digite sua opção: " choice
+
+        case $choice in
+            1) show_vscode_status ;;
+            2) clean_caches ;;
+            3) reset_settings ;;
+            4) restart_clean ;;
+            0)
+                success "Gerenciador VSCode encerrado."
+                break
+                ;;
+            *) error "Opção inválida." ;;
+        esac
+        echo
+        read -p "Pressione Enter para continuar..."
+    done
 }
 
-# Executar função principal
 main "$@"
