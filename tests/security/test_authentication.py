@@ -1,6 +1,7 @@
 """
 Testes de segurança para autenticação no Cluster AI
 """
+
 import pytest
 import os
 import tempfile
@@ -24,7 +25,9 @@ class TestSSHKeySecurity:
         key_file = ssh_dir / "id_rsa"
 
         # Chave deve ser gerada com permissões seguras
-        key_file.write_text("-----BEGIN OPENSSH PRIVATE KEY-----\ntest key content\n-----END OPENSSH PRIVATE KEY-----")
+        key_file.write_text(
+            "-----BEGIN OPENSSH PRIVATE KEY-----\ntest key content\n-----END OPENSSH PRIVATE KEY-----"
+        )
         key_file.chmod(0o600)
 
         # Verifica permissões
@@ -33,11 +36,15 @@ class TestSSHKeySecurity:
 
         # Arquivo pub deve existir e ter permissões corretas
         pub_key_file = ssh_dir / "id_rsa.pub"
-        pub_key_file.write_text("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... test@example.com")
+        pub_key_file.write_text(
+            "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... test@example.com"
+        )
         pub_key_file.chmod(0o644)
 
         st_pub = pub_key_file.stat()
-        assert st_pub.st_mode & 0o777 == 0o644, "Chave SSH pública deve ter permissões 644"
+        assert (
+            st_pub.st_mode & 0o777 == 0o644
+        ), "Chave SSH pública deve ter permissões 644"
 
     def test_authorized_keys_security(self, tmp_path):
         """Testa segurança do arquivo authorized_keys"""
@@ -45,7 +52,9 @@ class TestSSHKeySecurity:
         ssh_dir.mkdir()
 
         authorized_keys = ssh_dir / "authorized_keys"
-        authorized_keys.write_text("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host\n")
+        authorized_keys.write_text(
+            "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host\n"
+        )
 
         # Permissões devem ser 600
         authorized_keys.chmod(0o600)
@@ -75,8 +84,12 @@ Host *
         ssh_config.chmod(0o600)
 
         content = ssh_config.read_text()
-        assert "StrictHostKeyChecking yes" in content, "Deve ter verificação rigorosa de chaves"
-        assert "PasswordAuthentication no" in content, "Não deve permitir autenticação por senha"
+        assert (
+            "StrictHostKeyChecking yes" in content
+        ), "Deve ter verificação rigorosa de chaves"
+        assert (
+            "PasswordAuthentication no" in content
+        ), "Não deve permitir autenticação por senha"
         assert "ForwardAgent no" in content, "Não deve permitir forward do agent"
 
 
@@ -87,15 +100,13 @@ class TestPasswordSecurity:
     def test_password_complexity(self):
         """Testa complexidade de senhas"""
         # Senhas fortes
-        strong_passwords = [
-            "MyStr0ngP@ssw0rd!",
-            "C0mpl3xP@ss123",
-            "S3cur3P@ssw0rd#"
-        ]
+        strong_passwords = ["MyStr0ngP@ssw0rd!", "C0mpl3xP@ss123", "S3cur3P@ssw0rd#"]
 
         for password in strong_passwords:
             # Deve ter pelo menos 8 caracteres
-            assert len(password) >= 8, f"Senha deve ter pelo menos 8 caracteres: {password}"
+            assert (
+                len(password) >= 8
+            ), f"Senha deve ter pelo menos 8 caracteres: {password}"
 
             # Deve conter maiúsculas, minúsculas, números e símbolos
             has_upper = any(c.isupper() for c in password)
@@ -109,12 +120,7 @@ class TestPasswordSecurity:
             assert has_symbol, f"Senha deve conter símbolo: {password}"
 
         # Senhas fracas
-        weak_passwords = [
-            "password",
-            "123456",
-            "qwerty",
-            "abc"
-        ]
+        weak_passwords = ["password", "123456", "qwerty", "abc"]
 
         for password in weak_passwords:
             # Verifica se falha em algum critério
@@ -124,7 +130,9 @@ class TestPasswordSecurity:
             has_symbol = any(not c.isalnum() for c in password)
 
             complexity_score = sum([has_upper, has_lower, has_digit, has_symbol])
-            assert complexity_score < 4, f"Senha fraca deve falhar nos critérios: {password}"
+            assert (
+                complexity_score < 4
+            ), f"Senha fraca deve falhar nos critérios: {password}"
 
     def test_password_storage(self):
         """Testa armazenamento seguro de senhas"""
@@ -134,18 +142,20 @@ class TestPasswordSecurity:
 
         # Hash com salt
         salt = os.urandom(32)
-        hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
 
         # Hash deve ser diferente da senha original
         assert hashed != password.encode(), "Hash deve ser diferente da senha original"
 
         # Mesmo password com mesmo salt deve gerar mesmo hash
-        hashed2 = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        hashed2 = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
         assert hashed == hashed2, "Mesmo password e salt devem gerar mesmo hash"
 
         # Password diferente deve gerar hash diferente
         different_password = "DifferentPassword123!"
-        hashed3 = hashlib.pbkdf2_hmac('sha256', different_password.encode(), salt, 100000)
+        hashed3 = hashlib.pbkdf2_hmac(
+            "sha256", different_password.encode(), salt, 100000
+        )
         assert hashed != hashed3, "Passwords diferentes devem gerar hashes diferentes"
 
 
@@ -163,11 +173,15 @@ class TestSessionSecurity:
 
         # Sessão ativa
         current_time = session_start + 1800  # 30 minutos depois
-        assert (current_time - session_start) < session_timeout, "Sessão deve estar ativa"
+        assert (
+            current_time - session_start
+        ) < session_timeout, "Sessão deve estar ativa"
 
         # Sessão expirada
         current_time = session_start + 4000  # Mais de 1 hora
-        assert (current_time - session_start) > session_timeout, "Sessão deve estar expirada"
+        assert (
+            current_time - session_start
+        ) > session_timeout, "Sessão deve estar expirada"
 
     def test_concurrent_session_limit(self):
         """Testa limite de sessões concorrentes"""
@@ -177,12 +191,14 @@ class TestSessionSecurity:
         user_sessions = ["session1", "session2", "session3", "session4"]
 
         # Deve permitir até o limite
-        assert len(user_sessions[:max_sessions]) <= max_sessions, "Deve permitir até o limite de sessões"
+        assert (
+            len(user_sessions[:max_sessions]) <= max_sessions
+        ), "Deve permitir até o limite de sessões"
 
         # Deve bloquear sessões extras
         assert len(user_sessions) > max_sessions, "Deve bloquear sessões extras"
 
-    @patch('time.time')
+    @patch("time.time")
     def test_session_inactivity_timeout(self, mock_time):
         """Testa timeout por inatividade"""
         # Simula tempo passando
@@ -194,11 +210,15 @@ class TestSessionSecurity:
 
         # Sessão ativa (atividade recente)
         mock_time.return_value = last_activity + 1000  # 1000 segundos depois
-        assert (mock_time.return_value - last_activity) < inactivity_timeout, "Sessão deve estar ativa"
+        assert (
+            mock_time.return_value - last_activity
+        ) < inactivity_timeout, "Sessão deve estar ativa"
 
         # Sessão expirada por inatividade
         mock_time.return_value = last_activity + 2000  # 2000 segundos depois
-        assert (mock_time.return_value - last_activity) > inactivity_timeout, "Sessão deve expirar por inatividade"
+        assert (
+            mock_time.return_value - last_activity
+        ) > inactivity_timeout, "Sessão deve expirar por inatividade"
 
 
 @pytest.mark.security
@@ -209,41 +229,47 @@ class TestAccessControl:
         """Testa controle de acesso baseado em roles"""
         # Define roles e permissões
         roles = {
-            'admin': ['read', 'write', 'delete', 'manage_users'],
-            'user': ['read', 'write'],
-            'guest': ['read']
+            "admin": ["read", "write", "delete", "manage_users"],
+            "user": ["read", "write"],
+            "guest": ["read"],
         }
 
         # Testa permissões por role
-        assert 'read' in roles['admin'], "Admin deve ter permissão de leitura"
-        assert 'write' in roles['admin'], "Admin deve ter permissão de escrita"
-        assert 'delete' in roles['admin'], "Admin deve ter permissão de exclusão"
+        assert "read" in roles["admin"], "Admin deve ter permissão de leitura"
+        assert "write" in roles["admin"], "Admin deve ter permissão de escrita"
+        assert "delete" in roles["admin"], "Admin deve ter permissão de exclusão"
 
-        assert 'read' in roles['user'], "User deve ter permissão de leitura"
-        assert 'write' in roles['user'], "User deve ter permissão de escrita"
-        assert 'delete' not in roles['user'], "User não deve ter permissão de exclusão"
+        assert "read" in roles["user"], "User deve ter permissão de leitura"
+        assert "write" in roles["user"], "User deve ter permissão de escrita"
+        assert "delete" not in roles["user"], "User não deve ter permissão de exclusão"
 
-        assert 'read' in roles['guest'], "Guest deve ter permissão de leitura"
-        assert 'write' not in roles['guest'], "Guest não deve ter permissão de escrita"
+        assert "read" in roles["guest"], "Guest deve ter permissão de leitura"
+        assert "write" not in roles["guest"], "Guest não deve ter permissão de escrita"
 
     def test_resource_access_control(self):
         """Testa controle de acesso a recursos"""
         # Simula recursos e permissões
         resources = {
-            '/admin/users': ['admin'],
-            '/user/profile': ['admin', 'user'],
-            '/public/info': ['admin', 'user', 'guest']
+            "/admin/users": ["admin"],
+            "/user/profile": ["admin", "user"],
+            "/public/info": ["admin", "user", "guest"],
         }
 
         # Testa acesso por role
-        user_role = 'user'
+        user_role = "user"
 
         # Recursos que o usuário pode acessar
-        accessible_resources = [res for res, roles in resources.items() if user_role in roles]
+        accessible_resources = [
+            res for res, roles in resources.items() if user_role in roles
+        ]
 
-        assert '/admin/users' not in accessible_resources, "User não deve acessar /admin/users"
-        assert '/user/profile' in accessible_resources, "User deve acessar /user/profile"
-        assert '/public/info' in accessible_resources, "User deve acessar /public/info"
+        assert (
+            "/admin/users" not in accessible_resources
+        ), "User não deve acessar /admin/users"
+        assert (
+            "/user/profile" in accessible_resources
+        ), "User deve acessar /user/profile"
+        assert "/public/info" in accessible_resources, "User deve acessar /public/info"
 
     def test_api_rate_limiting(self):
         """Testa limitação de taxa de API"""
@@ -254,7 +280,7 @@ class TestAccessControl:
         requests_per_minute = defaultdict(list)
         rate_limit = 60  # requests per minute
 
-        user_id = 'user123'
+        user_id = "user123"
 
         # Simula requests
         current_time = time.time()

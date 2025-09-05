@@ -7,6 +7,7 @@ componentes mais críticos estão disponíveis, sem testar a lógica de negócio
 
 import pytest
 
+
 def test_import_main_modules():
     """
     Verifica se os módulos principais do projeto podem ser importados sem erros.
@@ -17,6 +18,7 @@ def test_import_main_modules():
         import simple_demo
     except ImportError as e:
         pytest.fail(f"Falha ao importar módulo crítico: {e}")
+
 
 def test_critical_services_can_be_mocked(mock_dask_cluster, mock_pytorch):
     """Verifica se as fixtures de mock para serviços críticos estão funcionando."""

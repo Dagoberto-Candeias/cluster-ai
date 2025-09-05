@@ -24,11 +24,13 @@ class TestBasicHealth:
             PROJECT_ROOT / "scripts",
             PROJECT_ROOT / "config",
             PROJECT_ROOT / "tests",
-            PROJECT_ROOT / "logs"
+            PROJECT_ROOT / "logs",
         ]
 
         for directory in required_dirs:
-            assert directory.exists(), f"Diretório obrigatório não encontrado: {directory}"
+            assert (
+                directory.exists()
+            ), f"Diretório obrigatório não encontrado: {directory}"
             assert directory.is_dir(), f"Caminho não é um diretório: {directory}"
 
     def test_configuration_files_exist(self):
@@ -36,11 +38,13 @@ class TestBasicHealth:
         config_files = [
             PROJECT_ROOT / "cluster.conf",
             PROJECT_ROOT / "requirements.txt",
-            PROJECT_ROOT / "pytest.ini"
+            PROJECT_ROOT / "pytest.ini",
         ]
 
         for config_file in config_files:
-            assert config_file.exists(), f"Arquivo de configuração não encontrado: {config_file}"
+            assert (
+                config_file.exists()
+            ), f"Arquivo de configuração não encontrado: {config_file}"
             assert config_file.is_file(), f"Caminho não é um arquivo: {config_file}"
 
     def test_python_environment(self):
@@ -50,12 +54,16 @@ class TestBasicHealth:
         assert in_venv, "Não está executando em um ambiente virtual"
 
         # Verificar versão do Python
-        assert sys.version_info >= (3, 8), f"Versão do Python muito antiga: {sys.version}"
+        assert sys.version_info >= (
+            3,
+            8,
+        ), f"Versão do Python muito antiga: {sys.version}"
 
     def test_import_core_modules(self):
         """Verificar se os módulos core podem ser importados"""
         try:
             import pytest
+
             assert pytest is not None
         except ImportError:
             pytest.fail("Não foi possível importar pytest")
@@ -63,6 +71,7 @@ class TestBasicHealth:
         # Verificar se podemos importar pathlib (sempre disponível no Python 3.4+)
         try:
             import pathlib
+
             assert pathlib is not None
         except ImportError:
             pytest.fail("Não foi possível importar pathlib")
@@ -76,7 +85,7 @@ class TestScriptHealth:
         main_scripts = [
             PROJECT_ROOT / "manager.sh",
             PROJECT_ROOT / "demo_cluster.py",
-            PROJECT_ROOT / "install_unified.sh"
+            PROJECT_ROOT / "install_unified.sh",
         ]
 
         for script in main_scripts:
@@ -84,14 +93,14 @@ class TestScriptHealth:
             assert script.is_file(), f"Caminho não é um arquivo: {script}"
 
             # Verificar se é executável (para scripts .sh)
-            if script.suffix == '.sh':
+            if script.suffix == ".sh":
                 assert os.access(script, os.X_OK), f"Script não é executável: {script}"
 
     def test_script_syntax(self):
         """Verificar se os scripts Python têm sintaxe válida"""
         python_scripts = [
             PROJECT_ROOT / "demo_cluster.py",
-            PROJECT_ROOT / "test_installation.py"
+            PROJECT_ROOT / "test_installation.py",
         ]
 
         import py_compile
@@ -112,7 +121,7 @@ class TestConfigurationHealth:
         config_file = PROJECT_ROOT / "cluster.conf"
 
         if config_file.exists():
-            with open(config_file, 'r', encoding='utf-8') as f:
+            with open(config_file, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Verificar se não está vazio
@@ -121,19 +130,23 @@ class TestConfigurationHealth:
             # Verificar se contém pelo menos algumas configurações básicas
             # Suporte para formato INI (atual) ou variáveis de ambiente (legacy)
             has_basic_config = (
-                'node_ip' in content or 'NODE_IP=' in content or
-                'scheduler_port' in content or 'DASK_SCHEDULER_PORT=' in content or
-                '[cluster]' in content or '[dask]' in content
+                "node_ip" in content
+                or "NODE_IP=" in content
+                or "scheduler_port" in content
+                or "DASK_SCHEDULER_PORT=" in content
+                or "[cluster]" in content
+                or "[dask]" in content
             )
-            assert has_basic_config, \
-                "Configuração básica não encontrada no cluster.conf"
+            assert (
+                has_basic_config
+            ), "Configuração básica não encontrada no cluster.conf"
 
     def test_environment_variables(self):
         """Verificar se variáveis de ambiente críticas estão definidas"""
         # Verificar se estamos no modo de teste
-        test_mode = os.environ.get('CLUSTER_AI_TEST_MODE')
+        test_mode = os.environ.get("CLUSTER_AI_TEST_MODE")
         if test_mode:
-            assert test_mode == '1', f"Modo de teste inválido: {test_mode}"
+            assert test_mode == "1", f"Modo de teste inválido: {test_mode}"
 
 
 class TestSecurityHealth:
@@ -143,21 +156,27 @@ class TestSecurityHealth:
         """Verificar se arquivos sensíveis têm permissões adequadas"""
         sensitive_files = [
             PROJECT_ROOT / "cluster.conf",
-            PROJECT_ROOT / "config" / "cluster.conf"
+            PROJECT_ROOT / "config" / "cluster.conf",
         ]
 
         for sensitive_file in sensitive_files:
             if sensitive_file.exists():
                 # Verificar se não é world-writable
                 permissions = oct(sensitive_file.stat().st_mode)[-3:]
-                assert permissions[2] != '2' and permissions[2] != '3' and permissions[2] != '6' and permissions[2] != '7', \
-                    f"Arquivo sensível tem permissões inseguras: {sensitive_file} ({permissions})"
+                assert (
+                    permissions[2] != "2"
+                    and permissions[2] != "3"
+                    and permissions[2] != "6"
+                    and permissions[2] != "7"
+                ), f"Arquivo sensível tem permissões inseguras: {sensitive_file} ({permissions})"
 
     def test_no_world_writable_files(self):
         """Verificar que não há arquivos world-writable no projeto"""
         for root, dirs, files in os.walk(PROJECT_ROOT):
             # Pular diretórios de backup e cache
-            if any(skip in root for skip in ['__pycache__', '.pytest_cache', 'backups']):
+            if any(
+                skip in root for skip in ["__pycache__", ".pytest_cache", "backups"]
+            ):
                 continue
 
             for file in files:
@@ -165,8 +184,12 @@ class TestSecurityHealth:
                 try:
                     permissions = oct(file_path.stat().st_mode)[-3:]
                     # Verificar se o último dígito não permite escrita para others
-                    assert permissions[2] not in ['2', '3', '6', '7'], \
-                        f"Arquivo world-writable encontrado: {file_path} ({permissions})"
+                    assert permissions[2] not in [
+                        "2",
+                        "3",
+                        "6",
+                        "7",
+                    ], f"Arquivo world-writable encontrado: {file_path} ({permissions})"
                 except (OSError, PermissionError):
                     # Ignorar arquivos que não conseguimos verificar
                     continue

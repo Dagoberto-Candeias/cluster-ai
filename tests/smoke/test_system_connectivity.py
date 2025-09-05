@@ -24,7 +24,7 @@ class TestNetworkConnectivity:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
-            result = sock.connect_ex(('127.0.0.1', 80))
+            result = sock.connect_ex(("127.0.0.1", 80))
             sock.close()
 
             # Resultado 0 significa conexão bem-sucedida (mas porta 80 pode não estar aberta)
@@ -37,9 +37,9 @@ class TestNetworkConnectivity:
         """Verificar se resolução DNS está funcionando"""
         try:
             # Tentar resolver um domínio público
-            result = socket.gethostbyname('google.com')
+            result = socket.gethostbyname("google.com")
             assert result is not None
-            assert len(result.split('.')) == 4  # Deve ser um IP válido
+            assert len(result.split(".")) == 4  # Deve ser um IP válido
         except socket.gaierror:
             pytest.skip("Sem conectividade com internet - pulando teste DNS")
         except Exception as e:
@@ -51,9 +51,7 @@ class TestPythonEnvironment:
 
     def test_required_modules_available(self):
         """Verificar se módulos Python essenciais estão disponíveis"""
-        required_modules = [
-            'os', 'sys', 'pathlib', 'json', 'subprocess'
-        ]
+        required_modules = ["os", "sys", "pathlib", "json", "subprocess"]
 
         for module in required_modules:
             try:
@@ -78,19 +76,16 @@ class TestFileSystem:
 
     def test_write_permissions(self):
         """Verificar se temos permissões de escrita nos diretórios necessários"""
-        test_dirs = [
-            PROJECT_ROOT / "logs",
-            PROJECT_ROOT / "tests" / "reports"
-        ]
+        test_dirs = [PROJECT_ROOT / "logs", PROJECT_ROOT / "tests" / "reports"]
 
         for test_dir in test_dirs:
             test_dir.mkdir(parents=True, exist_ok=True)
 
             test_file = test_dir / "smoke_test.tmp"
             try:
-                test_file.write_text("smoke test", encoding='utf-8')
+                test_file.write_text("smoke test", encoding="utf-8")
                 assert test_file.exists()
-                assert test_file.read_text(encoding='utf-8') == "smoke test"
+                assert test_file.read_text(encoding="utf-8") == "smoke test"
             except Exception as e:
                 pytest.fail(f"Erro de permissão de escrita em {test_dir}: {e}")
             finally:
@@ -109,7 +104,7 @@ class TestFileSystem:
         # Verificar se podemos criar um arquivo de log
         log_file = log_dir / "smoke_test.log"
         try:
-            log_file.write_text("Test log entry", encoding='utf-8')
+            log_file.write_text("Test log entry", encoding="utf-8")
             assert log_file.exists()
         except Exception as e:
             pytest.fail(f"Erro ao escrever no diretório de logs: {e}")
@@ -123,23 +118,17 @@ class TestCommandExecution:
 
     def test_basic_commands(self):
         """Verificar se comandos básicos do sistema funcionam"""
-        test_commands = [
-            ['echo', 'test'],
-            ['pwd'],
-            ['whoami']
-        ]
+        test_commands = [["echo", "test"], ["pwd"], ["whoami"]]
 
         for cmd in test_commands:
             try:
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    cwd=PROJECT_ROOT
+                    cmd, capture_output=True, text=True, timeout=10, cwd=PROJECT_ROOT
                 )
                 assert result.returncode == 0, f"Comando falhou: {' '.join(cmd)}"
-                assert len(result.stdout.strip()) > 0, f"Comando não produziu saída: {' '.join(cmd)}"
+                assert (
+                    len(result.stdout.strip()) > 0
+                ), f"Comando não produziu saída: {' '.join(cmd)}"
             except subprocess.TimeoutExpired:
                 pytest.fail(f"Comando demorou muito: {' '.join(cmd)}")
             except Exception as e:
@@ -155,10 +144,10 @@ sys.exit(0)
 
         try:
             result = subprocess.run(
-                [sys.executable, '-c', test_script],
+                [sys.executable, "-c", test_script],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             assert result.returncode == 0
             assert "Python execution test" in result.stdout
@@ -175,7 +164,7 @@ class TestConfigurationLoading:
 
         if config_file.exists():
             try:
-                content = config_file.read_text(encoding='utf-8')
+                content = config_file.read_text(encoding="utf-8")
                 assert len(content.strip()) > 0
             except Exception as e:
                 pytest.fail(f"Erro ao ler arquivo de configuração: {e}")
@@ -188,7 +177,7 @@ class TestConfigurationLoading:
 
         if pytest_config.exists():
             try:
-                content = pytest_config.read_text(encoding='utf-8')
+                content = pytest_config.read_text(encoding="utf-8")
                 assert "[tool:pytest]" in content or "[pytest]" in content
             except Exception as e:
                 pytest.fail(f"Erro ao ler configuração do pytest: {e}")

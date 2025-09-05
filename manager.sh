@@ -36,6 +36,189 @@ confirm_operation() {
         return 1
     fi
 }
+
+# =============================================================================
+# FUNÇÕES DE SEGURANÇA E VALIDAÇÃO
+# =============================================================================
+
+# Função de auditoria para registrar ações de segurança
+audit_log() {
+    local action="$1"
+    local details="$2"
+    local audit_file="/var/log/cluster_ai_audit.log"
+
+    # Criar diretório de logs se não existir
+    sudo mkdir -p /var/log 2>/dev/null
+
+    # Verificar se podemos escrever no arquivo de auditoria
+    if sudo touch "$audit_file" 2>/dev/null; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" | sudo tee -a "$audit_file" >/dev/null
+    else
+        # Fallback para arquivo local se não conseguir escrever em /var/log
+        local local_audit="${PROJECT_ROOT}/logs/security_audit.log"
+        mkdir -p "${PROJECT_ROOT}/logs"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" >> "$local_audit"
+    fi
+}
+
+# Função para validar entrada do usuário
+validate_input() {
+    local input="$1"
+    local type="$2"
+
+    case "$type" in
+        "ip")
+            # Validar formato de IP
+            if [[ ! "$input" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                error "Formato de IP inválido: $input"
+                return 1
+            fi
+            # Verificar se cada octeto está entre 0-255 e evitar octetos consecutivos vazios
+            IFS='.' read -ra octets <<< "$input"
+            for octet in "${octets[@]}"; do
+                if [[ -z "$octet" || $octet -lt 0 || $octet -gt 255 ]]; then
+                    error "Octeto inválido no IP: $octet"
+                    return 1
+                fi
+            done
+            # Verificar se não há octetos vazios consecutivos (ex: 192..168.1)
+            if [[ "$input" =~ \.\. ]]; then
+                error "IP contém octetos vazios consecutivos: $input"
+                return 1
+            fi
+            ;;
+        "port")
+            # Validar porta (1-65535)
+            if [[ ! "$input" =~ ^[0-9]+$ ]] || [[ $input -lt 1 || $input -gt 65535 ]]; then
+                error "Porta inválida: $input (deve ser entre 1-65535)"
+                return 1
+            fi
+            ;;
+        "hostname")
+            # Validar nome de host (letras, números, hífen, ponto)
+            # Adicionar validação para evitar pontos consecutivos e início/fim com hífen ou ponto
+            if [[ ! "$input" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+                error "Nome de host inválido: $input"
+                return 1
+            fi
+            if [[ "$input" =~ \.\. ]]; then
+                error "Nome de host contém pontos consecutivos: $input"
+                return 1
+            fi
+            if [[ "$input" =~ ^[-.] || "$input" =~ [-.]$ ]]; then
+                error "Nome de host não pode começar ou terminar com hífen ou ponto: $input"
+                return 1
+            fi
+            ;;
+        "filepath")
+            # Validar caminho de arquivo (evitar caracteres perigosos)
+            if [[ "$input" =~ [\;\|\&\$\`\(\)\<\>\"\'\\] ]]; then
+                error "Caminho de arquivo contém caracteres não permitidos: $input"
+                return 1
+            fi
+            ;;
+        "service_name")
+            # Validar nome de serviço (apenas letras, números, hífen, underscore)
+            if [[ ! "$input" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                error "Nome de serviço inválido: $input"
+                return 1
+            fi
+            ;;
+    esac
+
+    return 0
+}
+
+# Função para confirmar operações críticas
+confirm_critical_operation() {
+    local operation="$1"
+    local risk_level="$2"  # low, medium, high, critical
+    local details="$3"
+
+    audit_log "CRITICAL_OPERATION_REQUEST" "Operation: $operation, Risk: $risk_level, Details: $details"
+
+    case "$risk_level" in
+        "critical")
+            echo -e "${RED}🚨 OPERAÇÃO CRÍTICA DETECTADA${NC}"
+            echo -e "${RED}Esta operação pode comprometer a segurança do sistema${NC}"
+            ;;
+        "high")
+            echo -e "${RED}⚠️  OPERAÇÃO DE ALTO RISCO${NC}"
+            ;;
+        "medium")
+            echo -e "${YELLOW}⚡ OPERAÇÃO DE RISCO MÉDIO${NC}"
+            ;;
+        "low")
+            echo -e "${GREEN}ℹ️  OPERAÇÃO DE BAIXO RISCO${NC}"
+            ;;
+    esac
+
+    echo
+    echo "Operação: $operation"
+    if [ -n "$details" ]; then
+        echo "Detalhes: $details"
+    fi
+    echo
+
+    local confirm_count=0
+    local max_attempts=3
+
+    while [ $confirm_count -lt $max_attempts ]; do
+        if [[ "$risk_level" == "critical" ]]; then
+            read -p "Digite 'CONFIRMAR' para prosseguir (ou 'cancelar' para abortar): " response
+            if [[ "$response" == "CONFIRMAR" ]]; then
+                audit_log "CRITICAL_OPERATION_CONFIRMED" "Operation: $operation"
+                return 0
+            elif [[ "$response" == "cancelar" ]]; then
+                audit_log "CRITICAL_OPERATION_CANCELLED" "Operation: $operation"
+                return 1
+            fi
+        else
+            if confirm_operation "Confirmar execução desta operação?"; then
+                audit_log "OPERATION_CONFIRMED" "Operation: $operation, Risk: $risk_level"
+                return 0
+            else
+                audit_log "OPERATION_CANCELLED" "Operation: $operation, Risk: $risk_level"
+                return 1
+            fi
+        fi
+
+        ((confirm_count++))
+        if [ $confirm_count -lt $max_attempts ]; then
+            warn "Tentativa $confirm_count de $max_attempts. Tente novamente."
+        fi
+    done
+
+    error "Número máximo de tentativas excedido. Operação cancelada."
+    audit_log "OPERATION_CANCELLED_MAX_ATTEMPTS" "Operation: $operation"
+    return 1
+}
+
+# Função para verificar se usuário está autorizado
+check_user_authorization() {
+    local authorized_users=("root" "${SUDO_USER:-}" "$(whoami)" "$(logname 2>/dev/null || echo '')")
+
+    # Lista de usuários explicitamente autorizados (pode ser configurada)
+    local explicit_auth=("dcm" "dagoberto" "admin")
+
+    for user in "${explicit_auth[@]}"; do
+        if [[ "$(whoami)" == "$user" ]] || [[ "${SUDO_USER:-}" == "$user" ]]; then
+            audit_log "USER_AUTHORIZED" "User: $(whoami), SUDO_USER: ${SUDO_USER:-}"
+            return 0
+        fi
+    done
+
+    # Verificar se usuário está no grupo sudo ou wheel
+    if groups "$(whoami)" 2>/dev/null | grep -qE '\b(sudo|wheel|admin)\b'; then
+        audit_log "USER_AUTHORIZED_GROUP" "User: $(whoami) is in privileged group"
+        return 0
+    fi
+
+    audit_log "USER_NOT_AUTHORIZED" "User: $(whoami), SUDO_USER: ${SUDO_USER:-}"
+    error "Usuário não autorizado para executar operações administrativas"
+    info "Para executar este script, você precisa ser um usuário autorizado ou estar no grupo sudo/wheel"
+    return 1
+}
 # =============================================================================
 # FUNÇÕES DE GERENCIAMENTO DE SERVIÇOS
 # =============================================================================
@@ -46,21 +229,56 @@ manage_systemd_service() {
     local action="$1"
     local service="$2"
 
-    if ! command_exists systemctl; then
+    # Validar entrada
+    if ! validate_input "$service" "service_name"; then
+        audit_log "INVALID_SERVICE_NAME" "Service: $service"
         return 1
     fi
+
+    if ! command_exists systemctl; then
+        audit_log "SYSTEMCTL_NOT_FOUND" "Attempted to manage service: $service"
+        return 1
+    fi
+
+    # Confirmar operação crítica (systemd services)
+    local risk_level="medium"
+    if [[ "$service" =~ (sshd|nginx|docker|firewalld|ufw) ]]; then
+        risk_level="high"
+    fi
+
+    if ! confirm_critical_operation "Gerenciar serviço systemd: $action $service" "$risk_level" "Ação: $action, Serviço: $service"; then
+        return 1
+    fi
+
+    audit_log "SYSTEMD_SERVICE_MANAGEMENT" "Action: $action, Service: $service"
 
     case "$action" in
         start)
             if ! sudo systemctl is-active --quiet "$service"; then
                 progress "Iniciando serviço $service..."
-                sudo systemctl start "$service" 2>/dev/null || warn "Falha ao iniciar serviço $service. Pode não estar instalado."
+                if sudo systemctl start "$service" 2>/dev/null; then
+                    success "Serviço $service iniciado com sucesso"
+                    audit_log "SYSTEMD_SERVICE_STARTED" "Service: $service"
+                else
+                    warn "Falha ao iniciar serviço $service. Pode não estar instalado."
+                    audit_log "SYSTEMD_SERVICE_START_FAILED" "Service: $service"
+                fi
+            else
+                info "Serviço $service já está ativo"
             fi
             ;;
         stop)
             if sudo systemctl is-active --quiet "$service"; then
                 progress "Parando serviço $service..."
-                sudo systemctl stop "$service"
+                if sudo systemctl stop "$service"; then
+                    success "Serviço $service parado com sucesso"
+                    audit_log "SYSTEMD_SERVICE_STOPPED" "Service: $service"
+                else
+                    warn "Falha ao parar serviço $service"
+                    audit_log "SYSTEMD_SERVICE_STOP_FAILED" "Service: $service"
+                fi
+            else
+                info "Serviço $service já está parado"
             fi
             ;;
     esac
@@ -72,25 +290,68 @@ manage_docker_container() {
     local action="$1"
     local container="$2"
 
-    if ! command_exists docker; then
+    # Validar entrada
+    if ! validate_input "$container" "service_name"; then
+        audit_log "INVALID_CONTAINER_NAME" "Container: $container"
         return 1
     fi
+
+    if ! command_exists docker; then
+        audit_log "DOCKER_NOT_FOUND" "Attempted to manage container: $container"
+        return 1
+    fi
+
+    # Verificar se Docker está acessível
+    if ! sudo docker info >/dev/null 2>&1; then
+        error "Docker não está acessível ou não está rodando"
+        audit_log "DOCKER_INACCESSIBLE" "Container: $container"
+        return 1
+    fi
+
+    # Confirmar operação crítica (Docker containers)
+    local risk_level="medium"
+    if [[ "$container" =~ (database|db|postgres|mysql|redis|mongodb) ]]; then
+        risk_level="high"
+    fi
+
+    if ! confirm_critical_operation "Gerenciar container Docker: $action $container" "$risk_level" "Ação: $action, Container: $container"; then
+        return 1
+    fi
+
+    audit_log "DOCKER_CONTAINER_MANAGEMENT" "Action: $action, Container: $container"
 
     case "$action" in
         start)
             if ! sudo docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
                 if sudo docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
                     progress "Iniciando container $container parado..."
-                    sudo docker start "$container"
+                    if sudo docker start "$container" >/dev/null; then
+                        success "Container $container iniciado com sucesso"
+                        audit_log "DOCKER_CONTAINER_STARTED" "Container: $container"
+                    else
+                        warn "Falha ao iniciar container $container"
+                        audit_log "DOCKER_CONTAINER_START_FAILED" "Container: $container"
+                    fi
                 else
                     warn "Container $container não encontrado. Execute o script de setup apropriado."
+                    audit_log "DOCKER_CONTAINER_NOT_FOUND" "Container: $container"
                 fi
+            else
+                info "Container $container já está rodando"
             fi
             ;;
         stop)
             if sudo docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
                 progress "Parando container $container..."
-                sudo docker stop "$container"
+                if sudo docker stop "$container" >/dev/null; then
+                    success "Container $container parado com sucesso"
+                    audit_log "DOCKER_CONTAINER_STOPPED" "Container: $container"
+                else
+                    warn "Falha ao parar container $container"
+                    audit_log "DOCKER_CONTAINER_STOP_FAILED" "Container: $container"
+                fi
+            else
+                info "Container $container já está parado"
             fi
             ;;
     esac
@@ -208,7 +469,7 @@ display_cluster_status() {
     if [[ "$mode" == "detailed" ]]; then
         # Recursos do sistema
         subsection "Recursos"
-        echo "📊 Uso de CPU: $(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1"%"}')"
+        echo "📊 Uso de CPU: $(uptime | awk -F'load average:' '{ print $2 }' | sed 's/,//g' | awk '{print $1, $2, $3}') Load Average"
         echo "🧠 Uso de RAM: $(free | awk 'NR==2{printf "%.1f%%", $3*100/$2}')"
         echo "💾 Uso de Disco: $(df -h . | awk 'NR==2{print $5}')"
 
@@ -428,40 +689,13 @@ show_system_info_submenu() {
 show_menu() {
     subsection "Menu Principal"
 
-    echo "Escolha uma operação:"
     echo -e "\n${CYAN}🚀 OPERAÇÕES DO CLUSTER${NC}"
     echo " 1) ▶️  Iniciar Cluster"
     echo " 2) ⏹️  Parar Cluster"
     echo " 3) 🔄 Reiniciar Cluster"
     echo " ⚡) Quick-Start (Ativa servidor, rede e monitor)"
     echo " 4) 📈 Status Detalhado do Cluster"
-    
-    echo -e "\n${YELLOW}🔧 MANUTENÇÃO & DIAGNÓSTICO${NC}"
-    echo " 5) 🧹 Limpeza Geral (Logs, PIDs)"
-    echo " 6) ️ Arquivar Logs (Compacta e Limpa)"
-    echo " 7) 🧽 Limpar TODOS os Logs"
-    echo " 8) 🧼 Limpar .bashrc (Remove configs obsoletas)"
-    echo " 9) ✅ Verificar Integridade da Refatoração"
-    echo "10)  Verificar .bashrc (Busca configs obsoletas)"
-    echo "11) 🩺 Verificar Status dos Workers"
-    echo "12) 📜 Visualizar Logs do Sistema"
-    echo "13) 🧪 Executar Testes & Diagnóstico"
-    echo "14) 🔎 Executar Linter (Qualidade do Código)"
-    echo "15) ℹ️  Informações do Sistema"
 
-    echo -e "\n${PURPLE}⚙️ CONFIGURAÇÃO & FERRAMENTAS${NC}"
-    echo "16) 🧩 Instalar Dependências (openssl, pv)"
-    echo "17) 💾 Backup e Restauração"
-    echo "18) 🗓️  Agendar Limpeza Automática (Cron)"
-    echo "19) 🔄 Atualizar Sistema (Git Pull)"
-    echo "20) ⚙️  Configurar Workers (Remoto/Automático)"
-    echo "21) ⚡ Otimizador de Performance"
-    echo "22) 💻 Gerenciador VSCode"
-    echo "23) 🔒 Ferramentas de Segurança"
-    echo "24) 📊 Monitor Central"
-    
-    echo -e "\n${BLUE}📚 AJUDA${NC}"
-    echo "25) 📚 Documentação (Em desenvolvimento)"
     echo -e "\n${PURPLE}🗂️ MENUS${NC}"
     echo " 5) 🔧 Manutenção & Diagnóstico"
     echo " 6) ⚙️ Configuração & Ferramentas"
@@ -526,7 +760,7 @@ start_cluster() {
     fi
 
     # Inicia Dask (gerenciado por PID)
-    local dask_cmd="python3 \"${PROJECT_ROOT}/scripts/dask/start_dask_cluster.py\" \"$PROJECT_ROOT\""
+    local dask_cmd="python3 ${PROJECT_ROOT}/scripts/dask/start_dask_cluster.py $PROJECT_ROOT"
     local dask_pid_file="${PROJECT_ROOT}/run/dask_cluster.pid"
     start_process "Dask Cluster" "$dask_pid_file" "$dask_cmd" "${PROJECT_ROOT}/logs/dask_cluster.log"
 
@@ -928,27 +1162,6 @@ process_menu_choice() {
         3) restart_cluster ;;
         "⚡") quick_start_cluster ;;
         4) show_detailed_status ;;
-        5) run_cleanup ;; # Limpeza geral
-        6) archive_logs ;;
-        7) clear_all_logs ;;
-        8) run_bashrc_cleanup ;;
-        9) run_refactoring_verification ;;
-        10) run_bashrc_check ;;
-        11) check_all_workers_status ;;
-        12) view_system_logs ;;
-        13) run_tests ;;
-        14) run_linter ;;
-        15) show_system_info_submenu ;;
-        16) install_dependencies ;;
-        17) manage_backup_restore ;;
-        18) setup_cron_job ;;
-        19) run_updater ;;
-        20) configure_cluster ;;
-        21) run_optimizer ;;
-        22) manage_vscode ;;
-        23) manage_security ;;
-        24) start_monitor ;;
-        25) warn "Documentação - Em desenvolvimento" ;;
         5) show_maintenance_submenu ;;
         6) show_tools_submenu ;;
         7) show_help_submenu ;;
@@ -965,6 +1178,13 @@ process_menu_choice() {
 # =============================================================================
 
 main() {
+    # Verificar autorização do usuário antes de qualquer operação
+    if ! check_user_authorization; then
+        exit 1
+    fi
+
+    audit_log "MANAGER_START" "User: $(whoami), Args: $@"
+
     # Análise de argumentos para modos especiais como --quiet
     if [[ "${1:-}" == "--quiet" || "${1:-}" == "-q" ]]; then
         # Redefine as funções de log para suprimir a saída, exceto erros.
@@ -1081,12 +1301,9 @@ main() {
         display_cluster_status "simple"
         show_menu
 
-        read -p "Digite sua opção (0-25): " choice
         read -p "Digite sua opção (0-7 ou ⚡): " choice
         
         # Validação da entrada: deve ser um número ou '⚡'
-        if [[ ! "$choice" =~ ^([0-9]|1[0-9]|2[0-5]|⚡)$ ]]; then
-            error "Opção inválida. Por favor, digite um número de 0 a 25 ou '⚡'."
         if [[ ! "$choice" =~ ^([0-7]|⚡)$ ]]; then
             error "Opção inválida. Por favor, digite um número de 0 a 7 ou '⚡'."
             sleep 2
@@ -1481,6 +1698,29 @@ test_worker_connection_interactive() {
     local port="$4"
     local config_file="$5"
 
+    # Validar entradas
+    if ! validate_input "$name" "hostname"; then
+        audit_log "INVALID_WORKER_NAME" "Name: $name"
+        return 1
+    fi
+
+    if ! validate_input "$ip" "ip"; then
+        audit_log "INVALID_WORKER_IP" "IP: $ip"
+        return 1
+    fi
+
+    if ! validate_input "$port" "port"; then
+        audit_log "INVALID_WORKER_PORT" "Port: $port"
+        return 1
+    fi
+
+    if ! validate_input "$user" "hostname"; then
+        audit_log "INVALID_WORKER_USER" "User: $user"
+        return 1
+    fi
+
+    audit_log "WORKER_CONNECTION_TEST_START" "Worker: $name, IP: $ip, User: $user, Port: $port"
+
     subsection "Testando Conexão com: $name ($user@$ip:$port)"
 
     local all_ok=true
@@ -1489,8 +1729,10 @@ test_worker_connection_interactive() {
     progress "1/3 - Verificando conectividade de rede (ping)..."
     if ping -c 1 -W 3 "$ip" >/dev/null 2>&1; then
         success "      └─ Ping para $ip bem-sucedido."
+        audit_log "WORKER_PING_SUCCESS" "Worker: $name, IP: $ip"
     else
         warn "      └─ Ping para $ip falhou. O host pode estar offline ou bloqueando pings (ICMP)."
+        audit_log "WORKER_PING_FAILED" "Worker: $name, IP: $ip"
         # Não consideramos falha de ping como crítica, pois pode ser bloqueado por firewall
     fi
     sleep 1
@@ -1499,9 +1741,11 @@ test_worker_connection_interactive() {
     progress "2/3 - Verificando se a porta SSH ($port) está aberta..."
     if timeout 5 bash -c "echo >/dev/tcp/$ip/$port" 2>/dev/null; then
         success "      └─ Porta $port está aberta e acessível."
+        audit_log "WORKER_PORT_OPEN" "Worker: $name, IP: $ip, Port: $port"
     else
         error "      └─ Porta $port está fechada ou bloqueada por firewall."
         warn "         Verifique se o serviço SSH está rodando no worker."
+        audit_log "WORKER_PORT_CLOSED" "Worker: $name, IP: $ip, Port: $port"
         all_ok=false
     fi
     sleep 1
@@ -1519,10 +1763,12 @@ test_worker_connection_interactive() {
         if [ $ssh_exit_code -eq 0 ]; then
             success "      └─ Autenticação SSH bem-sucedida!"
             info "         Resposta do worker: $ssh_output"
+            audit_log "WORKER_SSH_SUCCESS" "Worker: $name, IP: $ip, User: $user, Port: $port"
         else
             error "      └─ Falha na autenticação SSH (código: $ssh_exit_code)."
             warn "         Verifique se a chave SSH foi copiada corretamente ou se o usuário/senha está correto."
             info "         Saída do erro: $ssh_output"
+            audit_log "WORKER_SSH_FAILED" "Worker: $name, IP: $ip, User: $user, Port: $port, ExitCode: $ssh_exit_code"
             all_ok=false
         fi
     else
@@ -1533,9 +1779,11 @@ test_worker_connection_interactive() {
     if [[ "$all_ok" == true ]]; then
         sed -i "s/^\($name $ip $user $port\).*/\1 active/" "$config_file"
         success "\n✅ Worker '$name' está ATIVO e pronto para uso."
+        audit_log "WORKER_TEST_SUCCESS" "Worker: $name"
     else
         sed -i "s/^\($name $ip $user $port\).*/\1 inactive/" "$config_file"
         error "\n❌ Worker '$name' está INATIVO. Verifique os erros acima."
+        audit_log "WORKER_TEST_FAILED" "Worker: $name"
     fi
 }
 # =============================================================================

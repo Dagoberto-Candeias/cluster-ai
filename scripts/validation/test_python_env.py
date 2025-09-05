@@ -1,7 +1,11 @@
 import dask
 from distributed import Client
 import torch
-from transformers import pipeline
+
+try:
+    from transformers import pipeline  # type: ignore
+except ImportError:
+    pipeline = None
 
 
 def test_dask():
@@ -30,6 +34,9 @@ def test_torch():
 
 
 def test_transformers():
+    if pipeline is None:
+        print("Transformers library not installed, skipping test.")
+        return False
     try:
         classifier = pipeline("sentiment-analysis")
         result = classifier("I love using Cluster AI!")

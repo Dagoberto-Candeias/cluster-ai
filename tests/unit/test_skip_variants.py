@@ -7,7 +7,9 @@ import pytest
 import os
 
 
-@pytest.mark.skip(reason="Este teste está desativado permanentemente por decisão da equipe.")
+@pytest.mark.skip(
+    reason="Este teste está desativado permanentemente por decisão da equipe."
+)
 def test_declarative_skip():
     """
     Este teste usa o decorador e seu código nunca é executado.

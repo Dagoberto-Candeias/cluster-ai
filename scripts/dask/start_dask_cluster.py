@@ -33,6 +33,7 @@ def is_port_in_use(port: int) -> bool:
         except OSError:
             return True
 
+
 def find_available_port(start_port: int, max_attempts: int = 100) -> int:
     """
     Encontra uma porta TCP livre, começando de start_port.
@@ -53,53 +54,56 @@ def main(project_root: str):
     print("Iniciando cluster Dask com segurança...")
 
     # Carregar configurações do cluster.conf
-    config_file = project_root_path / 'cluster.conf'
+    config_file = project_root_path / "cluster.conf"
     config = configparser.ConfigParser()
     if config_file.exists():
         config.read(config_file)
 
     # Obter configurações ou usar valores padrão
-    dask_section = config['dask'] if 'dask' in config else {}
-    dashboard_port_config = int(dask_section.get('dashboard_port', '8787'))
-    scheduler_port_config = int(dask_section.get('scheduler_port', '8786'))
-    auth_token = dask_section.get('auth_token', 'default_secure_token')
-    n_workers = int(dask_section.get('n_workers', 2))
-    threads_per_worker = int(dask_section.get('threads_per_worker', 2))
-    spill_directory = dask_section.get('spill_directory', '/tmp/dask-spill')
+    dask_section = config["dask"] if "dask" in config else {}
+    dashboard_port_config = int(dask_section.get("dashboard_port", "8787"))
+    scheduler_port_config = int(dask_section.get("scheduler_port", "8786"))
+    auth_token = dask_section.get("auth_token", "default_secure_token")
+    n_workers = int(dask_section.get("n_workers", 2))
+    threads_per_worker = int(dask_section.get("threads_per_worker", 2))
+    spill_directory = dask_section.get("spill_directory", "/tmp/dask-spill")
 
     # --- Verificação de Portas ---
     final_scheduler_port = scheduler_port_config
     if is_port_in_use(final_scheduler_port):
-        print(f"AVISO: A porta do scheduler configurada ({final_scheduler_port}) está em uso.")
+        print(
+            f"AVISO: A porta do scheduler configurada ({final_scheduler_port}) está em uso."
+        )
         final_scheduler_port = find_available_port(final_scheduler_port)
         print(f"       Usando a próxima porta livre: {final_scheduler_port}")
 
     final_dashboard_port = dashboard_port_config
     if is_port_in_use(final_dashboard_port):
-        print(f"AVISO: A porta do dashboard configurada ({final_dashboard_port}) está em uso.")
+        print(
+            f"AVISO: A porta do dashboard configurada ({final_dashboard_port}) está em uso."
+        )
         final_dashboard_port = find_available_port(final_dashboard_port)
         print(f"       Usando a próxima porta livre: {final_dashboard_port}")
 
     # Configurações de segurança TLS (opcional para desenvolvimento local)
-    cert_file = project_root_path / 'certs' / 'dask_cert.pem'
-    key_file = project_root_path / 'certs' / 'dask_key.pem'
+    cert_file = project_root_path / "certs" / "dask_cert.pem"
+    key_file = project_root_path / "certs" / "dask_key.pem"
 
     # Verificar se estamos em modo desenvolvimento (sem TLS)
-    dev_mode = os.getenv('DASK_DEV_MODE', 'false').lower() == 'true'
+    dev_mode = os.getenv("DASK_DEV_MODE", "false").lower() == "true"
 
     if dev_mode:
         print("Modo desenvolvimento: Iniciando sem TLS...")
         security = None
     elif not cert_file.exists() or not key_file.exists():
-        print(f"ERRO: Arquivos de certificado TLS não encontrados em {project_root_path / 'certs'}")
+        print(
+            f"ERRO: Arquivos de certificado TLS não encontrados em {project_root_path / 'certs'}"
+        )
         print("Para desenvolvimento local, defina DASK_DEV_MODE=true")
         print("Para produção, execute o script de instalação para gerar certificados.")
         sys.exit(1)
     else:
-        security = Security(
-            tls_ca_file=str(cert_file),
-            require_encryption=True
-        )
+        security = Security(tls_ca_file=str(cert_file), require_encryption=True)
 
     # Garantir que o diretório de spill exista
     os.makedirs(spill_directory, exist_ok=True)
@@ -107,12 +111,12 @@ def main(project_root: str):
     cluster = LocalCluster(
         n_workers=n_workers,
         threads_per_worker=threads_per_worker,
-        dashboard_address=f':{final_dashboard_port}',
+        dashboard_address=f":{final_dashboard_port}",
         scheduler_port=final_scheduler_port,
         security=security,
         processes=False,
-        memory_limit=dask_section.get('memory_limit', None),
-        local_directory=spill_directory
+        memory_limit=dask_section.get("memory_limit", None),
+        local_directory=spill_directory,
     )
 
     print("\nCluster Dask iniciado. Pressione Ctrl+C para parar.")
@@ -133,9 +137,7 @@ if __name__ == "__main__":
         description="Inicia um cluster Dask local com configurações de segurança."
     )
     parser.add_argument(
-        "project_root",
-        type=str,
-        help="O caminho raiz do projeto cluster-ai."
+        "project_root", type=str, help="O caminho raiz do projeto cluster-ai."
     )
     args = parser.parse_args()
-    main(Path(args.project_root).resolve())
+    main(str(Path(args.project_root).resolve()))

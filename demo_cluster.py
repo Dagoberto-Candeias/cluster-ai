@@ -118,7 +118,7 @@ def demo_avancada():
 
                 inicio = time.time()
                 futuros = [client.submit(calcular_fibonacci, n) for n in numeros]
-                resultados = client.gather(futuros)
+                resultados = list(client.gather(futuros))  # type: ignore
                 fim = time.time()
 
                 for n, resultado in zip(numeros, resultados):
@@ -137,14 +137,11 @@ def demo_avancada():
                 return {
                     "status": "success",
                     "results": resultados,
-                    "computation_time": fim - inicio
+                    "computation_time": fim - inicio,
                 }
     except Exception as e:
         logger.error(f"Erro na demonstração avançada: {e}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
 
 
 def demo_data_science():

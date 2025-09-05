@@ -27,13 +27,10 @@ class TestDaskClusterIntegration:
         # O cliente Dask é injetado pela fixture
         client = real_dask_cluster
         assert client is not None
-        assert not client.status == 'closed'
+        assert not client.status == "closed"
 
         # Importar as funções a serem usadas
-        from demo_cluster import (
-            process_with_dask,
-            processamento_pesado as square_task
-        )
+        from demo_cluster import process_with_dask, processamento_pesado as square_task
 
         # Act: Executar uma tarefa distribuída real
         numbers = list(range(10))
@@ -54,10 +51,8 @@ class TestDaskClusterIntegration:
         client = real_dask_cluster
         assert client is not None
 
-        from demo_cluster import (
-            process_with_dask,
-            calcular_fibonacci as fibonacci_task
-        )
+        from demo_cluster import process_with_dask, calcular_fibonacci as fibonacci_task
+
         numbers = [10, 15, 20]
         expected_results = [fibonacci_task(n) for n in numbers]  # [55, 610, 6765]
 

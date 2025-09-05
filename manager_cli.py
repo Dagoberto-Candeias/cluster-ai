@@ -5,6 +5,7 @@ from pathlib import Path
 
 app = typer.Typer(help="Gerenciador do Cluster-AI (substitui manager.sh)")
 
+
 def run(cmd: str):
     typer.echo(f"⟲ Executando: {cmd}")
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -15,12 +16,14 @@ def run(cmd: str):
         typer.echo(result.stdout)
         return True
 
+
 @app.command()
 def start(service: str = "all"):
     if service == "all":
         run("./start_cluster.sh")
     else:
         run(f"systemctl start {service}")
+
 
 @app.command()
 def stop(service: str = "all"):
@@ -29,12 +32,14 @@ def stop(service: str = "all"):
     else:
         run(f"systemctl stop {service}")
 
+
 @app.command()
 def restart(service: str = "all"):
     if service == "all":
         run("./restart_cluster.sh")
     else:
         run(f"systemctl restart {service}")
+
 
 @app.command()
 def discover():
@@ -44,6 +49,7 @@ def discover():
     else:
         typer.echo("⚠️  Script de descoberta não encontrado.")
 
+
 @app.command()
 def health():
     script = Path("scripts/health_check.sh")
@@ -51,6 +57,7 @@ def health():
         run(f"bash {script}")
     else:
         typer.echo("⚠️  Script de healthcheck não encontrado.")
+
 
 @app.command()
 def backup():
@@ -60,6 +67,7 @@ def backup():
     else:
         typer.echo("⚠️  Script de backup não encontrado.")
 
+
 @app.command()
 def restore():
     script = Path("scripts/maintenance/restore_manager.sh")
@@ -67,6 +75,7 @@ def restore():
         run(f"bash {script}")
     else:
         typer.echo("⚠️  Script de restore não encontrado.")
+
 
 @app.command()
 def scale(
@@ -81,6 +90,7 @@ def scale(
         run(f"helm upgrade cluster-ai ./cluster-ai --set worker.replicas={workers}")
     else:
         typer.echo("⚠️ Backend inválido. Use 'docker', 'k8s' ou 'helm'.")
+
 
 if __name__ == "__main__":
     app()

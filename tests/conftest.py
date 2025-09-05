@@ -22,7 +22,7 @@ TEST_CONFIG = {
     "temp_dir": None,
     "test_data_dir": PROJECT_ROOT / "tests" / "fixtures",
     "mock_external_services": True,
-    "cleanup_after_tests": True
+    "cleanup_after_tests": True,
 }
 
 
@@ -69,10 +69,12 @@ def temp_file_with_content(temp_dir):
     return file_path, content
 
 
-@pytest.fixture(params=[
-    pytest.param("admin", marks=pytest.mark.slow, id="admin_user"),
-    pytest.param("guest", id="guest_user")
-])
+@pytest.fixture(
+    params=[
+        pytest.param("admin", marks=pytest.mark.slow, id="admin_user"),
+        pytest.param("guest", id="guest_user"),
+    ]
+)
 def user_account(request):
     """
     Fixture parametrizada que cria diferentes tipos de contas de usuário.
@@ -82,12 +84,16 @@ def user_account(request):
     user_type = request.param
     print(f"\n[SETUP] Criando usuário do tipo: {user_type}")
     if user_type == "admin":
-        user_data = {"username": "admin_user", "type": "admin", "permissions": ["read", "write", "delete"]}
+        user_data = {
+            "username": "admin_user",
+            "type": "admin",
+            "permissions": ["read", "write", "delete"],
+        }
     elif user_type == "guest":
         user_data = {"username": "guest_user", "type": "guest", "permissions": ["read"]}
-    
+
     yield user_data
-    
+
     print(f"\n[TEARDOWN] Limpando usuário do tipo: {user_type}")
 
 
@@ -98,24 +104,26 @@ def user_account_factory():
     Retorna uma função que pode ser usada para criar múltiplos tipos de usuários
     dentro de um mesmo teste.
     """
+
     def _create_user(user_type="guest", custom_permissions=None):
         if user_type == "admin":
             permissions = ["read", "write", "delete"]
             username = "admin_factory_user"
-        else: # guest
+        else:  # guest
             permissions = ["read"]
             username = "guest_factory_user"
 
         if custom_permissions is not None:
             permissions = custom_permissions
         return {"username": username, "type": user_type, "permissions": permissions}
+
     return _create_user
 
 
 @pytest.fixture
 def mock_dask_cluster():
     """Fixture que mocka um cluster Dask para testes"""
-    with patch('dask.distributed.LocalCluster') as mock_cluster_class:
+    with patch("dask.distributed.LocalCluster") as mock_cluster_class:
         mock_cluster_instance = MagicMock()
         mock_client_instance = MagicMock()
 
@@ -132,14 +140,14 @@ def mock_dask_cluster():
 
         mock_cluster_class.return_value = mock_cluster_instance
 
-        with patch('dask.distributed.Client') as mock_client_class:
+        with patch("dask.distributed.Client") as mock_client_class:
             mock_client_class.return_value = mock_client_instance
 
             yield {
-                'cluster': mock_cluster_instance,
-                'client': mock_client_instance,
-                'cluster_class': mock_cluster_class,
-                'client_class': mock_client_class
+                "cluster": mock_cluster_instance,
+                "client": mock_client_instance,
+                "cluster_class": mock_cluster_class,
+                "client_class": mock_client_class,
             }
 
 
@@ -150,6 +158,7 @@ def real_dask_cluster():
     e garante seu encerramento ao final dos testes do módulo.
     """
     from dask.distributed import LocalCluster, Client
+
     cluster = None
     client = None
     try:
@@ -168,9 +177,9 @@ def real_dask_cluster():
 @pytest.fixture
 def mock_pytorch():
     """Fixture que mocka PyTorch para testes"""
-    with patch('torch.tensor') as mock_tensor, \
-         patch('torch.randn') as mock_randn, \
-         patch('torch.cuda.is_available') as mock_cuda_available:
+    with patch("torch.tensor") as mock_tensor, patch(
+        "torch.randn"
+    ) as mock_randn, patch("torch.cuda.is_available") as mock_cuda_available:
 
         # Configurar mocks
         mock_tensor.return_value = MagicMock()
@@ -181,9 +190,9 @@ def mock_pytorch():
         mock_cuda_available.return_value = False  # CPU only para testes
 
         yield {
-            'tensor': mock_tensor,
-            'randn': mock_randn,
-            'cuda_available': mock_cuda_available
+            "tensor": mock_tensor,
+            "randn": mock_randn,
+            "cuda_available": mock_cuda_available,
         }
 
 
@@ -195,28 +204,28 @@ def sample_config_data():
             "name": "test_cluster",
             "workers": 2,
             "threads_per_worker": 2,
-            "memory_limit": "1GB"
+            "memory_limit": "1GB",
         },
         "services": {
             "dask_scheduler_port": 8786,
             "dask_dashboard_port": 8787,
             "ollama_port": 11434,
-            "openwebui_port": 3000
+            "openwebui_port": 3000,
         },
         "paths": {
             "project_root": str(PROJECT_ROOT),
             "logs_dir": str(PROJECT_ROOT / "logs"),
-            "config_dir": str(PROJECT_ROOT / "config")
-        }
+            "config_dir": str(PROJECT_ROOT / "config"),
+        },
     }
 
 
 @pytest.fixture
 def mock_subprocess():
     """Fixture que mocka subprocess para testes de comandos do sistema"""
-    with patch('subprocess.run') as mock_run, \
-         patch('subprocess.Popen') as mock_popen, \
-         patch('subprocess.call') as mock_call:
+    with patch("subprocess.run") as mock_run, patch(
+        "subprocess.Popen"
+    ) as mock_popen, patch("subprocess.call") as mock_call:
 
         # Configurar comportamento padrão (sucesso)
         mock_run.return_value = MagicMock()
@@ -230,22 +239,21 @@ def mock_subprocess():
 
         mock_call.return_value = 0
 
-        yield {
-            'run': mock_run,
-            'Popen': mock_popen,
-            'call': mock_call
-        }
+        yield {"run": mock_run, "Popen": mock_popen, "call": mock_call}
 
 
 @pytest.fixture
 def mock_file_operations():
     """Fixture que mocka operações de arquivo"""
-    with patch('pathlib.Path.exists') as mock_exists, \
-         patch('pathlib.Path.is_file') as mock_is_file, \
-         patch('pathlib.Path.is_dir') as mock_is_dir, \
-         patch('pathlib.Path.mkdir') as mock_mkdir, \
-         patch('pathlib.Path.write_text') as mock_write_text, \
-         patch('pathlib.Path.read_text') as mock_read_text:
+    with patch("pathlib.Path.exists") as mock_exists, patch(
+        "pathlib.Path.is_file"
+    ) as mock_is_file, patch("pathlib.Path.is_dir") as mock_is_dir, patch(
+        "pathlib.Path.mkdir"
+    ) as mock_mkdir, patch(
+        "pathlib.Path.write_text"
+    ) as mock_write_text, patch(
+        "pathlib.Path.read_text"
+    ) as mock_read_text:
 
         # Configurar comportamento padrão
         mock_exists.return_value = True
@@ -256,12 +264,12 @@ def mock_file_operations():
         mock_read_text.return_value = "file content"
 
         yield {
-            'exists': mock_exists,
-            'is_file': mock_is_file,
-            'is_dir': mock_is_dir,
-            'mkdir': mock_mkdir,
-            'write_text': mock_write_text,
-            'read_text': mock_read_text
+            "exists": mock_exists,
+            "is_file": mock_is_file,
+            "is_dir": mock_is_dir,
+            "mkdir": mock_mkdir,
+            "write_text": mock_write_text,
+            "read_text": mock_read_text,
         }
 
 
@@ -301,5 +309,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "performance: Testes de performance")
     config.addinivalue_line("markers", "security: Testes de segurança")
     config.addinivalue_line("markers", "slow: Testes que demoram mais")
-    config.addinivalue_line("markers", "smoke: Testes de fumaça para saúde básica da aplicação")
+    config.addinivalue_line(
+        "markers", "smoke: Testes de fumaça para saúde básica da aplicação"
+    )
     config.addinivalue_line("markers", "skip_ci: Testes para pular em ambientes de CI")

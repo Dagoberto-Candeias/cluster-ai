@@ -1,6 +1,7 @@
 """
 Testes de segurança para permissões de arquivos no Cluster AI
 """
+
 import pytest
 import os
 import stat
@@ -21,7 +22,9 @@ class TestFilePermissions:
         config_file.chmod(0o600)
 
         st = config_file.stat()
-        assert st.st_mode & 0o777 == 0o600, "Arquivo de configuração deve ter permissões 600"
+        assert (
+            st.st_mode & 0o777 == 0o600
+        ), "Arquivo de configuração deve ter permissões 600"
 
     def test_log_file_permissions(self, tmp_path):
         """Testa se arquivos de log têm permissões apropriadas"""
@@ -37,7 +40,9 @@ class TestFilePermissions:
     def test_ssh_key_permissions(self, tmp_path):
         """Testa se chaves SSH têm permissões seguras"""
         ssh_key = tmp_path / "id_rsa"
-        ssh_key.write_text("-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----")
+        ssh_key.write_text(
+            "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----"
+        )
 
         # Permissões devem ser 600 (owner read/write only)
         ssh_key.chmod(0o600)
@@ -88,7 +93,7 @@ class TestFileSecurity:
         """Testa criação segura de arquivos temporários"""
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=tmp_path) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=tmp_path) as f:
             f.write("sensitive data")
             temp_path = Path(f.name)
 
@@ -112,6 +117,12 @@ class TestFileSecurity:
         config_file.write_text("key=value")
 
         st = config_file.stat()
-        assert not (st.st_mode & stat.S_IXUSR), "Arquivos de configuração não devem ser executáveis pelo owner"
-        assert not (st.st_mode & stat.S_IXGRP), "Arquivos de configuração não devem ser executáveis pelo group"
-        assert not (st.st_mode & stat.S_IXOTH), "Arquivos de configuração não devem ser executáveis por others"
+        assert not (
+            st.st_mode & stat.S_IXUSR
+        ), "Arquivos de configuração não devem ser executáveis pelo owner"
+        assert not (
+            st.st_mode & stat.S_IXGRP
+        ), "Arquivos de configuração não devem ser executáveis pelo group"
+        assert not (
+            st.st_mode & stat.S_IXOTH
+        ), "Arquivos de configuração não devem ser executáveis por others"

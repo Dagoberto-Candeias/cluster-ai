@@ -8,14 +8,15 @@ import sys
 import subprocess
 from pathlib import Path
 
+
 def get_git_branch():
     """Get current Git branch name"""
     try:
         result = subprocess.run(
-            ['git', 'branch', '--show-current'],
+            ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
-            cwd=os.getcwd()
+            cwd=os.getcwd(),
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
@@ -23,12 +24,14 @@ def get_git_branch():
         pass
     return ""
 
+
 def get_venv_name():
     """Get virtual environment name"""
-    venv = os.environ.get('VIRTUAL_ENV')
+    venv = os.environ.get("VIRTUAL_ENV")
     if venv:
         return os.path.basename(venv)
     return ""
+
 
 def setup_spyder_prompt():
     """Configure Spyder to use custom prompt"""
@@ -81,9 +84,10 @@ sys.ps2 = "\\033[34m... \\033[0m"
     spyder_startup.write_text(startup_script)
 
     # Set environment variable for Spyder
-    os.environ['PYTHONSTARTUP'] = str(spyder_startup)
+    os.environ["PYTHONSTARTUP"] = str(spyder_startup)
 
     print("✅ Spyder prompt configured")
+
 
 def setup_pycharm_prompt():
     """Configure PyCharm to use custom prompt"""
@@ -136,13 +140,14 @@ sys.ps2 = "\\033[34m... \\033[0m"
     pycharm_startup.write_text(startup_script)
 
     # Set environment variable for PyCharm
-    os.environ['PYTHONSTARTUP'] = str(pycharm_startup)
+    os.environ["PYTHONSTARTUP"] = str(pycharm_startup)
 
     print("✅ PyCharm prompt configured")
 
+
 def create_postactivate_script():
     """Create postactivate script for virtual environments"""
-    postactivate_content = '''#!/bin/bash
+    postactivate_content = """#!/bin/bash
 # Post-activate script for virtual environments
 # This script is executed after activating a virtual environment
 
@@ -153,25 +158,26 @@ python3 /home/dcm/Projetos/cluster-ai/scripts/setup_prompt_environments.py
 export PYTHONSTARTUP="$HOME/.pythonrc"
 
 echo "🔧 Ambiente virtual configurado com prompt personalizado"
-'''
+"""
 
     # Find all virtual environments and add postactivate script
     venv_dirs = []
     for root in ["/home/dcm/Projetos", "/home/dcm"]:
         if os.path.exists(root):
             for dirpath, dirnames, filenames in os.walk(root):
-                if 'bin/activate' in filenames:
+                if "bin/activate" in filenames:
                     venv_dirs.append(dirpath)
 
     for venv_dir in venv_dirs:
-        postactivate_path = os.path.join(venv_dir, 'bin', 'postactivate')
+        postactivate_path = os.path.join(venv_dir, "bin", "postactivate")
         try:
-            with open(postactivate_path, 'w') as f:
+            with open(postactivate_path, "w") as f:
                 f.write(postactivate_content)
             os.chmod(postactivate_path, 0o755)
             print(f"✅ Post-activate configurado: {venv_dir}")
         except Exception as e:
             print(f"❌ Erro ao configurar {venv_dir}: {e}")
+
 
 def main():
     """Main setup function"""
@@ -184,6 +190,7 @@ def main():
     print("\\n✅ Configuração concluída!")
     print("📝 Reinicie o Spyder e PyCharm para aplicar as mudanças")
     print("🔄 Ou ative/desative o ambiente virtual para aplicar imediatamente")
+
 
 if __name__ == "__main__":
     main()

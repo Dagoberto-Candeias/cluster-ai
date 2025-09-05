@@ -9,9 +9,12 @@
 - [x] Documentar otimizações (VSCODE_OPTIMIZATIONS.md)
 
 ## Passos a Executar
-- [x] Iniciar o sistema Cluster-AI usando CLI (python3 manager_cli.py start)
-- [x] Executar testes abrangentes (bash scripts/validation/run_all_tests.sh) - Python tests passaram, BATS ainda falhou
-- [ ] Executar demo do sistema (bash demo_complete_system.sh) - Falhou devido a erro no script common.sh
+- [ ] Melhorar documentação do projeto (README.md e docs/)
+- [ ] Ampliar cobertura de testes e corrigir testes falhos (tests/)
+- [ ] Realizar auditoria e melhorias de segurança (scripts/security/, tests/security/)
+- [ ] Avaliar e otimizar desempenho (scripts/optimization/, tests/performance/)
+- [ ] Verificar funcionamento geral e corrigir bugs encontrados
+- [ ] Melhorar sistema plug-and-play de workers, especialmente para Android
 
 ## Status Atual
 - Sistema parado anteriormente para resolver conflito de contêiner

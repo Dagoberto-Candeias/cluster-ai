@@ -21,10 +21,13 @@ try:
         processamento_pesado as square_task,
         create_cluster,
         demo_avancada as run_demo,
-        process_with_dask
+        process_with_dask,
     )
 except ImportError:
-    pytest.skip("Não foi possível importar os módulos do projeto. Pulando testes unitários.", allow_module_level=True)
+    pytest.skip(
+        "Não foi possível importar os módulos do projeto. Pulando testes unitários.",
+        allow_module_level=True,
+    )
 
 
 class TestFibonacciTask:
@@ -48,10 +51,22 @@ class TestFibonacciTask:
         assert fibonacci_task(10) == 55
         assert fibonacci_task(15) == 610
 
-    @pytest.mark.parametrize("n,expected", [
-        (0, 0), (1, 1), (2, 1), (3, 2), (4, 3),
-        (5, 5), (6, 8), (7, 13), (8, 21), (9, 34), (10, 55)
-    ])
+    @pytest.mark.parametrize(
+        "n,expected",
+        [
+            (0, 0),
+            (1, 1),
+            (2, 1),
+            (3, 2),
+            (4, 3),
+            (5, 5),
+            (6, 8),
+            (7, 13),
+            (8, 21),
+            (9, 34),
+            (10, 55),
+        ],
+    )
     def test_fibonacci_parametrized(self, n, expected):
         """Testa fibonacci com parâmetros variados"""
         assert fibonacci_task(n) == expected
@@ -77,10 +92,10 @@ class TestSquareTask:
         assert square_task(-2) == 4
         assert square_task(-3) == 9
 
-    @pytest.mark.parametrize("input_val,expected", [
-        (0, 0), (1, 1), (2, 4), (3, 9), (4, 16),
-        (-1, 1), (-2, 4), (-3, 9), (-4, 16)
-    ])
+    @pytest.mark.parametrize(
+        "input_val,expected",
+        [(0, 0), (1, 1), (2, 4), (3, 9), (4, 16), (-1, 1), (-2, 4), (-3, 9), (-4, 16)],
+    )
     def test_square_parametrized(self, input_val, expected):
         """Testa square com parâmetros variados"""
         assert square_task(input_val) == expected
@@ -92,10 +107,10 @@ class TestProcessWithDask:
     def test_process_with_square_function(self, mock_dask_cluster):
         """Testa processamento com função quadrado"""
         # Arrange
-        client = mock_dask_cluster['client']
+        client = mock_dask_cluster["client"]
         mock_future = MagicMock()
         client.submit.side_effect = [mock_future] * 5  # 5 futures para 5 números
-        client.gather.return_value = [1, 4, 9, 16, 25] # Resultado esperado
+        client.gather.return_value = [1, 4, 9, 16, 25]  # Resultado esperado
         numbers = [1, 2, 3, 4, 5]
         expected = [1, 4, 9, 16, 25]
 
@@ -110,7 +125,7 @@ class TestProcessWithDask:
     def test_process_empty_list(self, mock_dask_cluster):
         """Testa processamento de lista vazia"""
         # Arrange
-        client = mock_dask_cluster['client']
+        client = mock_dask_cluster["client"]
 
         # Act
         result = process_with_dask(client, [], square_task)
@@ -134,7 +149,7 @@ class TestCreateCluster:
         assert cluster is not None
         assert client is not None
 
-    @patch('demo_cluster.LocalCluster')
+    @patch("demo_cluster.LocalCluster")
     def test_create_cluster_failure(self, mock_cluster):
         """Testa falha na criação do cluster"""
         # Configurar mock para falhar
@@ -148,8 +163,8 @@ class TestCreateCluster:
 class TestRunDemo:
     """Testes para a função run_demo"""
 
-    @patch('demo_cluster.Client')
-    @patch('demo_cluster.LocalCluster')
+    @patch("demo_cluster.Client")
+    @patch("demo_cluster.LocalCluster")
     def test_run_demo_success(self, mock_cluster_class, mock_client_class):
         """Testa execução bem-sucedida da demo"""
         # Arrange: Configurar mocks para simular Dask
@@ -169,7 +184,7 @@ class TestRunDemo:
         assert result["results"] == expected_fib
         assert "computation_time" in result
 
-    @patch('demo_cluster.LocalCluster')
+    @patch("demo_cluster.LocalCluster")
     def test_run_demo_cluster_failure(self, mock_local_cluster):
         """Testa falha na criação do cluster durante demo"""
         # Configurar mock para falhar
@@ -182,8 +197,8 @@ class TestRunDemo:
         assert result["status"] == "error"
         assert "error" in result
 
-    @patch('demo_cluster.LocalCluster')
-    @patch('demo_cluster.Client')
+    @patch("demo_cluster.LocalCluster")
+    @patch("demo_cluster.Client")
     def test_run_demo_processing_failure(self, mock_client_class, mock_cluster_class):
         """Testa falha no processamento durante demo"""
         # Configurar mocks
@@ -243,5 +258,7 @@ class TestEdgeCases:
         Testa fibonacci com valores negativos.
         Deve levantar ValueError para entradas negativas.
         """
-        with pytest.raises(ValueError, match="Fibonacci não está definido para números negativos"):
+        with pytest.raises(
+            ValueError, match="Fibonacci não está definido para números negativos"
+        ):
             fibonacci_task(-1)

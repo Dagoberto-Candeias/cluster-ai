@@ -19,7 +19,7 @@ def test_unconditional_skip():
 
 @pytest.mark.skipif(
     sys.version_info < (3, 10),
-    reason="Este teste requer o 'match-case' do Python 3.10+"
+    reason="Este teste requer o 'match-case' do Python 3.10+",
 )
 def test_feature_requiring_python310():
     """Testa uma funcionalidade que só existe no Python 3.10 ou superior."""
@@ -34,7 +34,7 @@ def test_feature_requiring_python310():
 
 @pytest.mark.skipif(
     os.getenv("RUN_HEAVY_TESTS") != "true",
-    reason="A variável de ambiente RUN_HEAVY_TESTS não está definida como 'true'"
+    reason="A variável de ambiente RUN_HEAVY_TESTS não está definida como 'true'",
 )
 def test_heavy_computation():
     """Um teste pesado que só deve rodar quando explicitamente solicitado."""

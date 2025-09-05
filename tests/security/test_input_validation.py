@@ -1,6 +1,7 @@
 """
 Testes de segurança para validação de entrada no Cluster AI
 """
+
 import pytest
 import re
 from unittest.mock import patch, MagicMock
@@ -59,7 +60,9 @@ class TestInputValidation:
             assert len(hostname) > 0, "Hostname não pode ser vazio"
             assert len(hostname) <= 253, "Hostname muito longo"
             # Não deve conter caracteres inválidos
-            assert not re.search(r'[^a-zA-Z0-9.-]', hostname), f"Hostname {hostname} contém caracteres inválidos"
+            assert not re.search(
+                r"[^a-zA-Z0-9.-]", hostname
+            ), f"Hostname {hostname} contém caracteres inválidos"
 
         # Hostnames inválidos
         invalid_hostnames = ["", "a" * 254, "host@name", "host name", "host..name"]
@@ -70,7 +73,9 @@ class TestInputValidation:
             elif len(hostname) > 253:
                 assert len(hostname) > 253, "Hostname muito longo é inválido"
             else:
-                assert re.search(r'[^a-zA-Z0-9.-]', hostname) or '..' in hostname, f"Hostname {hostname} deve ser inválido"
+                assert (
+                    re.search(r"[^a-zA-Z0-9.-]", hostname) or ".." in hostname
+                ), f"Hostname {hostname} deve ser inválido"
 
     def test_user_input_sanitization(self):
         """Testa sanitização de entrada do usuário"""
@@ -81,12 +86,12 @@ class TestInputValidation:
             "input && echo 'hacked'",
             "input | cat /etc/passwd",
             "input > /dev/null",
-            "input < /etc/shadow"
+            "input < /etc/shadow",
         ]
 
         for input_str in dangerous_inputs:
             # Detecta caracteres perigosos
-            dangerous_chars = [';', '&', '|', '>', '<', '`', '$', '(', ')']
+            dangerous_chars = [";", "&", "|", ">", "<", "`", "$", "(", ")"]
             has_dangerous = any(char in input_str for char in dangerous_chars)
 
             if has_dangerous:
@@ -111,12 +116,13 @@ class TestInputValidation:
             "../../../etc/passwd",
             "/etc/passwd",
             "..\\..\\windows\\system32",
-            "/root/.ssh/id_rsa"
+            "/root/.ssh/id_rsa",
         ]
 
         for path in dangerous_paths:
-            assert ".." in path or path.startswith("/root") or path.startswith("/etc"), \
-                f"Caminho {path} deve ser detectado como perigoso"
+            assert (
+                ".." in path or path.startswith("/root") or path.startswith("/etc")
+            ), f"Caminho {path} deve ser detectado como perigoso"
 
 
 @pytest.mark.security
@@ -142,16 +148,16 @@ class TestCommandInjection:
         dangerous_commands = [
             "ls -la; rm -rf /",
             "echo 'hello' && cat /etc/passwd",
-            "cat file.txt | grep something"
+            "cat file.txt | grep something",
         ]
 
         for cmd in dangerous_commands:
             # Deve detectar caracteres perigosos
-            dangerous_chars = [';', '&', '|']
+            dangerous_chars = [";", "&", "|"]
             has_dangerous = any(char in cmd for char in dangerous_chars)
             assert has_dangerous, f"Comando {cmd} deve ser detectado como perigoso"
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_subprocess_call_security(self, mock_run):
         """Testa que chamadas subprocess são seguras"""
         mock_run.return_value = MagicMock()
@@ -167,7 +173,7 @@ class TestCommandInjection:
         mock_run.assert_called_once()
         args, kwargs = mock_run.call_args
         assert args[0] == safe_cmd, "Comando deve ser passado como lista"
-        assert kwargs.get('shell') != True, "Não deve usar shell=True para segurança"
+        assert kwargs.get("shell") != True, "Não deve usar shell=True para segurança"
 
 
 @pytest.mark.security
@@ -181,8 +187,8 @@ class TestDataValidation:
         # JSON válido
         valid_json = '{"name": "test", "value": 123}'
         parsed = json.loads(valid_json)
-        assert parsed['name'] == 'test'
-        assert parsed['value'] == 123
+        assert parsed["name"] == "test"
+        assert parsed["value"] == 123
 
         # JSON inválido
         invalid_json = '{"name": "test", "value": }'

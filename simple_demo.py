@@ -8,6 +8,7 @@ Script interativo para mostrar o funcionamento básico do processamento distribu
 import time
 import numpy as np
 from dask.distributed import Client, LocalCluster
+import dask.array as da
 import threading
 
 
@@ -26,7 +27,8 @@ def demo_rapida():
 
     with LocalCluster(n_workers=2) as cluster:
         with Client(cluster) as client:
-            print(f"✅ Cluster iniciado: {cluster.dashboard_link}")
+            dashboard_url = getattr(cluster, "dashboard_link", "N/A")
+            print(f"✅ Cluster iniciado: {dashboard_url}")
 
             # Função simples para processamento
             def quadrado(x):
@@ -62,6 +64,8 @@ def demo_matrizes():
 
     with LocalCluster() as cluster:
         with Client(cluster) as client:
+            dashboard_url = getattr(cluster, "dashboard_link", "N/A")
+            print(f"🌐 Dashboard: {dashboard_url}")
             print("📊 Criando matriz 5000x5000 (25 milhões de elementos)...")
 
             import dask.array as da
@@ -98,7 +102,8 @@ def demo_interativa():
 
     with LocalCluster(n_workers=4) as cluster:
         with Client(cluster) as client:
-            print(f"🌐 Dashboard: {cluster.dashboard_link}")
+            dashboard_url = getattr(cluster, "dashboard_link", "N/A")
+            print(f"🌐 Dashboard: {dashboard_url}")
 
             if escolha == "1":
                 # Quadrados
