@@ -1,0 +1,42 @@
+# .github/workflows/ci.yml
+# Workflow de Integração Contínua para o projeto Cluster AI
+
+name: CI - Testes e Cobertura
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  # Define o limite mínimo de cobertura para todos os jobs neste workflow
+  MIN_COVERAGE: 80
+
+jobs:
+  test-and-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Clonar o repositório
+        uses: actions/checkout@v4
+        with:
+          # Necessário para buscar os submódulos (bats-assert, etc.)
+          submodules: 'recursive'
+
+      - name: 2. Instalar dependências (kcov, bats, jq)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y bats kcov jq
+
+      - name: 3. Executar testes e gerar relatório de cobertura
+        # Passa o limite de cobertura para o script. O passo falhará se o limite não for atingido.
+        run: bash ./scripts/validation/run_coverage.sh ${{ env.MIN_COVERAGE }}
+
+      - name: 4. Fazer upload do relatório de cobertura como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: error # Falha o passo se o relatório não for encontrado
+          retention-days: 7 # Guarda o artefato por 7 dias

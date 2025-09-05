@@ -1,74 +1,44 @@
 #!/usr/bin/env python3
 """
-Python startup file - Configures prompt with Git branch and environment info
+Python startup file for interactive sessions.
+
+This file is executed when the Python interpreter is started in interactive mode.
+It sets up a command history and tab completion.
 """
 
 import os
 import sys
-import subprocess
 
-def get_git_branch():
-    """Get current Git branch name"""
+def setup_interactive_shell():
+    """Configures history and auto-completion for the interactive shell."""
+    # Configure sys.ps1 and sys.ps2 for interactive prompt
+    sys.ps1 = ">>> "
+    sys.ps2 = "... "
+
+    # Optional: Print a simple welcome message
+    if not os.environ.get('PYTHONSTARTUP_QUIET'):
+        print(f"Python {sys.version.split()[0]} - Interactive Session (type 'exit()' or Ctrl-D to quit)")
+
     try:
-        result = subprocess.run(
-            ['git', 'branch', '--show-current'],
-            capture_output=True,
-            text=True,
-            cwd=os.getcwd()
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return f"({result.stdout.strip()})"
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        import readline
+        import atexit
+    except ImportError:
+        # readline is not available, so no history or completion
+        return
+
+    # Setup command history
+    history_file = os.path.join(os.path.expanduser("~"), ".python_history")
+    try:
+        readline.read_history_file(history_file)
+    except FileNotFoundError:
         pass
-    return ""
 
-def get_venv_name():
-    """Get virtual environment name"""
-    venv = os.environ.get('VIRTUAL_ENV')
-    if venv:
-        return f"({os.path.basename(venv)})"
-    return ""
+    atexit.register(readline.write_history_file, history_file)
 
-class GitPrompt:
-    """Custom prompt class that shows Git branch and environment"""
+    # Enable tab completion
+    readline.parse_and_bind("tab: complete")
 
-    def __init__(self):
-        self.last_cwd = None
-        self.last_branch = None
-        self.last_venv = None
-
-    def __str__(self):
-        current_cwd = os.getcwd()
-        current_branch = get_git_branch()
-        current_venv = get_venv_name()
-
-        # Cache results to avoid repeated Git calls
-        if (current_cwd != self.last_cwd or
-            current_branch != self.last_branch or
-            current_venv != self.last_venv):
-
-            self.last_cwd = current_cwd
-            self.last_branch = current_branch
-            self.last_venv = current_venv
-
-        prompt_parts = []
-
-        # Add Git branch if available
-        if current_branch:
-            prompt_parts.append(f"\033[33m{current_branch}\033[0m")
-
-        # Add prompt symbol
-        prompt_parts.append("$")
-
-        # Add virtual environment if available
-        if current_venv:
-            prompt_parts.append(f"\033[35m{current_venv}\033[0m")
-
-        return " ".join(prompt_parts)
-
-# Configure sys.ps1 and sys.ps2 for interactive prompt
-sys.ps1 = GitPrompt()
-sys.ps2 = "\033[34m... \033[0m"
-
-# Print welcome message
-print("\033[32mPython interactive session with Git branch display\033[0m")
+if __name__ == "__main__":
+    setup_interactive_shell()
+    # Cleanup to avoid polluting the global namespace
+    del os, sys, setup_interactive_shell

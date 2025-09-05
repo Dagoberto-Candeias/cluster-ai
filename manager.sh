@@ -8,7 +8,7 @@
 # Este é o painel de controle principal do Cluster AI. Permite iniciar,
 # parar, configurar e monitorar todos os componentes do sistema.
 
-set -e  # Para o script em caso de erro
+set -euo pipefail  # Modo estrito: para em erros, variáveis não definidas e falhas em pipelines
 
 # =============================================================================
 # INICIALIZAÇÃO

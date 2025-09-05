@@ -1,0 +1,63 @@
+# .gitlab-ci.yml
+# Pipeline de CI/CD para o projeto Cluster AI
+
+variables:
+  MIN_COVERAGE: "80" # Define o limite mínimo de cobertura de código
+
+stages:
+  - test
+  - deploy
+
+test_and_coverage:
+  stage: test
+  image: ubuntu:latest # Usa uma imagem Docker do Ubuntu
+
+  # Otimização: Adiciona cache para os pacotes do apt
+  cache:
+    key:
+      files:
+        - .gitlab-ci.yml # Invalida o cache se as dependências mudarem
+    paths:
+      - /var/cache/apt/archives/
+      - /var/lib/apt/lists/
+
+  before_script:
+    # Configura a variável GIT_SUBMODULE_STRATEGY para clonar os submódulos
+    - export GIT_SUBMODULE_STRATEGY=recursive
+    # Instala as dependências necessárias
+    - apt-get update -y
+    - apt-get install -y bats kcov jq git
+
+  script:
+    # Executa o script, passando o limite mínimo de cobertura.
+    # O job falhará se a cobertura for menor que $MIN_COVERAGE.
+    - bash ./scripts/validation/run_coverage.sh $MIN_COVERAGE
+
+  # Extrai a porcentagem de cobertura da saída do script
+  coverage: '/Cobertura Total \(Coverage\): (\d+)%/'
+
+  artifacts:
+    name: "coverage-report-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - coverage/
+    when: always # Salva os artefatos mesmo se o job falhar
+    expire_in: 1 week # Guarda os artefatos por uma semana
+
+# Job especial que publica o conteúdo no GitLab Pages
+pages:
+  stage: deploy
+  needs:
+    - test_and_coverage
+  script:
+    - echo "Publicando relatório de cobertura no GitLab Pages..."
+    # O GitLab Pages serve o conteúdo do diretório 'public'.
+    # Movemos o relatório gerado no job anterior para este diretório.
+    - mv coverage/ public/
+  artifacts:
+    paths:
+      # O diretório que será publicado.
+      - public
+  rules:
+    # Executa este job apenas para a branch 'main' para evitar
+    # a publicação de relatórios de branches de funcionalidades.
+    - if: '$CI_COMMIT_BRANCH == "main"'
