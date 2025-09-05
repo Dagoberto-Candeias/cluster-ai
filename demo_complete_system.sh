@@ -6,14 +6,20 @@
 set -euo pipefail
 
 # --- Carregar Funções Comuns ---
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UTILS_DIR="$PROJECT_ROOT/scripts/utils"
 
 if [ ! -f "${UTILS_DIR}/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
-    exit 1
+    # Fallback for sourcing common.sh from the new location
+    if [ -f "${PROJECT_ROOT}/scripts/lib/common.sh" ]; then
+        source "${PROJECT_ROOT}/scripts/lib/common.sh"
+    else
+        echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
+        exit 1
+    fi
+else
+    source "${UTILS_DIR}/common.sh"
 fi
-source "${UTILS_DIR}/common.sh"
 
 # --- Cores ---
 RED='\033[0;31m'
@@ -61,7 +67,7 @@ demo_intelligent_installation() {
     echo "4. 🛡️  Segurança máxima (não altera SO)"
     echo
 
-    local install_script="$PROJECT_ROOT/scripts/installation/install_intelligent.sh"
+    local install_script="$PROJECT_ROOT/install_unified.sh"
     if [ -f "$install_script" ]; then
         echo -e "${GREEN}✅ Script disponível: $install_script${NC}"
         echo "Para executar: bash $install_script"
@@ -84,7 +90,7 @@ demo_auto_discovery() {
     echo "5. 📊 Relatório detalhado dos workers encontrados"
     echo
 
-    local discovery_script="$PROJECT_ROOT/scripts/deployment/auto_discover_workers.sh"
+    local discovery_script="$PROJECT_ROOT/scripts/management/network_discovery.sh"
     if [ -f "$discovery_script" ]; then
         echo -e "${GREEN}✅ Script disponível: $discovery_script${NC}"
         echo "Para executar: bash $discovery_script"
@@ -237,15 +243,15 @@ run_full_demo() {
     warn "   Nenhum arquivo será modificado sem confirmação"
     echo
 
-    if confirm_operation "Continuar com a demonstração completa?"; then
+    if confirm "Continuar com a demonstração completa?"; then
         echo
         echo "Executando análise dos sistemas..."
         echo
 
         # Simular execução dos scripts (apenas análise)
         local scripts=(
-            "scripts/installation/install_intelligent.sh"
-            "scripts/deployment/auto_discover_workers.sh"
+            "install_unified.sh"
+            "scripts/management/network_discovery.sh"
             "scripts/maintenance/consolidate_todos.sh"
             "scripts/maintenance/organize_project.sh"
         )

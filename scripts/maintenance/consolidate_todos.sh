@@ -7,27 +7,12 @@ set -euo pipefail
 
 # --- Carregar Funções Comuns ---
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
-
-if [ ! -f "${UTILS_DIR}/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
-    exit 1
-fi
-source "${UTILS_DIR}/common.sh"
+source "${PROJECT_ROOT}/scripts/lib/common.sh"
 
 # --- Constantes ---
 BACKUP_DIR="$PROJECT_ROOT/backups/todos_before_consolidation"
 MASTER_TODO="$PROJECT_ROOT/TODO_MASTER.md"
 ANALYSIS_FILE="$PROJECT_ROOT/TODO_ANALYSIS.md"
-
-# --- Cores ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m'
 
 # --- Funções de Análise ---
 
@@ -113,6 +98,20 @@ backup_todos() {
     success "✅ Backup criado em: $BACKUP_DIR"
 }
 
+# Normaliza uma linha de tarefa para comparação
+normalize_task_line() {
+    echo "$1" | sed 's/^\s*-\s*\[.\]\s*//' | sed 's/^\s*//;s/\s*$//' | tr '[:upper:]' '[:lower:]'
+}
+
+# Carrega tarefas existentes do TODO_MASTER para evitar duplicatas
+load_existing_tasks() {
+    local existing_tasks_file="$1"
+    if [ -f "$MASTER_TODO" ]; then
+        # Extrai o texto de tarefas pendentes e concluídas, normaliza e salva no arquivo temporário
+        grep -E '^\s*-\s*\[[ x]\]' "$MASTER_TODO" | while IFS= read -r line; do normalize_task_line "$line"; done > "$existing_tasks_file"
+    fi
+}
+
 # Consolidar tarefas por categoria
 consolidate_tasks() {
     subsection "🔄 Consolidando Tarefas"
@@ -131,6 +130,11 @@ consolidate_tasks() {
         "ANDROID:Android Workers"
         "OUTROS:Outros"
     )
+
+    # Arquivo temporário para rastrear tarefas já adicionadas nesta execução
+    local temp_existing_tasks; temp_existing_tasks=$(mktemp)
+    trap 'rm -f "$temp_existing_tasks"' RETURN
+    load_existing_tasks "$temp_existing_tasks"
 
     for category in "${categories[@]}"; do
         local cat_key cat_name
@@ -166,12 +170,16 @@ consolidate_tasks() {
 
                     if [ -n "$tasks" ]; then
                         consolidated_tasks+=$'\n'"**Fonte: $(basename "$file")**"$'\n'
-                        while read -r task; do
-                            if [ -n "$task" ]; then
-                                consolidated_tasks+="- [ ] $task"$'\n'
-                                found_tasks=true
+                        while IFS= read -r task; do
+                            local normalized_task
+                            normalized_task=$(normalize_task_line "$task")
+                            if [ -n "$normalized_task" ] && ! grep -qFx "$normalized_task" "$temp_existing_tasks"; then
+                                # Adiciona a tarefa ao resultado e ao controle de duplicatas
+                                consolidated_tasks+="- [ ] $(echo "$task" | sed 's/^\s*-\s*\[.\]\s*//')"$'\n'
+                                echo "$normalized_task" >> "$temp_existing_tasks"
+                                found_tasks=true # Marca que encontrou pelo menos uma tarefa nova
                             fi
-                        done <<< "$tasks"
+                        done <<< "$(echo "$tasks" | sed 's/^\s*//')" # Remove leading spaces from tasks
                         consolidated_tasks+=$'\n'
                     fi
                 fi

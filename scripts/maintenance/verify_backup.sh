@@ -27,7 +27,7 @@ list_all_backups() {
     fi
 
     local i=1
-    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/*.tar.gz*)
+    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/*.tar.gz* 2>/dev/null)
     for backup in "${backups[@]}"; do
         local size
         size=$(du -h "$backup" | cut -f1)
@@ -52,7 +52,7 @@ verify_backup_integrity() {
 
     if [[ "$backup_file" == *.enc ]]; then
         subsection "Verificando Backup Criptografado"
-        if ! command_exists openssl; then
+        if ! command_exists "openssl"; then
             error "Comando 'openssl' não encontrado. Não é possível verificar o backup."
             return 1
         fi
@@ -65,14 +65,17 @@ verify_backup_integrity() {
             return 1
         fi
 
-        progress "Tentando descriptografar e verificar a integridade (Gzip e Tar)..."
+        progress "1/2 - Tentando descriptografar e verificar a integridade do Gzip..."
         # Este pipeline descriptografa, descomprime e lista o conteúdo para /dev/null.
         # Uma falha em qualquer etapa (senha, Gzip, Tar) resultará em um código de saída diferente de zero.
-        if openssl enc -d -aes-256-cbc -pbkdf2 -in "$backup_file" -pass pass:"$password" 2>/dev/null | tar -tz > /dev/null; then
-            success "🎉 O arquivo de backup criptografado '$(basename "$backup_file")' parece estar íntegro."
+        if openssl enc -d -aes-256-cbc -pbkdf2 -in "$backup_file" -pass pass:"$password" -nostd -out /dev/null 2>/dev/null; then
+            success "Descriptografia bem-sucedida (senha correta)."
+            progress "2/2 - Verificando a integridade do arquivo (Tar)..."
+            openssl enc -d -aes-256-cbc -pbkdf2 -in "$backup_file" -pass pass:"$password" | tar -tz > /dev/null
+            success "🎉 O arquivo de backup criptografado '$(basename "$backup_file")' está íntegro."
             audit_log "VERIFY_SUCCESS" "Encrypted backup $(basename "$backup_file") is integral"
         else
-            error "Arquivo corrompido ou senha incorreta! A verificação de integridade falhou."
+            error "Falha na verificação! O arquivo pode estar corrompido ou a senha está incorreta."
             audit_log "VERIFY_FAIL" "Encrypted backup $(basename "$backup_file") failed integrity check"
             return 1
         fi

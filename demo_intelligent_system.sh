@@ -14,6 +14,26 @@ MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+section() {
+    echo
+    echo -e "${BLUE}==============================${NC}"
+    echo -e "${BLUE} $1${NC}"
+    echo -e "${BLUE}==============================${NC}"
+    echo
+}
+
+info() {
+    echo -e "${CYAN}[i] $1${NC}"
+}
+
+success() {
+    echo -e "${GREEN}[✔] $1${NC}"
+}
+
+error() {
+    echo -e "${RED}[✘] $1${NC}"
+}
+
 show_banner() {
     echo
     echo -e "${CYAN}================================================================================${NC}"
@@ -66,9 +86,9 @@ demo_install_intelligent() {
     echo "  • Desinstalar (Remove Tudo)"
     echo "  • Verificar Status"
     echo
-    echo "📁 Localização: scripts/installation/install_intelligent.sh"
+    echo "📁 Localização: ./install_unified.sh"
     echo
-    info "Para executar: ./scripts/installation/install_intelligent.sh"
+    info "Para executar: ./install_unified.sh"
 }
 
 demo_android_improved() {
@@ -113,9 +133,9 @@ demo_repair_system() {
     echo "  • Containers e configurações"
     echo "  • Limpeza de cache e logs"
     echo
-    echo "📁 Localização: scripts/maintenance/repair_intelligent.sh"
+    echo "📁 Localização: ./install_unified.sh (Opção 'Reparo')"
     echo
-    info "Para executar: ./scripts/maintenance/repair_intelligent.sh"
+    info "Para executar: ./install_unified.sh"
 }
 
 demo_uninstall_selective() {
@@ -143,9 +163,9 @@ demo_uninstall_selective() {
     echo "  • Desinstalação parcial (múltipla seleção)"
     echo "  • Desinstalação completa com segurança"
     echo
-    echo "📁 Localização: scripts/maintenance/uninstall_intelligent.sh"
+    echo "📁 Localização: ./install_unified.sh (Opção 'Desinstalação')"
     echo
-    info "Para executar: ./scripts/maintenance/uninstall_intelligent.sh"
+    info "Para executar: ./install_unified.sh"
 }
 
 demo_health_check() {
@@ -166,9 +186,9 @@ demo_health_check() {
     echo "  • Histórico de problemas"
     echo "  • Sugestões de otimização"
     echo
-    echo "📁 Localização: scripts/utils/health_check_consolidated.sh"
+    echo "📁 Localização: ./manager.sh (Opção 'Status Detalhado')"
     echo
-    info "Para executar: ./scripts/utils/health_check_consolidated.sh"
+    info "Para executar: ./manager.sh status"
 }
 
 show_summary() {
@@ -236,10 +256,8 @@ main() {
                 success "✅ Demonstração concluída!"
                 echo
                 echo "Para usar os sistemas inteligentes:"
-                echo "• Instalação: ./scripts/installation/install_intelligent.sh"
-                echo "• Reparo: ./scripts/maintenance/repair_intelligent.sh"
-                echo "• Desinstalação: ./scripts/maintenance/uninstall_intelligent.sh"
-                echo "• Health Check: ./scripts/utils/health_check_consolidated.sh"
+                echo "• Instalação: ./install_unified.sh"
+                echo "• Gerenciador: ./manager.sh"
                 echo
                 exit 0
                 ;;

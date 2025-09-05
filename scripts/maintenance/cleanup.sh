@@ -22,6 +22,7 @@ source "${LIB_DIR}/common.sh"
 LOGS_DIR="${PROJECT_ROOT}/logs"
 RUN_DIR="${PROJECT_ROOT}/run"
 TMP_DIR="/tmp"
+DRY_RUN=false           # Flag para modo de simulação (dry run)
 LOG_RETENTION_DAYS=7 # Manter logs por 7 dias
 NON_INTERACTIVE=false # Flag para modo não interativo
 
@@ -47,6 +48,12 @@ cleanup_logs() {
 
     progress "Encontrados os seguintes logs antigos para remover:"
     echo "$old_logs"
+
+    if [ "$DRY_RUN" = true ]; then
+        info "[DRY RUN] Os seguintes arquivos de log seriam removidos."
+        echo "$old_logs"
+        return
+    fi
 
     if [ "$NON_INTERACTIVE" = true ] || confirm_operation "Deseja remover estes arquivos de log?"; then
         # Usar 'xargs -r' para não executar rm se a lista estiver vazia
@@ -86,6 +93,11 @@ cleanup_pids() {
         # Verifica se o processo com o PID não existe
         if ! ps -p "$pid" > /dev/null; then
             info "PID órfão encontrado: $pid (de $pid_file). Processo não está rodando."
+            if [ "$DRY_RUN" = true ]; then
+                info "[DRY RUN] O arquivo PID órfão '$pid_file' seria removido."
+                continue
+            fi
+
             if [ "$NON_INTERACTIVE" = true ] || confirm_operation "Remover arquivo PID órfão '$pid_file'?"; then
                 rm -f "$pid_file"
                 success "Arquivo PID órfão removido."
@@ -118,6 +130,12 @@ cleanup_tmp_files() {
     progress "Encontrados os seguintes arquivos temporários para remover:"
     printf " - %s\n" "${files_to_remove[@]}"
 
+    if [ "$DRY_RUN" = true ]; then
+        info "[DRY RUN] Os seguintes arquivos temporários seriam removidos."
+        printf " - %s\n" "${files_to_remove[@]}"
+        return
+    fi
+
     if [ "$NON_INTERACTIVE" = true ] || confirm_operation "Deseja remover estes arquivos temporários?"; then
         rm -f "${files_to_remove[@]}"
         success "Arquivos temporários removidos."
@@ -126,21 +144,92 @@ cleanup_tmp_files() {
     fi
 }
 
+cleanup_package_cache() {
+    subsection "Limpando Cache do Gerenciador de Pacotes do Sistema"
+
+    if [ "$NON_INTERACTIVE" = false ]; then
+        if ! confirm_operation "Deseja limpar o cache de pacotes do sistema? (requer sudo)"; then
+            warn "Limpeza de cache de pacotes cancelada."
+            return
+        fi
+    fi
+
+    local pm
+    pm=$(detect_package_manager)
+
+    if [ -z "$pm" ]; then
+        error "Não foi possível detectar o gerenciador de pacotes do seu sistema."
+        return
+    fi
+
+    progress "Limpando cache usando '$pm'..."
+    case "$pm" in
+        apt|apt-get)
+            if [ "$DRY_RUN" = true ]; then
+                info "[DRY RUN] Simularia a execução de 'sudo apt-get autoremove' e 'sudo apt-get clean'."
+                return
+            fi
+            if sudo apt-get autoremove -y >/dev/null 2>&1 && sudo apt-get clean >/dev/null 2>&1; then
+                success "Cache do apt limpo com sucesso."
+            else
+                error "Falha ao limpar o cache do apt."
+            fi
+            ;;
+        dnf|yum)
+            if [ "$DRY_RUN" = true ]; then
+                info "[DRY RUN] Simularia a execução de 'sudo $pm clean all'."
+                return
+            fi
+            if sudo "$pm" clean all >/dev/null 2>&1; then
+                success "Cache do $pm limpo com sucesso."
+            else
+                error "Falha ao limpar o cache do $pm."
+            fi
+            ;;
+        pacman)
+            if [ "$DRY_RUN" = true ]; then
+                info "[DRY RUN] Simularia a execução de 'sudo pacman -Scc --noconfirm'."
+                return
+            fi
+            if sudo pacman -Scc --noconfirm >/dev/null 2>&1; then
+                success "Cache do pacman limpo com sucesso."
+            else
+                error "Falha ao limpar o cache do pacman."
+            fi
+            ;;
+        *)
+            warn "Limpeza de cache não suportada para o gerenciador '$pm'."
+            ;;
+    esac
+}
+
 # =============================================================================
 # FUNÇÃO PRINCIPAL
 # =============================================================================
 
 main() {
-    if [[ "$1" == "--yes" || "$1" == "-y" ]]; then
-        NON_INTERACTIVE=true
-        info "Executando em modo não interativo. Todas as confirmações serão automáticas."
-    fi
+    # Análise de argumentos
+    for arg in "$@"; do
+        case $arg in
+            --yes|-y)
+                NON_INTERACTIVE=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+        esac
+    done
 
+    [ "$NON_INTERACTIVE" = true ] && info "Executando em modo não interativo. Todas as confirmações serão automáticas."
+    [ "$DRY_RUN" = true ] && warn "Executando em modo de simulação (DRY RUN). Nenhuma alteração será feita."
     section "🧹 Limpeza de Arquivos do Cluster AI"
 
     cleanup_logs
     cleanup_pids
     cleanup_tmp_files
+    cleanup_package_cache
 
     echo
     success "Processo de limpeza concluído!"

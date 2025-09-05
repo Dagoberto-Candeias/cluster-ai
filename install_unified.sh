@@ -25,6 +25,7 @@ source "${SCRIPT_DIR}/scripts/lib/common.sh"
 # Scripts modulares de instalação
 SETUP_DEPENDENCIES="${SCRIPT_DIR}/scripts/installation/setup_dependencies.sh"
 SETUP_PYTHON_ENV="${SCRIPT_DIR}/scripts/installation/setup_python_env.sh"
+SETUP_DOCKER="${SCRIPT_DIR}/scripts/installation/setup_docker.sh"
 SETUP_OLLAMA="${SCRIPT_DIR}/scripts/installation/setup_ollama.sh"
 SETUP_OPENWEBUI="${SCRIPT_DIR}/scripts/installation/setup_openwebui.sh"
 
@@ -62,6 +63,39 @@ run_modular_script() {
     fi
 }
 
+# Verifica o espaço em disco antes da instalação
+# Retorna 0 se houver espaço suficiente, 1 caso contrário.
+check_disk_space() {
+    subsection "Verificando espaço em disco"
+
+    # Estimativa conservadora do espaço necessário em MB para uma instalação completa
+    # (Dependências, Docker, Python venv, Imagens Docker para Ollama/WebUI)
+    local required_space_mb=6000 # 6 GB
+    local required_space_kb=$((required_space_mb * 1024))
+
+    log "Espaço estimado necessário: ${required_space_mb}MB"
+
+    # Obtém o espaço disponível em KB no diretório do projeto
+    local available_space_kb
+    available_space_kb=$(df -k "$PROJECT_ROOT" | awk 'NR==2 {print $4}')
+
+    if [ -z "$available_space_kb" ]; then
+        error "Não foi possível determinar o espaço em disco disponível."
+        return 1
+    fi
+
+    log "Espaço disponível: $((available_space_kb / 1024))MB"
+
+    if [ "$available_space_kb" -lt "$required_space_kb" ]; then
+        error "Espaço em disco insuficiente."
+        info "São necessários pelo menos ${required_space_mb}MB, mas apenas $((available_space_kb / 1024))MB estão disponíveis."
+        return 1
+    fi
+
+    success "Espaço em disco suficiente."
+    return 0
+}
+
 # Instala dependências do sistema
 install_system_dependencies() {
     run_modular_script "$SETUP_DEPENDENCIES" "dependencies" "Instalando Dependências do Sistema"
@@ -70,6 +104,11 @@ install_system_dependencies() {
 # Configura ambiente Python
 setup_python_environment() {
     run_modular_script "$SETUP_PYTHON_ENV" "python_env" "Configurando Ambiente Python"
+}
+
+# Instala o Docker
+setup_docker() {
+    run_modular_script "$SETUP_DOCKER" "docker" "Instalando e Configurando o Docker"
 }
 
 # Configura Ollama
@@ -102,6 +141,7 @@ install_complete() {
 
     info "Esta instalação irá configurar:"
     echo "  ✅ Dependências do sistema"
+    echo "  ✅ Docker Engine"
     echo "  ✅ Ambiente Python com todas as bibliotecas"
     echo "  ✅ Ollama (se disponível)"
     echo "  ✅ OpenWebUI (se disponível)"
@@ -113,12 +153,22 @@ install_complete() {
         return 0
     fi
 
+    # Verificar espaço em disco antes de prosseguir
+    if ! check_disk_space; then
+        error "Instalação abortada devido à falta de espaço em disco."
+        return 1
+    fi
+
     local start_time=$(date +%s)
     local failed_components=()
 
     # Executa cada componente
     if ! install_system_dependencies; then
         failed_components+=("Dependências do Sistema")
+    fi
+
+    if ! setup_docker; then
+        failed_components+=("Docker")
     fi
 
     if ! setup_python_environment; then
@@ -180,6 +230,7 @@ install_custom() {
     local choices=()
     local descriptions=(
         "Dependências do Sistema (recomendado)"
+        "Docker Engine (essencial)"
         "Ambiente Python (recomendado)"
         "Ollama"
         "OpenWebUI"
@@ -190,9 +241,10 @@ install_custom() {
         local component_name
         case $i in
             0) component_name="dependencies" ;;
-            1) component_name="python_env" ;;
-            2) component_name="ollama" ;;
-            3) component_name="openwebui" ;;
+            1) component_name="docker" ;;
+            2) component_name="python_env" ;;
+            3) component_name="ollama" ;;
+            4) component_name="openwebui" ;;
         esac
 
         if confirm "${descriptions[$i]}" "y"; then
@@ -209,6 +261,7 @@ install_custom() {
     for choice in "${choices[@]}"; do
         case $choice in
             dependencies) install_system_dependencies ;;
+            docker) setup_docker ;;
             python_env) setup_python_environment ;;
             ollama) setup_ollama_service ;;
             openwebui) setup_openwebui_service ;;
@@ -225,6 +278,7 @@ reinstall_complete() {
 
     info "Esta reinstalação irá sobrescrever todos os componentes:"
     echo "  ✅ Dependências do sistema"
+    echo "  ✅ Docker Engine"
     echo "  ✅ Ambiente Python com todas as bibliotecas"
     echo "  ✅ Ollama (se disponível)"
     echo "  ✅ OpenWebUI (se disponível)"
@@ -242,6 +296,10 @@ reinstall_complete() {
     # Executa cada componente
     if ! install_system_dependencies; then
         failed_components+=("Dependências do Sistema")
+    fi
+
+    if ! setup_docker; then
+        failed_components+=("Docker")
     fi
 
     if ! setup_python_environment; then
@@ -313,6 +371,12 @@ repair_installation() {
     if ! command_exists python3; then
         if ! install_system_dependencies; then
             failed_components+=("Dependências do Sistema")
+        fi
+    fi
+
+    if ! command_exists docker; then
+        if ! setup_docker; then
+            failed_components+=("Docker")
         fi
     fi
 
@@ -640,11 +704,12 @@ show_about() {
     echo "✨ VANTAGENS:"
     echo "• Instalação mais rápida e confiável"
     echo "• Melhor tratamento de erros"
+    echo "• Instalação segura do Docker"
     echo "• Logs detalhados e progresso"
     echo "• Rollback automático em caso de falha"
     echo
     echo "📊 STATUS DOS SCRIPTS:"
-    for script in "$SETUP_DEPENDENCIES" "$SETUP_PYTHON_ENV" "$SETUP_OLLAMA" "$SETUP_OPENWEBUI"; do
+    for script in "$SETUP_DEPENDENCIES" "$SETUP_DOCKER" "$SETUP_PYTHON_ENV" "$SETUP_OLLAMA" "$SETUP_OPENWEBUI"; do
         if [[ -f "$script" ]]; then
             success "✓ $(basename "$script")"
         else
@@ -656,18 +721,44 @@ show_about() {
     confirm "Voltar ao menu principal?" "y" || exit 0
 }
 
+# Processa a escolha do menu e retorna um status
+# Retornos:
+#   0: Sucesso, continuar loop
+#   1: Sair do loop
+#   2: Opção inválida
+process_menu_choice() {
+    local choice="$1"
+    case $choice in
+        1) install_complete ;;
+        2) install_custom ;;
+        3) reinstall_complete ;;
+        4) repair_installation ;;
+        5) uninstall_components ;;
+        6) check_installation_status ;;
+        7) show_about; return 0 ;; # 'show_about' já tem sua própria pausa
+        0) info "Instalação cancelada pelo usuário"; return 1 ;;
+        *) error "Opção inválida. Tente novamente."; sleep 2; return 2 ;;
+    esac
 
+    # Para as opções que executam uma ação, perguntar se deseja continuar
+    echo
+    if ! confirm "Voltar ao menu principal?" "y"; then
+        return 1 # Sinaliza para sair
+    fi
+    return 0 # Sinaliza para continuar
+}
 
-# Atualiza o menu principal para chamar as novas funções
+# =============================================================================
+# FUNÇÃO PRINCIPAL
+# =============================================================================
+
 main() {
     # Verificações iniciais
     if is_root; then
-        error "Não execute o instalador como root"
-        info "Use: ./install_unified.sh"
+        error "Não execute o instalador como root. Use: ./install_unified.sh"
         exit 1
     fi
 
-    # Exibe banner
     show_banner
 
     # Loop principal do menu
@@ -675,85 +766,15 @@ main() {
         show_system_info
         show_menu
 
-        local choice
         read -p "Digite sua opção (0-7): " choice
 
-        case $choice in
-            1)
-                # Instalação completa
-                if install_complete; then
-                    info "Instalação concluída com sucesso!"
-                    if confirm "Voltar ao menu?" "n"; then
-                        continue
-                    else
-                        break
-                    fi
-                fi
-                ;;
-            2)
-                # Instalação personalizada
-                install_custom
-                echo
-                if confirm "Voltar ao menu?" "y"; then
-                    continue
-                else
-                    break
-                fi
-                ;;
-            3)
-                # Reinstalação completa
-                reinstall_complete
-                echo
-                if confirm "Voltar ao menu?" "y"; then
-                    continue
-                else
-                    break
-                fi
-                ;;
-            4)
-                # Reparo da instalação
-                repair_installation
-                echo
-                if confirm "Voltar ao menu?" "y"; then
-                    continue
-                else
-                    break
-                fi
-                ;;
-            5)
-                # Desinstalação
-                uninstall_components
-                echo
-                if confirm "Voltar ao menu?" "y"; then
-                    continue
-                else
-                    break
-                fi
-                ;;
-            6)
-                # Verificar instalação
-                check_installation_status
-                echo
-                if confirm "Voltar ao menu?" "y"; then
-                    continue
-                else
-                    break
-                fi
-                ;;
-            7)
-                # Sobre
-                show_about
-                ;;
-            0)
-                # Sair
-                info "Instalação cancelada pelo usuário"
-                exit 0
-                ;;
-            *)
-                error "Opção inválida. Tente novamente."
-                sleep 2
-                ;;
-        esac
+        process_menu_choice "$choice"
+        local exit_code=$?
+
+        if [[ $exit_code -eq 1 ]]; then
+            break # Sai do loop
+        fi
+        # Se for 0 ou 2, o loop continua
     done
 
     # Finalização

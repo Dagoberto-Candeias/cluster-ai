@@ -53,11 +53,13 @@ def main(project_root: Path):
         print("Para produção, execute o script de instalação para gerar certificados.")
         sys.exit(1)
     else:
-        security = {
-            'tls': {'cert': str(cert_file), 'key': str(key_file)},
-            'require_encryption': True,
-            'auth': { 'token': auth_token }
-        }
+        from distributed.security import Security
+        security = Security(
+            tls_ca_file=str(cert_file),
+            tls_cert=str(cert_file),
+            tls_key=str(key_file),
+            require_encryption=True
+        )
 
     cluster = LocalCluster(
         n_workers=n_workers,

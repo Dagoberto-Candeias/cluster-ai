@@ -23,17 +23,20 @@ RETENTION_DAYS=7 # Manter backups por 7 dias
 # --- Funções ---
 
 show_help() {
-    echo "Uso: $0 [comando]"
+    echo "Uso: $0 [comando] [--encrypt]"
     echo "Gerencia backups completos para o Cluster AI."
     echo ""
     echo "Comandos:"
-    echo "  full         - Realiza um backup completo (config, modelos, docker)."
-    echo "  config       - Backup apenas das configurações do projeto e do usuário."
-    echo "  models       - Backup apenas dos modelos Ollama."
-    echo "  docker-data  - Backup dos volumes de dados dos containers Docker."
-    echo "  list         - Lista todos os backups existentes."
-    echo "  cleanup      - Remove backups mais antigos que $RETENTION_DAYS dias."
-    echo "  help         - Mostra esta ajuda."
+    echo "  full          - Realiza um backup completo (config, modelos, docker)."
+    echo "  config        - Backup apenas das configurações do projeto e do usuário."
+    echo "  models        - Backup apenas dos modelos Ollama."
+    echo "  docker-data   - Backup dos volumes de dados dos containers Docker."
+    echo "  list          - Lista todos os backups existentes."
+    echo "  cleanup       - Remove backups mais antigos que $RETENTION_DAYS dias."
+    echo "  help          - Mostra esta ajuda."
+    echo ""
+    echo "Opções:"
+    echo "  --encrypt     - Criptografa o arquivo de backup com uma senha."
 }
 
 # Função para obter o caminho de um volume Docker
@@ -104,11 +107,21 @@ check_disk_space() {
 # Função principal de backup
 do_backup() {
     local backup_type="$1"
-    section "Iniciando Backup: $backup_type"
-    audit_log "BACKUP_START" "Type: $backup_type"
+    local encrypt_backup=false
+    if [[ "$2" == "--encrypt" ]]; then
+        encrypt_backup=true
+    fi
+
+    section "Iniciando Backup: $backup_type (Criptografado: $encrypt_backup)"
+    audit_log "BACKUP_START" "Type: $backup_type, Encrypted: $encrypt_backup"
 
     local hostname; hostname=$(hostname -s)
-    local backup_file="$BACKUP_BASE_DIR/backup_${backup_type}_${hostname}_${TIMESTAMP}.tar.gz"
+    local backup_file_base="$BACKUP_BASE_DIR/backup_${backup_type}_${hostname}_${TIMESTAMP}"
+    local backup_file="${backup_file_base}.tar.gz"
+    if [ "$encrypt_backup" = true ]; then
+        backup_file="${backup_file}.enc"
+    fi
+
     local staging_dir; staging_dir=$(mktemp -d)
     trap 'rm -rf "$staging_dir"' EXIT # Garante limpeza do diretório temporário
 
@@ -133,9 +146,10 @@ do_backup() {
     for path in "${files_to_backup[@]}"; do
         if [ -e "$path" ]; then
             # Preserva a estrutura de diretórios relativa ao HOME para facilitar a restauração
-            local dest_path="$staging_dir/user_home/$(realpath --relative-to="$HOME" "$path")"
-            mkdir -p "$(dirname "$dest_path")"
-            cp -a "$path" "$dest_path"
+            local dest_parent_dir="$staging_dir/user_home"
+            mkdir -p "$dest_parent_dir"
+            log "Copiando $(basename "$path")..."
+            rsync -a --info=progress2 --relative "$path" "$dest_parent_dir"
         else
             warn "Caminho não encontrado, pulando: $path"
         fi
@@ -146,7 +160,7 @@ do_backup() {
         local webui_volume_path; webui_volume_path=$(get_docker_volume_path "open-webui")
         if [ -n "$webui_volume_path" ] && [ -d "$webui_volume_path" ]; then
             log "Copiando dados do volume 'open-webui' para a área de preparação..."
-            sudo cp -a "$webui_volume_path" "$staging_dir/docker_volumes_data"
+            sudo rsync -a --info=progress2 "$webui_volume_path/" "$staging_dir/docker_volumes_data/"
         else
             warn "Volume Docker 'open-webui' não encontrado ou caminho inválido. Pulando."
         fi
@@ -162,24 +176,49 @@ do_backup() {
     log "Criando arquivo de backup compactado..."
     mkdir -p "$BACKUP_BASE_DIR"
 
+    # Comandos para o pipeline de backup
+    local tar_command="tar -c -C \"$staging_dir\" ."
+    local pv_command=""
+    local gzip_command="gzip"
+    local encrypt_command=""
+    local final_command=""
+
+    if [ "$encrypt_backup" = true ]; then
+        if ! command_exists openssl; then
+            error "Comando 'openssl' não encontrado. A criptografia não é possível."
+            info "Instale com: sudo apt install openssl (ou equivalente)"
+            return 1
+        fi
+        local password
+        read -s -p "Digite a senha para criptografar o backup: " password
+        echo
+        read -s -p "Confirme a senha: " password_confirm
+        echo
+        if [ -z "$password" ] || [ "$password" != "$password_confirm" ]; then
+            error "Senhas não conferem ou estão em branco. Operação abortada."
+            return 1
+        fi
+        # Usa PBKDF2 para derivação de chave mais segura
+        encrypt_command="openssl enc -aes-256-cbc -pbkdf2 -pass pass:'$password'"
+    fi
+
     local success_flag=false
     if command_exists pv; then
         log "Usando 'pv' para exibir barra de progresso..."
         # Estima o tamanho total para o pv
         local total_size; total_size=$(du -sb "$staging_dir" | awk '{print $1}')
-        # Cria o tar, passa pelo pv para a barra de progresso, e comprime com gzip
-        if tar -c -C "$staging_dir" . | pv -s "$total_size" | gzip > "$backup_file"; then
-            success_flag=true
-        fi
+        pv_command="pv -s \"$total_size\""
     else
         warn "Comando 'pv' não encontrado. A barra de progresso não será exibida."
         info "Para instalar: sudo apt install pv (ou equivalente)"
-        if tar -czf "$backup_file" -C "$staging_dir" .; then
-            success_flag=true
-        fi
     fi
 
-    if [ "$success_flag" = true ]; then
+    # Constrói o pipeline de comandos
+    final_command="$tar_command | $gzip_command"
+    [ -n "$pv_command" ] && final_command="$tar_command | $pv_command | $gzip_command"
+    [ -n "$encrypt_command" ] && final_command+=" | $encrypt_command"
+
+    if eval "$final_command" > "$backup_file"; then
         success "Backup '$backup_type' concluído com sucesso!"
         log "Arquivo salvo em: $backup_file"
         log "Tamanho: $(du -h "$backup_file" | cut -f1)"
@@ -195,7 +234,7 @@ do_backup() {
 # Função para listar backups
 list_backups() {
     section "Backups Existentes em $BACKUP_BASE_DIR"
-    if [ ! -d "$BACKUP_BASE_DIR" ] || [ -z "$(ls -A "$BACKUP_BASE_DIR"/*.tar.gz 2>/dev/null)" ]; then
+    if [ ! -d "$BACKUP_BASE_DIR" ] || [ -z "$(ls -A "$BACKUP_BASE_DIR"/*.tar.gz* 2>/dev/null)" ]; then
         warn "Nenhum backup encontrado."
         return 1
     fi
@@ -212,7 +251,7 @@ cleanup_backups() {
     fi
 
     log "Procurando por backups com mais de $RETENTION_DAYS dias..."
-    local old_backups; mapfile -t old_backups < <(find "$BACKUP_BASE_DIR" -name "*.tar.gz" -mtime +"$RETENTION_DAYS")
+    local old_backups; mapfile -t old_backups < <(find "$BACKUP_BASE_DIR" -name "*.tar.gz*" -mtime +"$RETENTION_DAYS")
 
     if [ ${#old_backups[@]} -eq 0 ]; then
         log "Nenhum backup antigo para remover."
@@ -221,7 +260,7 @@ cleanup_backups() {
 
     echo "Os seguintes arquivos serão removidos:"; printf "  - %s\n" "${old_backups[@]}"
     if confirm_operation "Deseja continuar com a remoção?"; then
-        find "$BACKUP_BASE_DIR" -name "*.tar.gz" -mtime +"$RETENTION_DAYS" -print0 | xargs -0 -r rm -f
+        find "$BACKUP_BASE_DIR" -name "*.tar.gz*" -mtime +"$RETENTION_DAYS" -print0 | xargs -0 -r rm -f
         audit_log "CLEANUP_SUCCESS" "Removed ${#old_backups[@]} files"
         success "Backups antigos removidos."
     else
@@ -233,13 +272,15 @@ cleanup_backups() {
 # --- Execução ---
 main() {
     local command="${1:-help}"
+    local encrypt_flag="${2:-}"
+
     if [[ "$command" == "docker-data" || "$command" == "full" ]]; then
         if ! sudo -n true 2>/dev/null; then
             error "Este comando requer privilégios de sudo para acessar os volumes do Docker."; return 1
         fi
     fi
     case "$command" in
-        full|config|models|docker-data) do_backup "$command" ;;
+        full|config|models|docker-data) do_backup "$command" "$encrypt_flag" ;;
         list) list_backups ;;
         cleanup) cleanup_backups ;;
         *) show_help ;;

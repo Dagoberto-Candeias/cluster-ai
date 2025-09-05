@@ -1,13 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
-# Local: scripts/android/setup_android_worker.sh
+#!/bin/bash
+# Script genérico para configurar um dispositivo Linux/Unix como worker do Cluster AI
 # Autor: Dagoberto Candeias <betoallnet@gmail.com>
-# Script para configurar um dispositivo Android como um Worker do Cluster AI via Termux.
-#
-# INSTRUÇÕES:
-# 1. Instale o Termux no seu dispositivo Android.
-# 2. Execute o comando: termux-setup-storage
-# 3. Execute este script colando o seguinte comando no Termux:
-#    curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
 
 set -euo pipefail
 
@@ -31,80 +24,168 @@ section() {
     echo -e "${GREEN}=================================================${NC}"
 }
 
-main() {
-    section "Configurador de Worker Android para Cluster AI"
-
-    # 1. Atualizar pacotes do Termux
-    log "Atualizando pacotes do Termux..."
-    pkg update -y && pkg upgrade -y
-
-    # 2. Instalar dependências essenciais
-    log "Instalando dependências: openssh, python, git, ncurses-utils..."
-    log "Isso pode levar alguns minutos..."
-
-    # Instalar com timeout para evitar travamentos
-    if timeout 300 pkg install -y openssh python git ncurses-utils curl >/dev/null 2>&1; then
-        success "Dependências instaladas com sucesso"
+# Detectar gerenciador de pacotes
+detect_package_manager() {
+    if command_exists apt-get; then
+        echo "apt-get"
+    elif command_exists yum; then
+        echo "yum"
+    elif command_exists dnf; then
+        echo "dnf"
+    elif command_exists pacman; then
+        echo "pacman"
+    elif command_exists zypper; then
+        echo "zypper"
     else
-        error "Falha ao instalar dependências. Verifique sua conexão com a internet."
-        exit 1
+        echo "unknown"
+    fi
+}
+
+# Instalar pacote usando o gerenciador detectado
+install_package() {
+    local package="$1"
+    local pm
+    pm=$(detect_package_manager)
+
+    case $pm in
+        apt-get)
+            sudo apt-get update && sudo apt-get install -y "$package"
+            ;;
+        yum)
+            sudo yum install -y "$package"
+            ;;
+        dnf)
+            sudo dnf install -y "$package"
+            ;;
+        pacman)
+            sudo pacman -S --noconfirm "$package"
+            ;;
+        zypper)
+            sudo zypper install -y "$package"
+            ;;
+        *)
+            error "Gerenciador de pacotes não suportado"
+            return 1
+            ;;
+    esac
+}
+
+# Verificar se comando existe
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+main() {
+    section "Configurador de Worker Genérico para Cluster AI"
+
+    # Verificar se está rodando como root (não recomendado)
+    if [ "$EUID" -eq 0 ]; then
+        warn "Este script não deve ser executado como root"
+        warn "Será executado como usuário normal"
+        echo
     fi
 
-    # 3. Configurar e iniciar o servidor SSH
-    section "Configurando Servidor SSH"
+    # 1. Verificar e instalar dependências
+    section "Verificando Dependências"
+
+    local deps=("openssh-client" "curl" "wget" "git")
+    local missing_deps=()
+
+    for dep in "${deps[@]}"; do
+        if ! command_exists "$dep"; then
+            missing_deps+=("$dep")
+        else
+            success "$dep: OK"
+        fi
+    done
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log "Instalando dependências faltantes: ${missing_deps[*]}"
+        for dep in "${missing_deps[@]}"; do
+            if install_package "$dep"; then
+                success "$dep instalado"
+            else
+                error "Falha ao instalar $dep"
+                exit 1
+            fi
+        done
+    fi
+
+    # 2. Configurar SSH
+    section "Configurando SSH"
+
+    # Criar diretório .ssh se não existir
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+
+    # Gerar chave SSH se não existir
     if [ ! -f "$HOME/.ssh/id_rsa" ]; then
         log "Gerando chave SSH para o dispositivo..."
         ssh-keygen -t rsa -b 4096 -N "" -f "$HOME/.ssh/id_rsa"
+        success "Chave SSH gerada"
+    else
+        log "Chave SSH já existe"
     fi
 
-    log "Iniciando o servidor SSH na porta 8022..."
-    sshd
+    # Obter informações do sistema
+    local hostname
+    hostname=$(hostname)
+    local user
+    user=$(whoami)
+    local ip
+    ip=$(hostname -I | awk '{print $1}')
 
-    local user; user=$(whoami)
-    local ip; ip=$(ip route get 1 | awk '{print $7; exit}')
-    success "Servidor SSH iniciado! Conecte-se com: ssh $user@$ip -p 8022"
+    if [ -z "$ip" ]; then
+        # Fallback para ip route
+        ip=$(ip route get 1 | awk '{print $7; exit}')
+    fi
 
-    # 4. Clonar o repositório do Cluster AI
-    section "Clonando o Projeto Cluster AI"
-    if [ ! -d "$HOME/Projetos/cluster-ai" ]; then
+    success "Informações do worker:"
+    info "  • Nome: $hostname"
+    info "  • Usuário: $user"
+    info "  • IP: $ip"
+
+    # 3. Clonar repositório do Cluster AI
+    section "Clonando Projeto Cluster AI"
+
+    local repo_dir="$HOME/Projetos/cluster-ai"
+
+    if [ ! -d "$repo_dir" ]; then
         mkdir -p "$HOME/Projetos"
 
-        # Tentar primeiro com SSH (para repositórios privados)
-        log "Tentando clonar via SSH..."
-        if git clone git@github.com:Dagoberto-Candeias/cluster-ai.git "$HOME/Projetos/cluster-ai" >/dev/null 2>&1; then
-            success "Projeto clonado via SSH"
+        # Tentar HTTPS primeiro
+        log "Clonando repositório..."
+        if git clone https://github.com/Dagoberto-Candeias/cluster-ai.git "$repo_dir" >/dev/null 2>&1; then
+            success "Repositório clonado via HTTPS"
         else
-            warn "Falha no SSH, tentando via HTTPS..."
-            # Fallback para HTTPS (público ou com token)
-            if git clone https://github.com/Dagoberto-Candeias/cluster-ai.git "$HOME/Projetos/cluster-ai" >/dev/null 2>&1; then
-                success "Projeto clonado via HTTPS"
+            warn "Falha no HTTPS, tentando SSH..."
+            if git clone git@github.com:Dagoberto-Candeias/cluster-ai.git "$repo_dir" >/dev/null 2>&1; then
+                success "Repositório clonado via SSH"
             else
                 error "Falha ao clonar repositório"
                 echo
-                echo "🔧 SOLUÇÕES PARA REPOSITÓRIO PRIVADO:"
+                echo "🔧 SOLUÇÕES PARA AUTENTICAÇÃO:"
                 echo "1. Configure sua chave SSH no GitHub:"
                 echo "   - Vá em: https://github.com/settings/keys"
                 echo "   - Adicione a chave pública que será exibida no final."
                 echo
-                echo "2. Ou use token de acesso pessoal:"
-                echo "   - Crie token em: https://github.com/settings/tokens"
-                echo "   - Execute: git clone https://TOKEN@github.com/Dagoberto-Candeias/cluster-ai.git"
+                echo "2. Ou clone manualmente após configurar autenticação."
                 echo
                 echo "3. Execute este script novamente após configurar a autenticação."
                 exit 1
             fi
         fi
     else
-        log "Projeto já existe, atualizando..."
-        cd "$HOME/Projetos/cluster-ai"
-        if ! git pull >/dev/null 2>&1; then
-            warn "Falha ao atualizar. Pode ser necessário configurar autenticação."
+        log "Repositório já existe, atualizando..."
+        cd "$repo_dir"
+        if git pull >/dev/null 2>&1; then
+            success "Repositório atualizado"
         else
-            success "Projeto atualizado com sucesso."
+            warn "Falha ao atualizar. Pode ser necessário configurar autenticação."
         fi
     fi
 
-    # 5. Registro automático no servidor
+    # 4. Registro automático no servidor
     section "Registro Automático no Servidor"
 
     log "Tentando detectar e registrar no servidor automaticamente..."
@@ -112,7 +193,6 @@ main() {
     # Função para detectar servidor na rede
     detect_server() {
         local server_ip=""
-        local server_port="22"
 
         # Tentar descobrir via mDNS/Bonjour se disponível
         if command_exists avahi-browse; then
@@ -155,10 +235,10 @@ main() {
     # Função para registrar worker no servidor
     register_worker() {
         local server_ip="$1"
-        local worker_name="android-$(hostname)"
+        local worker_name="${hostname}-worker"
         local worker_ip="$ip"
         local worker_user="$user"
-        local worker_port="8022"
+        local worker_port="22"
         local pub_key
         pub_key=$(cat "$HOME/.ssh/id_rsa.pub")
 
@@ -216,14 +296,15 @@ EOF
         warn "⚠️  Nenhum servidor detectado automaticamente."
     fi
 
+    # 5. Configuração final
     section "Configuração Concluída!"
-    success "Seu dispositivo Android está pronto para ser usado como um worker."
+    success "Seu dispositivo Linux/Unix está pronto para ser usado como um worker."
     echo
     info "Informações do worker:"
-    echo -e "   • ${YELLOW}Nome:${NC} android-$(hostname)"
+    echo -e "   • ${YELLOW}Nome:${NC} ${hostname}-worker"
     echo -e "   • ${YELLOW}IP:${NC} $ip"
     echo -e "   • ${YELLOW}Usuário:${NC} $user"
-    echo -e "   • ${YELLOW}Porta SSH:${NC} 8022"
+    echo -e "   • ${YELLOW}Porta SSH:${NC} 22"
     echo
     echo -e "${YELLOW}Chave SSH pública:${NC}"
     echo "--------------------------------------------------"
@@ -235,9 +316,13 @@ EOF
     else
         info "Para registrar manualmente no servidor:"
         echo "1. Execute no servidor: ./manager.sh"
-        echo "2. Escolha 'Configurar Cluster' > 'Gerenciar Workers Remotos'"
+        echo "2. Escolha 'Configurar Cluster' > 'Gerenciar Workers Registrados Automaticamente'"
         echo "3. Adicione o worker com as informações acima"
     fi
+
+    echo
+    info "Para testar a conexão:"
+    echo "ssh -o StrictHostKeyChecking=no $user@$ip"
 }
 
-main
+main "$@"

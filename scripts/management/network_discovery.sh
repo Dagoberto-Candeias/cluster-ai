@@ -152,6 +152,39 @@ add_node_to_config() {
     log "Nó registrado com serviços: $services"
 }
 
+# Registrar worker automaticamente se for um worker do cluster
+register_worker_automatically() {
+    local hostname="$1"
+    local ip="$2"
+    local ssh_user="${3:-$USER}"
+
+    # Verificar se é um worker do cluster tentando registro automático
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$ssh_user@$ip" "
+        test -f ~/Projetos/cluster-ai/scripts/management/worker_registration.sh ||
+        test -f /opt/cluster-ai/scripts/management/worker_registration.sh
+    " 2>/dev/null; then
+
+        info "  🔄 Worker do cluster detectado, tentando registro automático..."
+
+        # Tentar executar registro automático no worker
+        if ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$ssh_user@$ip" "
+            if [ -f ~/Projetos/cluster-ai/scripts/installation/setup_generic_worker.sh ]; then
+                bash ~/Projetos/cluster-ai/scripts/installation/setup_generic_worker.sh --register-only
+            elif [ -f /opt/cluster-ai/scripts/installation/setup_generic_worker.sh ]; then
+                bash /opt/cluster-ai/scripts/installation/setup_generic_worker.sh --register-only
+            fi
+        " 2>/dev/null; then
+            success "  ✅ Worker registrado automaticamente"
+            return 0
+        else
+            warn "  ⚠️  Falha no registro automático do worker"
+            return 1
+        fi
+    fi
+
+    return 1
+}
+
 # Descoberta automática de nós
 auto_discover_nodes() {
     section "🔍 Descoberta Automática de Nós"
@@ -212,6 +245,11 @@ auto_discover_nodes() {
                 ssh_user="$USER"
             else
                 ssh_user="configurar-ssh"
+            fi
+
+            # Tentar registro automático se for um worker do cluster
+            if $ssh_accessible && register_worker_automatically "$hostname" "$ip" "$ssh_user"; then
+                info "  📝 Worker registrado automaticamente na configuração de workers"
             fi
 
             add_node_to_config "$hostname" "$ip" "$ssh_user" "$services_found"
