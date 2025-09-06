@@ -342,6 +342,73 @@ python test_installation.py
 - **Cálculo Fibonacci**: Speedup de 1.5x
 - **Operações pesadas**: Speedup de 2.3x
 
+## 💡 Exemplos Práticos
+
+### 1. Processamento de Dados com Dask
+```python
+from dask.distributed import Client
+import dask.dataframe as dd
+import pandas as pd
+
+# Conectar ao cluster
+client = Client('tcp://localhost:8786')
+
+# Processar dataset grande
+df = dd.read_csv('large_dataset.csv')
+result = df.groupby('category').value.sum().compute()
+print(result)
+```
+
+### 2. Usando Modelos de IA via Ollama
+```python
+import ollama
+
+# Listar modelos disponíveis
+models = ollama.list()
+print("Modelos disponíveis:", [m['name'] for m in models['models']])
+
+# Fazer uma pergunta
+response = ollama.chat(model='llama3', messages=[
+    {'role': 'user', 'content': 'Explique machine learning em 3 frases'}
+])
+print(response['message']['content'])
+```
+
+### 3. Adicionando Worker Android
+```bash
+# No dispositivo Android (Termux)
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
+
+# No servidor, registrar worker
+./manager.sh
+# Escolha: "Gerenciar Workers Remotos (SSH)"
+# Escolha: "Executar Descoberta Automática"
+```
+
+### 4. Monitoramento em Tempo Real
+```bash
+# Dashboard Dask
+open http://localhost:8787
+
+# Interface OpenWebUI
+open http://localhost:3000
+
+# Status do cluster
+./manager.sh
+# Escolha: "Verificar Status dos Serviços"
+```
+
+### 5. Backup e Restauração
+```bash
+# Fazer backup completo
+./manager.sh
+# Escolha: "Manutenção" > "Fazer Backup do Sistema"
+
+# Restaurar de backup
+./manager.sh
+# Escolha: "Manutenção" > "Restaurar Sistema"
+```
+
 ## 🧪 Testes e Qualidade
 
 ### Executar Todos os Testes

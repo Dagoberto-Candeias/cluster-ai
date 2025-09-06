@@ -72,20 +72,22 @@ show_menu() {
     echo "6. 📊 Mostrar status geral"
     echo "7. 🩺 Executar verificação de saúde (Health Check)"
     echo "8. 🛠️  Otimizador de Recursos"
-    echo "9. 💾 Gerenciar Configurações de Otimização (Backup/Restore)"
-    echo "10. ⚙️  Acessar instalador/configurador"
-    echo "11. 📜 Ver log de auditoria"
-    echo "12. 📡 Descobrir nós remotos na rede"
-    echo "13. 🗄️ Rotacionar logs de auditoria"
-    echo "14. ⏰ Agendar rotação de logs (Cron)"
-    echo "15. 📺 Configurar serviço de monitoramento"
-    echo "16. 📜 Gerar README.md dinâmico"
-    echo "17.  Lint (verificar qualidade do código)"
-    echo "18. 🔄 Atualizar o Cluster AI (via Git)"
-    echo "19. 🗄️ Gerenciar Backups"
-    echo "20. 📊 Gerar relatório de performance"
+    echo "9. 🧠 Instalar Modelos de IA (Ollama)"
+    echo "10. 🗑️ Remover Modelos de IA (Ollama)"
+    echo "11. 💾 Gerenciar Configurações de Otimização (Backup/Restore)"
+    echo "12. ⚙️  Acessar instalador/configurador"
+    echo "13. 📜 Ver log de auditoria"
+    echo "14. 📡 Descobrir nós remotos na rede"
+    echo "15. 🗄️ Rotacionar logs de auditoria"
+    echo "16. ⏰ Agendar rotação de logs (Cron)"
+    echo "17. 📺 Configurar serviço de monitoramento"
+    echo "18. 📜 Gerar README.md dinâmico"
+    echo "19.  Lint (verificar qualidade do código)"
+    echo "20. 🔄 Atualizar o Cluster AI (via Git)"
+    echo "21. 🗄️ Gerenciar Backups"
+    echo "22. 📊 Gerar relatório de performance"
     echo "---"
-    echo "21. 🚪 Sair"
+    echo "23. 🚪 Sair"
 }
 
 stop_ollama() {
@@ -614,6 +616,26 @@ run_performance_reporter() {
     bash "${PROJECT_ROOT}/generate_performance_report.sh"
 }
 
+run_model_installer() {
+    local model_installer_script="${SCRIPTS_DIR}/management/install_models.sh"
+    if [ ! -f "$model_installer_script" ]; then
+        error "Script de instalação de modelos não encontrado em $model_installer_script"
+        return 1
+    fi
+    section "Instalador de Modelos Ollama"
+    bash "$model_installer_script"
+}
+
+run_model_remover() {
+    local model_remover_script="${SCRIPTS_DIR}/management/remove_models.sh"
+    if [ ! -f "$model_remover_script" ]; then
+        error "Script de remoção de modelos não encontrado em $model_remover_script"
+        return 1
+    fi
+    section "Removedor de Modelos Ollama"
+    bash "$model_remover_script"
+}
+
 main() {
     while true; do
         # clear # Removido para manter o contexto visível após uma ação
@@ -628,7 +650,9 @@ main() {
             6) audit_log "show_status" "EXECUTE"; show_status ;;
             7) audit_log "run_health_check" "EXECUTE"; run_health_check ;;
             8) audit_log "run_optimizer" "EXECUTE"; run_optimizer ;;
-            9) 
+            9) audit_log "install_models" "ENTER"; run_model_installer; audit_log "install_models" "EXIT" ;;
+            10) audit_log "remove_models" "ENTER"; run_model_remover; audit_log "remove_models" "EXIT" ;;
+            11) 
                subsection "Gerenciador de Configurações"
                echo "Opções disponíveis: backup, restore, list"
                read -p "Digite o comando desejado: " config_cmd
@@ -639,21 +663,21 @@ main() {
                    audit_log "config_manager" "FAIL" "Command: $config_cmd"
                fi
                ;;
-            10) 
+            12) 
                audit_log "run_installer" "EXECUTE"
                run_installer; break 
                ;;
-            11) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
-            12) audit_log "discover_nodes" "EXECUTE"; bash "${SCRIPTS_DIR}/management/discover_nodes.sh" ;;
-            13) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
-            14) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
-            15) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;
-            16) audit_log "generate_readme" "EXECUTE"; run_readme_generator ;;
-            17) audit_log "run_linter" "EXECUTE"; run_linter ;;
-            18) audit_log "run_updater" "EXECUTE"; run_auto_updater ;;
-            19) audit_log "backup_manager" "ENTER"; run_backup_manager; audit_log "backup_manager" "EXIT" ;;
-            20) audit_log "run_perf_report" "EXECUTE"; run_performance_reporter ;;
-            21) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
+            13) audit_log "view_audit_log" "EXECUTE"; view_audit_log ;;
+            14) audit_log "discover_nodes" "EXECUTE"; bash "${SCRIPTS_DIR}/management/discover_nodes.sh" ;;
+            15) audit_log "run_log_rotator" "EXECUTE"; run_log_rotator ;;
+            16) audit_log "setup_cron" "EXECUTE"; run_cron_setup ;;
+            17) audit_log "setup_monitor" "EXECUTE"; run_monitor_setup ;;
+            18) audit_log "generate_readme" "EXECUTE"; run_readme_generator ;;
+            19) audit_log "run_linter" "EXECUTE"; run_linter ;;
+            20) audit_log "run_updater" "EXECUTE"; run_auto_updater ;;
+            21) audit_log "backup_manager" "ENTER"; run_backup_manager; audit_log "backup_manager" "EXIT" ;;
+            22) audit_log "run_perf_report" "EXECUTE"; run_performance_reporter ;;
+            23) audit_log "exit_manager" "EXECUTE"; log "Saindo..."; exit 0 ;;
             *) warn "Opção inválida";;
         esac
         echo ""
