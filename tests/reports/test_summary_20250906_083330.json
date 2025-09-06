@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-09-06T08:33:30.895180",
+  "total_suites": 1,
+  "passed_suites": 1,
+  "failed_suites": 0,
+  "total_time": 0.8916327953338623,
+  "results": [
+    {
+      "type": "smoke",
+      "success": true,
+      "duration": 0.8915808200836182
+    }
+  ]
+}

@@ -195,7 +195,10 @@ class TestSecurityIntegration:
 
         # Security tests should complete successfully
         assert result.returncode == 0
-        assert "Testes aprovados:" in result.stdout
+        import re
+        # Remove ANSI escape sequences for color codes before matching
+        clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+        assert re.search(r"Testes aprovados[:\s]*\d+", clean_stdout)
 
     @pytest.mark.integration
     def test_audit_log_creation(self):

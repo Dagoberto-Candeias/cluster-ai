@@ -104,50 +104,117 @@ main() {
         fi
     fi
 
-    # 5. Registro automático no servidor
-    section "Registro Automático no Servidor"
+    # 5. Sistema Plug-and-Play Aprimorado
+    section "🔌 Sistema Plug-and-Play Cluster AI"
 
-    log "Tentando detectar e registrar no servidor automaticamente..."
+    log "Iniciando descoberta automática inteligente de servidores..."
 
-    # Função para detectar servidor na rede
+    # Função aprimorada para detectar servidor na rede
     detect_server() {
         local server_ip=""
         local server_port="22"
+        local detection_methods=("mdns" "upnp" "broadcast" "scan")
 
-        # Tentar descobrir via mDNS/Bonjour se disponível
-        if command_exists avahi-browse; then
-            log "Procurando servidor via mDNS..."
-            server_ip=$(avahi-browse -t _cluster-ai._tcp | grep "IPv4" | head -1 | awk '{print $8}' | cut -d';' -f1)
-            if [ -n "$server_ip" ]; then
-                success "Servidor encontrado via mDNS: $server_ip"
-                return 0
-            fi
-        fi
+        for method in "${detection_methods[@]}"; do
+            log "Tentando método de descoberta: $method"
 
-        # Fallback: tentar IPs comuns na rede local
-        local network_prefix
-        network_prefix=$(echo "$ip" | cut -d'.' -f1-3)
+            case $method in
+                "mdns")
+                    # Descoberta via mDNS/Bonjour
+                    if command_exists avahi-browse; then
+                        log "🔍 Procurando servidor via mDNS/Bonjour..."
+                        server_ip=$(avahi-browse -t _cluster-ai._tcp 2>/dev/null | grep "IPv4" | head -1 | awk '{print $8}' | cut -d';' -f1)
+                        if [ -n "$server_ip" ]; then
+                            success "✅ Servidor encontrado via mDNS: $server_ip"
+                            break
+                        fi
+                    fi
+                    ;;
 
-        log "Escaneando rede local por servidores..."
-        for i in {1..254}; do
-            local test_ip="${network_prefix}.${i}"
-            if [ "$test_ip" != "$ip" ]; then
-                # Testar se há um servidor SSH na porta padrão
-                if timeout 2 bash -c "echo >/dev/tcp/$test_ip/22" 2>/dev/null; then
-                    # Verificar se é um servidor do cluster-ai
-                    if ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no "root@$test_ip" "test -f /opt/cluster-ai/manager.sh" 2>/dev/null; then
-                        server_ip="$test_ip"
-                        success "Servidor encontrado: $server_ip"
+                "upnp")
+                    # Descoberta via UPnP/SSDP
+                    if command_exists curl; then
+                        log "🔍 Procurando servidor via UPnP/SSDP..."
+                        # Enviar M-SEARCH para descoberta UPnP
+                        local upnp_response
+                        upnp_response=$(timeout 5 bash -c "
+                            echo -e 'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: urn:cluster-ai:service:manager:1\r\n\r\n' | \
+                            socat - UDP4-DATAGRAM:239.255.255.250:1900,bind=0.0.0.0:0 2>/dev/null | \
+                            grep 'cluster-ai' | head -1 | grep -oE 'LOCATION: http://[^:]+:[0-9]+' | cut -d'/' -f3 | cut -d':' -f1
+                        " 2>/dev/null)
+
+                        if [ -n "$upnp_response" ]; then
+                            server_ip="$upnp_response"
+                            success "✅ Servidor encontrado via UPnP: $server_ip"
+                            break
+                        fi
+                    fi
+                    ;;
+
+                "broadcast")
+                    # Broadcast UDP personalizado
+                    log "🔍 Enviando broadcast UDP para descoberta..."
+                    local broadcast_ip
+                    broadcast_ip=$(echo "$ip" | awk -F. '{print $1"."$2"."$3".255"}')
+
+                    # Enviar pacote de descoberta personalizado
+                    local broadcast_response
+                    broadcast_response=$(timeout 5 bash -c "
+                        echo 'CLUSTER_AI_DISCOVERY_REQUEST' | \
+                        socat - UDP4-DATAGRAM:$broadcast_ip:9999,bind=0.0.0.0:9998 2>/dev/null | \
+                        grep 'CLUSTER_AI_SERVER_RESPONSE' | head -1 | cut -d' ' -f2
+                    " 2>/dev/null)
+
+                    if [ -n "$broadcast_response" ]; then
+                        server_ip="$broadcast_response"
+                        success "✅ Servidor encontrado via broadcast: $server_ip"
                         break
                     fi
-                fi
-            fi
+                    ;;
+
+                "scan")
+                    # Escaneamento inteligente da rede local
+                    local network_prefix
+                    network_prefix=$(echo "$ip" | cut -d'.' -f1-3)
+
+                    log "🔍 Escaneando rede local ($network_prefix.0/24) por servidores..."
+                    info "Isso pode levar alguns segundos..."
+
+                    # Escanear portas comuns onde servidores podem estar
+                    local common_ports=("22" "8022" "80" "443")
+                    local scan_progress=0
+
+                    for i in {1..254}; do
+                        local test_ip="${network_prefix}.${i}"
+                        if [ "$test_ip" != "$ip" ]; then
+                            # Mostrar progresso a cada 50 IPs
+                            ((scan_progress++))
+                            if (( scan_progress % 50 == 0 )); then
+                                log "Progresso: $scan_progress/254 IPs escaneados..."
+                            fi
+
+                            # Testar portas comuns
+                            for port in "${common_ports[@]}"; do
+                                if timeout 1 bash -c "echo >/dev/tcp/$test_ip/$port" 2>/dev/null; then
+                                    # Verificar se é um servidor do cluster-ai
+                                    if ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no "root@$test_ip" "test -f /opt/cluster-ai/manager.sh" 2>/dev/null; then
+                                        server_ip="$test_ip"
+                                        success "✅ Servidor encontrado na porta $port: $server_ip"
+                                        break 3
+                                    fi
+                                fi
+                            done
+                        fi
+                    done
+                    ;;
+            esac
         done
 
         if [ -n "$server_ip" ]; then
             echo "$server_ip"
             return 0
         else
+            warn "❌ Nenhum servidor Cluster AI encontrado na rede"
             return 1
         fi
     }
@@ -171,19 +238,131 @@ main() {
         fi
     }
 
-    # Função para registrar worker no servidor
+    # Função aprimorada para coletar informações do dispositivo Android
+    collect_device_info() {
+        local device_info="{}"
+
+        # Informações básicas do dispositivo
+        local device_model=""
+        local android_version=""
+        local battery_level=""
+        local cpu_cores=""
+        local ram_total=""
+        local storage_total=""
+
+        # Tentar obter informações do dispositivo
+        if command_exists getprop; then
+            device_model=$(getprop ro.product.model 2>/dev/null || echo "Android Device")
+            android_version=$(getprop ro.build.version.release 2>/dev/null || echo "Unknown")
+        else
+            device_model="Android Device"
+            android_version="Unknown"
+        fi
+
+        # Informações de bateria (se disponível)
+        if [ -f "/sys/class/power_supply/battery/capacity" ]; then
+            battery_level=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null || echo "Unknown")
+        else
+            battery_level="Unknown"
+        fi
+
+        # Informações de hardware
+        cpu_cores=$(nproc 2>/dev/null || echo "Unknown")
+        ram_total=$(free -h 2>/dev/null | awk 'NR==2{print $2}' || echo "Unknown")
+        storage_total=$(df -h "$HOME" 2>/dev/null | awk 'NR==2{print $2}' || echo "Unknown")
+
+        # Criar JSON com informações do dispositivo
+        device_info=$(cat << EOF
+{
+    "device_model": "$device_model",
+    "android_version": "$android_version",
+    "battery_level": "$battery_level",
+    "cpu_cores": "$cpu_cores",
+    "ram_total": "$ram_total",
+    "storage_total": "$storage_total",
+    "termux_version": "$(termux-info 2>/dev/null | grep -o 'termux-version=[^,]*' | cut -d'=' -f2 || echo 'Unknown')"
+}
+EOF
+        )
+
+        echo "$device_info"
+    }
+
+    # Função para determinar capacidades do worker baseado no hardware
+    determine_worker_capabilities() {
+        local device_info="$1"
+        local capabilities="{}"
+
+        # Extrair informações do JSON (simplificado)
+        local cpu_cores=$(echo "$device_info" | grep -o '"cpu_cores": "[^"]*"' | cut -d'"' -f4)
+        local ram_total=$(echo "$device_info" | grep -o '"ram_total": "[^"]*"' | cut -d'"' -f4)
+        local battery_level=$(echo "$device_info" | grep -o '"battery_level": "[^"]*"' | cut -d'"' -f4)
+
+        # Determinar capacidades baseado no hardware
+        local max_concurrent_tasks=1
+        local preferred_task_types=("light" "text-generation")
+        local can_handle_heavy_tasks=false
+        local battery_optimization=true
+
+        # Lógica de determinação de capacidades
+        if [[ "$cpu_cores" =~ ^[0-9]+$ ]] && [ "$cpu_cores" -ge 4 ]; then
+            max_concurrent_tasks=2
+            preferred_task_types=("text-generation" "code-analysis")
+        fi
+
+        if [[ "$ram_total" =~ ^[0-9]+ ]]; then
+            local ram_gb=$(echo "$ram_total" | sed 's/[^0-9]//g')
+            if [ "$ram_gb" -ge 4 ]; then
+                max_concurrent_tasks=3
+                can_handle_heavy_tasks=true
+                preferred_task_types=("text-generation" "code-analysis" "image-processing")
+            fi
+        fi
+
+        # Otimização para bateria
+        if [[ "$battery_level" =~ ^[0-9]+$ ]] && [ "$battery_level" -lt 30 ]; then
+            max_concurrent_tasks=1
+            battery_optimization=true
+            preferred_task_types=("light")
+        fi
+
+        # Criar JSON de capacidades
+        capabilities=$(cat << EOF
+{
+    "max_concurrent_tasks": $max_concurrent_tasks,
+    "preferred_task_types": $(printf '%s\n' "${preferred_task_types[@]}" | jq -R . | jq -s . 2>/dev/null || echo '["light", "text-generation"]'),
+    "can_handle_heavy_tasks": $can_handle_heavy_tasks,
+    "battery_optimization": $battery_optimization,
+    "network_optimization": true,
+    "auto_sleep_when_idle": true
+}
+EOF
+        )
+
+        echo "$capabilities"
+    }
+
+    # Função aprimorada para registrar worker no servidor
     register_worker() {
         local server_ip="$1"
-        local worker_name="android-$(hostname)"
+        local worker_name="android-$(hostname)-$(date +%s | tail -c 5)"
         local worker_ip="$ip"
         local worker_user="$user"
         local worker_port="8022"
         local pub_key
         pub_key=$(cat "$HOME/.ssh/id_rsa.pub")
 
-        log "Registrando worker no servidor $server_ip..."
+        log "🔧 Coletando informações do dispositivo..."
+        local device_info
+        device_info=$(collect_device_info)
 
-        # Criar arquivo de registro temporário
+        log "🧠 Determinando capacidades do worker..."
+        local capabilities
+        capabilities=$(determine_worker_capabilities "$device_info")
+
+        log "📝 Registrando worker inteligente no servidor $server_ip..."
+
+        # Criar arquivo de registro avançado
         local reg_file="/tmp/worker_registration_${worker_name}.json"
         cat > "$reg_file" << EOF
 {
@@ -192,7 +371,12 @@ main() {
     "worker_user": "$worker_user",
     "worker_port": "$worker_port",
     "public_key": "$pub_key",
-    "timestamp": "$(date +%s)"
+    "device_info": $device_info,
+    "capabilities": $capabilities,
+    "registration_type": "zero-touch-android",
+    "auto_discovered": true,
+    "timestamp": "$(date +%s)",
+    "version": "2.0"
 }
 EOF
 
@@ -200,13 +384,19 @@ EOF
 
         # Tenta copiar a chave SSH primeiro para automatizar o login
         if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "${server_user}@${server_ip}" "echo 'OK'" >/dev/null 2>&1; then
-            copy_ssh_key_to_server "$server_ip" "$server_user"
+            log "🔑 Copiando chave SSH para o servidor..."
+            if ! copy_ssh_key_to_server "$server_ip" "$server_user"; then
+                warn "❌ Falha ao copiar chave SSH. Registro manual necessário."
+                return 1
+            fi
         fi
 
         # Enviar registro via SCP
+        log "📤 Enviando dados de registro para o servidor..."
         if scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$reg_file" "${server_user}@${server_ip}:/tmp/"; then
-            # Executar script de registro no servidor
-            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "${server_user}@${server_ip}" "
+            # Executar script de registro inteligente no servidor
+            local registration_result
+            registration_result=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "${server_user}@${server_ip}" "
                 if [ -f /opt/cluster-ai/scripts/management/worker_registration.sh ]; then
                     bash /opt/cluster-ai/scripts/management/worker_registration.sh /tmp/worker_registration_${worker_name}.json
                     rm -f /tmp/worker_registration_${worker_name}.json
@@ -214,15 +404,18 @@ EOF
                 else
                     echo 'REGISTRATION_SCRIPT_NOT_FOUND'
                 fi
-            " 2>/dev/null; then
-                success "Worker registrado com sucesso no servidor!"
+            " 2>/dev/null)
+
+            if [[ "$registration_result" == "SUCCESS" ]]; then
+                success "✅ Worker registrado com sucesso no servidor!"
+                success "🎯 Capacidades detectadas automaticamente e configuradas"
                 return 0
             else
-                warn "Falha no registro automático. Você pode registrar manualmente."
+                warn "⚠️ Falha no registro automático. Você pode registrar manualmente."
                 return 1
             fi
         else
-            warn "Não foi possível conectar ao servidor para registro automático."
+            warn "❌ Não foi possível conectar ao servidor para registro automático."
             return 1
         fi
 
