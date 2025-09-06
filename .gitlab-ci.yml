@@ -1,63 +1,93 @@
 # .gitlab-ci.yml
 # Pipeline de CI/CD para o projeto Cluster AI
 
-variables:
-  MIN_COVERAGE: "80" # Define o limite mínimo de cobertura de código
-
 stages:
+  - quality
   - test
   - deploy
 
-test_and_coverage:
-  stage: test
-  image: ubuntu:latest # Usa uma imagem Docker do Ubuntu
-
-  # Otimização: Adiciona cache para os pacotes do apt
+default:
+  # Define uma imagem padrão e cache para todos os jobs, reduzindo repetição.
+  image: ubuntu:22.04
   cache:
     key:
       files:
-        - .gitlab-ci.yml # Invalida o cache se as dependências mudarem
+        - .gitlab-ci.yml # Invalida o cache se as dependências de pacotes mudarem
     paths:
       - /var/cache/apt/archives/
       - /var/lib/apt/lists/
-
   before_script:
-    # Configura a variável GIT_SUBMODULE_STRATEGY para clonar os submódulos
+    # Garante que submódulos sejam clonados em todos os jobs
     - export GIT_SUBMODULE_STRATEGY=recursive
-    # Instala as dependências necessárias
-    - apt-get update -y
-    - apt-get install -y bats kcov jq git
+    # Instala dependências comuns para evitar repetição nos jobs
+    - apt-get update -qq
+    - apt-get install -y -qq bats kcov jq git sudo curl
+
+code_quality:
+  stage: quality
+  before_script:
+    # Instala dependências específicas para este job
+    - apt-get update -qq && apt-get install -y -qq shellcheck
+  script:
+    - echo "Executando verificação de qualidade de código..."
+    - shellcheck scripts/**/*.sh
+    - bash ./scripts/documentation/consolidate_docs.sh # Verifica links quebrados
+
+security_scan:
+  stage: quality
+  # Usa a imagem oficial do Semgrep, que contém todas as dependências.
+  image: returntocorp/semgrep
+  script:
+    - echo "Executando varredura de segurança..."
+    # O comando `semgrep ci` é otimizado para ambientes de CI.
+    # Ele detecta que está no GitLab e gera o relatório no formato SAST nativo.
+    # A configuração `p/security-audit` é a mesma usada no seu pipeline do GitHub.
+    - semgrep ci --config "p/security-audit"
+  artifacts:
+    # Esta configuração especial informa ao GitLab para processar o arquivo
+    # como um relatório de SAST (Static Application Security Testing).
+    reports:
+      sast:
+        - semgrep.json
+
+test_and_coverage:
+  stage: test
+  variables:
+    MIN_COVERAGE: "80" # Define o limite mínimo de cobertura de código
 
   script:
     # Executa o script, passando o limite mínimo de cobertura.
     # O job falhará se a cobertura for menor que $MIN_COVERAGE.
+    - echo "Executando testes e gerando relatório de cobertura..."
     - bash ./scripts/validation/run_coverage.sh $MIN_COVERAGE
 
   # Extrai a porcentagem de cobertura da saída do script
   coverage: '/Cobertura Total \(Coverage\): (\d+)%/'
 
   artifacts:
-    name: "coverage-report-${CI_COMMIT_REF_SLUG}"
+    # Expõe o relatório de cobertura para o job de deploy
     paths:
       - coverage/
-    when: always # Salva os artefatos mesmo se o job falhar
-    expire_in: 1 week # Guarda os artefatos por uma semana
+    expire_in: 1 day
 
 # Job especial que publica o conteúdo no GitLab Pages
 pages:
   stage: deploy
   needs:
-    - test_and_coverage
+    - job: test_and_coverage
+      artifacts: true # Garante que os artefatos do job anterior sejam baixados
   script:
     - echo "Publicando relatório de cobertura no GitLab Pages..."
     # O GitLab Pages serve o conteúdo do diretório 'public'.
     # Movemos o relatório gerado no job anterior para este diretório.
-    - mv coverage/ public/
+    # Usamos `cp -r` para garantir que o diretório de destino exista.
+    - mkdir -p public
+    - cp -r coverage/* public/
   artifacts:
     paths:
       # O diretório que será publicado.
       - public
   rules:
     # Executa este job apenas para a branch 'main' para evitar
-    # a publicação de relatórios de branches de funcionalidades.
+    # a publicação de relatórios de branches de desenvolvimento.
     - if: '$CI_COMMIT_BRANCH == "main"'
