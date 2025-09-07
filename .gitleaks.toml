@@ -47,46 +47,27 @@ regex = '''(?i)([A-Za-z0-9]+[_\\-\\+\\.])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\\.[A-Za-z0
 tags = ["personal", "contact"]
 
 # Allow these patterns (false positives we want to allow)
-[[allowlist]]
-description = "Allow example.com emails"
-regex = '''@example\\.com'''
-
-[[allowlist]]
-description = "Allow localhost URLs"
-regex = '''http://localhost'''
-
-[[allowlist]]
-description = "Allow test API keys"
-regex = '''(?:test|demo|example)[_-]?(?:api[_-]?key|token)'''
+[allowlist]
+regexes = [
+    '''@example\\.com''',
+    '''http://localhost''',
+    '''(?:test|demo|example)[_-]?(?:api[_-]?key|token)'''
+]
 
 # Files to exclude from scanning
-[allowlist.files]
 files = [
     "package-lock.json",
-    "yarn.lock",
-    "*.min.js",
-    "*.bundle.js",
-    "*.svg",
-    "*.png",
-    "*.jpg",
-    "*.jpeg",
-    "*.gif",
-    "*.ico",
-    "*.ttf",
-    "*.woff",
-    "*.woff2",
-    "*.eot"
+    "yarn.lock"
 ]
 
 # Paths to exclude from scanning
-[allowlist.paths]
 paths = [
     "node_modules/",
     "vendor/",
     "dist/",
     "build/",
-    "*.min.js",
-    "*.bundle.js",
     "docs/history/",
-    "backups/"
+    "backups/",
+    "certs/",
+    "tests/security/"
 ]

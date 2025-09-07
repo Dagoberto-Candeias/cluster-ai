@@ -50,7 +50,7 @@ class TestManagerIntegration:
         manager_path = PROJECT_ROOT / "manager.sh"
         result = subprocess.run(
             [str(manager_path)],
-            input="q\n",  # Quit immediately
+            input="0\n",  # Quit immediately with valid option 0
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT

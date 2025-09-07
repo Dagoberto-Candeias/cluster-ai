@@ -10,13 +10,16 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${PROJECT_ROOT}/scripts/lib/common.sh"
 
+# --- Variáveis de Cor Adicionais ---
+GRAY='\033[0;37m'
+
 # --- Lista de Modelos Disponíveis para Instalação ---
 # Modelos organizados por categoria com descrições detalhadas
 # Formato: "nome:tamanho" # (tamanho) Descrição detalhada + casos de uso
 
 # 🗣️ MODELOS DE CONVERSAÇÃO (Foco em diálogo natural)
 CONVERSATION_MODELS=(
-    "phi-3:3.8b"        # (2.3 GB) Modelo compacto da Microsoft, ótimo para conversação geral e tarefas leves
+    "phi-2:2.7b"        # (1.7 GB) Modelo compacto da Microsoft, ideal para desenvolvimento rápido e testes de conceito
     "gemma:2b"          # (1.7 GB) Modelo do Google, excelente para diálogo natural e compreensão contextual
     "llama3:8b"         # (4.7 GB) Meta Llama 3, versátil para conversação, análise e tarefas gerais
     "mistral:7b"        # (4.1 GB) Modelo francês eficiente, ótimo para conversação multilíngue
@@ -316,6 +319,7 @@ show_filtered_selection_menu() {
 
 # Loop principal para a seleção interativa
 run_interactive_selection() {
+    selected_indices=()  # Initialize the array
     local category_filter=""
     local filtered_indices=()
 

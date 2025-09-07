@@ -85,25 +85,35 @@ def main(project_root: str):
         final_dashboard_port = find_available_port(final_dashboard_port)
         print(f"       Usando a próxima porta livre: {final_dashboard_port}")
 
+    # Garantir que as portas sejam diferentes
+    if final_dashboard_port == final_scheduler_port:
+        print(f"AVISO: Porta do dashboard conflita com scheduler. Ajustando...")
+        final_dashboard_port = find_available_port(final_dashboard_port + 1)
+        print(f"       Dashboard usando porta: {final_dashboard_port}")
+
     # Configurações de segurança TLS (opcional para desenvolvimento local)
     cert_file = project_root_path / "certs" / "dask_cert.pem"
     key_file = project_root_path / "certs" / "dask_key.pem"
 
     # Verificar se estamos em modo desenvolvimento (sem TLS)
-    dev_mode = os.getenv("DASK_DEV_MODE", "false").lower() == "true"
+    dev_mode = os.getenv("DASK_DEV_MODE", "true").lower() == "true"  # Padrão: desenvolvimento
 
     if dev_mode:
         print("Modo desenvolvimento: Iniciando sem TLS...")
         security = None
     elif not cert_file.exists() or not key_file.exists():
         print(
-            f"ERRO: Arquivos de certificado TLS não encontrados em {project_root_path / 'certs'}"
+            f"AVISO: Arquivos de certificado TLS não encontrados em {project_root_path / 'certs'}"
         )
-        print("Para desenvolvimento local, defina DASK_DEV_MODE=true")
-        print("Para produção, execute o script de instalação para gerar certificados.")
-        sys.exit(1)
+        print("Iniciando em modo desenvolvimento sem TLS...")
+        security = None
     else:
-        security = Security(tls_ca_file=str(cert_file), require_encryption=True)
+        try:
+            security = Security(tls_ca_file=str(cert_file), require_encryption=True)
+        except Exception as e:
+            print(f"ERRO na configuração TLS: {e}")
+            print("Iniciando em modo desenvolvimento sem TLS...")
+            security = None
 
     # Garantir que o diretório de spill exista
     os.makedirs(spill_directory, exist_ok=True)

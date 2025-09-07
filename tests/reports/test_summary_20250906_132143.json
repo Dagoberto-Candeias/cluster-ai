@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-09-06T13:21:43.830941",
+  "total_suites": 3,
+  "passed_suites": 1,
+  "failed_suites": 2,
+  "total_time": 45.3654625415802,
+  "results": [
+    {
+      "type": "unit",
+      "success": false,
+      "duration": 13.77832841873169
+    },
+    {
+      "type": "integration",
+      "success": false,
+      "duration": 14.138471126556396
+    },
+    {
+      "type": "performance",
+      "success": true,
+      "duration": 17.447547912597656
+    }
+  ]
+}

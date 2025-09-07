@@ -1,584 +1,648 @@
-# 🚀 Cluster AI - Sistema Universal de IA Distribuída
+# Gitleaks
 
-[![License: MIT](https://img.shields.io/github/license/Dagoberto-Candeias/cluster-ai)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-![Status](https://img.shields.io/badge/status-ativo-success)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
-[![Docker](https://img.shields.io/badge/docker-required-blue.svg)](https://www.docker.com/)
+```
+┌─○───┐
+│ │╲  │
+│ │ ○ │
+│ ○ ░ │
+└─░───┘
+```
 
-Sistema integrado para implantação de clusters de IA com processamento distribuído usando **Dask**, **Ollama** e **OpenWebUI**. O projeto é gerenciado por um painel de controle centralizado (`manager.sh`) que simplifica todas as operações.
+[license]: ./LICENSE
+[badge-license]: https://img.shields.io/github/license/gitleaks/gitleaks.svg
+[go-docs-badge]: https://pkg.go.dev/badge/github.com/gitleaks/gitleaks/v8?status
+[go-docs]: https://pkg.go.dev/github.com/zricethezav/gitleaks/v8
+[badge-build]: https://github.com/gitleaks/gitleaks/actions/workflows/test.yml/badge.svg
+[build]: https://github.com/gitleaks/gitleaks/actions/workflows/test.yml
+[go-report-card-badge]: https://goreportcard.com/badge/github.com/gitleaks/gitleaks/v8
+[go-report-card]: https://goreportcard.com/report/github.com/gitleaks/gitleaks/v8
+[dockerhub]: https://hub.docker.com/r/zricethezav/gitleaks
+[dockerhub-badge]: https://img.shields.io/docker/pulls/zricethezav/gitleaks.svg
+[gitleaks-action]: https://github.com/gitleaks/gitleaks-action
+[gitleaks-badge]: https://img.shields.io/badge/protected%20by-gitleaks-blue
+[gitleaks-playground-badge]: https://img.shields.io/badge/gitleaks%20-playground-blue
+[gitleaks-playground]: https://gitleaks.io/playground
 
-## ⚡ Início Rápido (3 minutos)
+
+[![GitHub Action Test][badge-build]][build]
+[![Docker Hub][dockerhub-badge]][dockerhub]
+[![Gitleaks Playground][gitleaks-playground-badge]][gitleaks-playground]
+[![Gitleaks Action][gitleaks-badge]][gitleaks-action]
+[![GoDoc][go-docs-badge]][go-docs]
+[![GoReportCard][go-report-card-badge]][go-report-card]
+[![License][badge-license]][license]
+
+
+### Join our Discord! [![Discord](https://img.shields.io/discord/1102689410522284044.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/8Hzbrnkr7E)
+
+Gitleaks is a tool for **detecting** secrets like passwords, API keys, and tokens in git repos, files, and whatever else you wanna throw at it via `stdin`. If you wanna learn more about how the detection engine works check out this blog: [Regex is (almost) all you need](https://lookingatcomputer.substack.com/p/regex-is-almost-all-you-need).
+
+
+```
+➜  ~/code(master) gitleaks git -v
+
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+
+Finding:     "export BUNDLE_ENTERPRISE__CONTRIBSYS__COM=cafebabe:deadbeef",
+Secret:      cafebabe:deadbeef
+RuleID:      sidekiq-secret
+Entropy:     2.609850
+File:        cmd/generate/config/rules/sidekiq.go
+Line:        23
+Commit:      cd5226711335c68be1e720b318b7bc3135a30eb2
+Author:      John
+Email:       john@users.noreply.github.com
+Date:        2022-08-03T12:31:40Z
+Fingerprint: cd5226711335c68be1e720b318b7bc3135a30eb2:cmd/generate/config/rules/sidekiq.go:sidekiq-secret:23
+```
+
+## Getting Started
+
+Gitleaks can be installed using Homebrew, Docker, or Go. Gitleaks is also available in binary form for many popular platforms and OS types on the [releases page](https://github.com/gitleaks/gitleaks/releases). In addition, Gitleaks can be implemented as a pre-commit hook directly in your repo or as a GitHub action using [Gitleaks-Action](https://github.com/gitleaks/gitleaks-action).
+
+### Installing
 
 ```bash
-# 1. Clone e entre no projeto
-git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
-cd cluster-ai
+# MacOS
+brew install gitleaks
 
-# 2. Execute a instalação unificada
-./install_unified.sh
+# Docker (DockerHub)
+docker pull zricethezav/gitleaks:latest
+docker run -v ${path_to_host_folder_to_scan}:/path zricethezav/gitleaks:latest [COMMAND] [OPTIONS] [SOURCE_PATH]
 
-# 3. Inicie o sistema
-./manager.sh
-# Escolha opção 1: "Iniciar Todos os Serviços"
+# Docker (ghcr.io)
+docker pull ghcr.io/gitleaks/gitleaks:latest
+docker run -v ${path_to_host_folder_to_scan}:/path ghcr.io/gitleaks/gitleaks:latest [COMMAND] [OPTIONS] [SOURCE_PATH]
+
+# From Source (make sure `go` is installed)
+git clone https://github.com/gitleaks/gitleaks.git
+cd gitleaks
+make build
 ```
 
-**🎯 Resultado**: Cluster AI totalmente funcional com interface web em `http://localhost:3000`
+### GitHub Action
 
-## 📋 Pré-requisitos do Sistema
+Check out the official [Gitleaks GitHub Action](https://github.com/gitleaks/gitleaks-action)
 
-| Componente | Mínimo | Recomendado | Observação |
-|------------|--------|-------------|------------|
-| **CPU** | 2 cores | 4+ cores | Para processamento paralelo |
-| **RAM** | 4GB | 8GB+ | Para modelos de IA |
-| **Armazenamento** | 20GB | 50GB+ | Para modelos e dados |
-| **GPU** | Opcional | NVIDIA/AMD | Aceleração de IA |
-| **Sistema** | Linux | Ubuntu 20.04+ | Suporte completo |
-| **Docker** | 20.10+ | 24.0+ | Containers necessários |
-| **Python** | 3.8+ | 3.10+ | Ambiente virtual |
-
-## 📋 Índice
-
-- ✨ Funcionalidades
-- 🚀 Instalação
-- 🛠️ Uso (Painel de Controle)
-- 🏗️ Arquitetura
-- 📚 Documentação Completa
-- 🤝 Contribuição
-- 📄 Licença
-
-## ✨ Funcionalidades
-
--   **🤖 Processamento Distribuído**: Cluster Dask para computação paralela e escalável.
--   **🧠 Modelos de IA Locais**: Ollama integrado para executar LLMs localmente, com otimização para GPU (NVIDIA/AMD).
--   **🌐 Interface Web**: OpenWebUI para interagir com os modelos de forma intuitiva.
--   **🛠️ Painel de Controle Centralizado**: Script `manager.sh` para gerenciar todos os serviços, backups, otimizações e configurações.
--   **📦 Instalação Automatizada**: Detecção de hardware para sugerir o papel do nó (Servidor, Worker) e instalação não interativa.
--   **🩺 Diagnóstico e Manutenção**: Ferramentas de health check, otimização de recursos e relatórios de performance.
--   **💾 Backup e Restauração**: Sistema completo para backup e restauração de configurações, modelos e dados de containers.
--   **☁️ Gerenciamento Remoto**: Controle workers remotos via SSH, execute comandos, inicie e pare serviços.
--   **📱 Suporte Android**: Workers Android via Termux para expansão do cluster com configuração guiada.
--   **🔍 Descoberta Automática**: Sistema inteligente de descoberta automática de workers na rede local.
--   **🗑️ Desinstalação Completa**: Scripts unificados para desinstalação limpa de todos os componentes.
--   **🔧 Configuração Interativa**: Menu de configuração completo (opção 7) para setup de workers Android.
--   **🔐 Configuração SSH**: Scripts automatizados para configuração de chaves SSH e autenticação GitHub.
--   **🔒 Segurança**: Autenticação, validação de entrada e medidas de segurança integradas.
-
-## 🚀 Instalação
-
-A instalação é projetada para ser simples e flexível, utilizando um sistema modular e inteligente.
-
-### Pré-requisitos
-- Sistema Linux (Ubuntu/Debian, Fedora/RHEL, Arch)
-- Pelo menos 4GB RAM e 20GB espaço em disco
-- Conexão com internet para downloads
-
-### 🚀 Instalação Unificada (Recomendado - Novo!)
-
-O novo instalador unificado oferece a melhor experiência de instalação:
-
-1.  **Clone o repositório:**
-    ```bash
-    git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
-    cd cluster-ai
-    ```
-
-2.  **Execute o instalador unificado:**
-    ```bash
-    ./install_unified.sh
-    ```
-
-**Vantagens do Instalador Unificado:**
-- ✅ **Arquitetura Modular**: Scripts independentes para cada componente
-- ✅ **Instalação Inteligente**: Detecta automaticamente o sistema e otimiza
-- ✅ **Menu Interativo**: Escolha entre instalação completa ou personalizada
-- ✅ **Verificação Integrada**: Valida cada componente após instalação
-- ✅ **Relatórios Detalhados**: Acompanhe o progresso em tempo real
-- ✅ **Tratamento de Erros**: Recuperação automática de falhas
-
-### 📦 Instalação Automática (Legacy)
-
-Para compatibilidade, o instalador automático legado ainda está disponível:
-
-```bash
-./auto_setup.sh
+```
+name: gitleaks
+on: [pull_request, push, workflow_dispatch]
+jobs:
+  scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}} # Only required for Organizations, not personal accounts.
 ```
 
-### 🔧 Instalação Manual (Avançado)
+### Pre-Commit
 
-Para controle total do processo de instalação:
+1. Install pre-commit from https://pre-commit.com/#install
+2. Create a `.pre-commit-config.yaml` file at the root of your repository with the following content:
 
-```bash
-bash install.sh
+   ```
+   repos:
+     - repo: https://github.com/gitleaks/gitleaks
+       rev: v8.24.2
+       hooks:
+         - id: gitleaks
+   ```
+
+   for a [native execution of gitleaks](https://github.com/gitleaks/gitleaks/releases) or use the [`gitleaks-docker` pre-commit ID](https://github.com/gitleaks/gitleaks/blob/master/.pre-commit-hooks.yaml) for executing gitleaks using the [official Docker images](#docker)
+
+3. Auto-update the config to the latest repos' versions by executing `pre-commit autoupdate`
+4. Install with `pre-commit install`
+5. Now you're all set!
+
+```
+➜ git commit -m "this commit contains a secret"
+Detect hardcoded secrets.................................................Failed
 ```
 
-**Recursos do Instalador Manual:**
-- Verificação completa de pré-requisitos
-- Detecção automática de hardware
-- Sugestão de papel do nó (Servidor/Worker)
-- Menu interativo com opções customizadas
+Note: to disable the gitleaks pre-commit hook you can prepend `SKIP=gitleaks` to the commit command
+and it will skip running gitleaks
 
-### ⚙️ Instalação Personalizada
-
-Escolha componentes específicos através do menu interativo:
-
-```bash
-./install_unified.sh
-# Escolha opção 2 (Instalação Personalizada)
+```
+➜ SKIP=gitleaks git commit -m "skip gitleaks check"
+Detect hardcoded secrets................................................Skipped
 ```
 
-### 🔍 Verificação da Instalação
+## Usage
 
-Verifique o status da instalação a qualquer momento:
+```
+Usage:
+  gitleaks [command]
 
-```bash
-./install_unified.sh
-# Escolha opção 3 (Verificar Status da Instalação)
+Available Commands:
+  dir         scan directories or files for secrets
+  git         scan git repositories for secrets
+  help        Help about any command
+  stdin       detect secrets from stdin
+  version     display gitleaks version
+
+Flags:
+  -b, --baseline-path string          path to baseline with issues that can be ignored
+  -c, --config string                 config file path
+                                      order of precedence:
+                                      1. --config/-c
+                                      2. env var GITLEAKS_CONFIG
+                                      3. env var GITLEAKS_CONFIG_TOML with the file content
+                                      4. (target path)/.gitleaks.toml
+                                      If none of the four options are used, then gitleaks will use the default config
+      --diagnostics string            enable diagnostics (comma-separated list: cpu,mem,trace). cpu=CPU profiling, mem=memory profiling, trace=execution tracing
+      --diagnostics-dir string        directory to store diagnostics output files (defaults to current directory)
+      --enable-rule strings           only enable specific rules by id
+      --exit-code int                 exit code when leaks have been encountered (default 1)
+  -i, --gitleaks-ignore-path string   path to .gitleaksignore file or folder containing one (default ".")
+  -h, --help                          help for gitleaks
+      --ignore-gitleaks-allow         ignore gitleaks:allow comments
+  -l, --log-level string              log level (trace, debug, info, warn, error, fatal) (default "info")
+      --max-decode-depth int          allow recursive decoding up to this depth (default "0", no decoding is done)
+      --max-archive-depth int         allow scanning into nested archives up to this depth (default "0", no archive traversal is done)
+      --max-target-megabytes int      files larger than this will be skipped
+      --no-banner                     suppress banner
+      --no-color                      turn off color for verbose output
+      --redact uint[=100]             redact secrets from logs and stdout. To redact only parts of the secret just apply a percent value from 0..100. For example --redact=20 (default 100%)
+  -f, --report-format string          output format (json, csv, junit, sarif, template)
+  -r, --report-path string            report file
+      --report-template string        template file used to generate the report (implies --report-format=template)
+  -v, --verbose                       show verbose output from scan
+      --version                       version for gitleaks
+
+Use "gitleaks [command] --help" for more information about a command.
 ```
 
-## 🗑️ Desinstalação
+### Commands
 
-### Desinstalação Unificada (Recomendado)
+⚠️ v8.19.0 introduced a change that deprecated `detect` and `protect`. Those commands are still available but
+are hidden in the `--help` menu. Take a look at this [gist](https://gist.github.com/zricethezav/b325bb93ebf41b9c0b0507acf12810d2) for easy command translations.
+If you find v8.19.0 broke an existing command (`detect`/`protect`), please open an issue.
 
-Para desinstalar qualquer componente do Cluster AI:
+There are three scanning modes: `git`, `dir`, and `stdin`.
 
-```bash
-./scripts/maintenance/uninstall_master.sh
+#### Git
+
+The `git` command lets you scan local git repos. Under the hood, gitleaks uses the `git log -p` command to scan patches.
+You can configure the behavior of `git log -p` with the `log-opts` option.
+For example, if you wanted to run gitleaks on a range of commits you could use the following
+command: `gitleaks git -v --log-opts="--all commitA..commitB" path_to_repo`. See the [git log](https://git-scm.com/docs/git-log) documentation for more information.
+If there is no target specified as a positional argument, then gitleaks will attempt to scan the current working directory as a git repo.
+
+#### Dir
+
+The `dir` (aliases include `files`, `directory`) command lets you scan directories and files. Example: `gitleaks dir -v path_to_directory_or_file`.
+If there is no target specified as a positional argument, then gitleaks will scan the current working directory.
+
+#### Stdin
+
+You can also stream data to gitleaks with the `stdin` command. Example: `cat some_file | gitleaks -v stdin`
+
+### Creating a baseline
+
+When scanning large repositories or repositories with a long history, it can be convenient to use a baseline. When using a baseline,
+gitleaks will ignore any old findings that are present in the baseline. A baseline can be any gitleaks report. To create a gitleaks report, run gitleaks with the `--report-path` parameter.
+
+```
+gitleaks git --report-path gitleaks-report.json # This will save the report in a file called gitleaks-report.json
 ```
 
-**Opções disponíveis:**
-- 🖥️ Desinstalar do Servidor Principal
-- 📱 Desinstalar Worker Android (Termux)
-- 💻 Desinstalar Estação de Trabalho
-- 🔄 Desinstalar Workers Remotos (SSH)
-- 🧹 Limpeza Completa (todos os tipos)
-- 📊 Verificar Status de Instalação
+Once as baseline is created it can be applied when running the detect command again:
 
-### Desinstalação Específica
-
-#### Worker Android
-```bash
-# No dispositivo Android (Termux)
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/uninstall_android_worker.sh | bash
+```
+gitleaks git --baseline-path gitleaks-report.json --report-path findings.json
 ```
 
-#### Servidor/Estação de Trabalho
-```bash
-# Scripts específicos disponíveis
-./scripts/maintenance/uninstall.sh              # Servidor
-./scripts/maintenance/uninstall_workstation.sh  # Estação de trabalho
+After running the detect command with the --baseline-path parameter, report output (findings.json) will only contain new issues.
+
+## Pre-Commit hook
+
+You can run Gitleaks as a pre-commit hook by copying the example `pre-commit.py` script into
+your `.git/hooks/` directory.
+
+## Load Configuration
+
+The order of precedence is:
+
+1. `--config/-c` option:
+      ```bash
+      gitleaks git --config /home/dev/customgitleaks.toml .
+      ```
+2. Environment variable `GITLEAKS_CONFIG` with the file path:
+      ```bash
+      export GITLEAKS_CONFIG="/home/dev/customgitleaks.toml"
+      gitleaks git .
+      ```
+3. Environment variable `GITLEAKS_CONFIG_TOML` with the file content:
+      ```bash
+      export GITLEAKS_CONFIG_TOML=`cat customgitleaks.toml`
+      gitleaks git .
+      ```
+4. A `.gitleaks.toml` file within the target path:
+      ```bash
+      gitleaks git .
+      ```
+
+If none of the four options are used, then gitleaks will use the default config.
+
+## Configuration
+
+Gitleaks offers a configuration format you can follow to write your own secret detection rules:
+
+```toml
+# Title for the gitleaks configuration file.
+title = "Custom Gitleaks configuration"
+
+# You have basically two options for your custom configuration:
+#
+# 1. define your own configuration, default rules do not apply
+#
+#    use e.g., the default configuration as starting point:
+#    https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+#
+# 2. extend a configuration, the rules are overwritten or extended
+#
+#    When you extend a configuration the extended rules take precedence over the
+#    default rules. I.e., if there are duplicate rules in both the extended
+#    configuration and the default configuration the extended rules or
+#    attributes of them will override the default rules.
+#    Another thing to know with extending configurations is you can chain
+#    together multiple configuration files to a depth of 2. Allowlist arrays are
+#    appended and can contain duplicates.
+
+# useDefault and path can NOT be used at the same time. Choose one.
+[extend]
+# useDefault will extend the default gitleaks config built in to the binary
+# the latest version is located at:
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+useDefault = true
+# or you can provide a path to a configuration to extend from.
+# The path is relative to where gitleaks was invoked,
+# not the location of the base config.
+# path = "common_config.toml"
+# If there are any rules you don't want to inherit, they can be specified here.
+disabledRules = [ "generic-api-key"]
+
+# An array of tables that contain information that define instructions
+# on how to detect secrets
+[[rules]]
+# Unique identifier for this rule
+id = "awesome-rule-1"
+
+# Short human-readable description of the rule.
+description = "awesome rule 1"
+
+# Golang regular expression used to detect secrets. Note Golang's regex engine
+# does not support lookaheads.
+regex = '''one-go-style-regex-for-this-rule'''
+
+# Int used to extract secret from regex match and used as the group that will have
+# its entropy checked if `entropy` is set.
+secretGroup = 3
+
+# Float representing the minimum shannon entropy a regex group must have to be considered a secret.
+entropy = 3.5
+
+# Golang regular expression used to match paths. This can be used as a standalone rule or it can be used
+# in conjunction with a valid `regex` entry.
+path = '''a-file-path-regex'''
+
+# Keywords are used for pre-regex check filtering. Rules that contain
+# keywords will perform a quick string compare check to make sure the
+# keyword(s) are in the content being scanned. Ideally these values should
+# either be part of the identiifer or unique strings specific to the rule's regex
+# (introduced in v8.6.0)
+keywords = [
+  "auth",
+  "password",
+  "token",
+]
+
+# Array of strings used for metadata and reporting purposes.
+tags = ["tag","another tag"]
+
+    # ⚠️ In v8.21.0 `[rules.allowlist]` was replaced with `[[rules.allowlists]]`.
+    # This change was backwards-compatible: instances of `[rules.allowlist]` still  work.
+    #
+    # You can define multiple allowlists for a rule to reduce false positives.
+    # A finding will be ignored if _ANY_ `[[rules.allowlists]]` matches.
+    [[rules.allowlists]]
+    description = "ignore commit A"
+    # When multiple criteria are defined the default condition is "OR".
+    # e.g., this can match on |commits| OR |paths| OR |stopwords|.
+    condition = "OR"
+    commits = [ "commit-A", "commit-B"]
+    paths = [
+      '''go\.mod''',
+      '''go\.sum'''
+    ]
+    # note: stopwords targets the extracted secret, not the entire regex match
+    # like 'regexes' does. (stopwords introduced in 8.8.0)
+    stopwords = [
+      '''client''',
+      '''endpoint''',
+    ]
+
+    [[rules.allowlists]]
+    # The "AND" condition can be used to make sure all criteria match.
+    # e.g., this matches if |regexes| AND |paths| are satisfied.
+    condition = "AND"
+    # note: |regexes| defaults to check the _Secret_ in the finding.
+    # Acceptable values for |regexTarget| are "secret" (default), "match", and "line".
+    regexTarget = "match"
+    regexes = [ '''(?i)parseur[il]''' ]
+    paths = [ '''package-lock\.json''' ]
+
+# You can extend a particular rule from the default config. e.g., gitlab-pat
+# if you have defined a custom token prefix on your GitLab instance
+[[rules]]
+id = "gitlab-pat"
+# all the other attributes from the default rule are inherited
+
+    [[rules.allowlists]]
+    regexTarget = "line"
+    regexes = [ '''MY-glpat-''' ]
+
+
+# ⚠️ In v8.25.0 `[allowlist]` was replaced with `[[allowlists]]`.
+#
+# Global allowlists have a higher order of precedence than rule-specific allowlists.
+# If a commit listed in the `commits` field below is encountered then that commit will be skipped and no
+# secrets will be detected for said commit. The same logic applies for regexes and paths.
+[[allowlists]]
+description = "global allow list"
+commits = [ "commit-A", "commit-B", "commit-C"]
+paths = [
+  '''gitleaks\.toml''',
+  '''(.*?)(jpg|gif|doc)'''
+]
+# note: (global) regexTarget defaults to check the _Secret_ in the finding.
+# Acceptable values for regexTarget are "match" and "line"
+regexTarget = "match"
+regexes = [
+  '''219-09-9999''',
+  '''078-05-1120''',
+  '''(9[0-9]{2}|666)-\d{2}-\d{4}''',
+]
+# note: stopwords targets the extracted secret, not the entire regex match
+# like 'regexes' does. (stopwords introduced in 8.8.0)
+stopwords = [
+  '''client''',
+  '''endpoint''',
+]
+
+# ⚠️ In v8.25.0, `[[allowlists]]` have a new field called |targetRules|.
+#
+# Common allowlists can be defined once and assigned to multiple rules using |targetRules|.
+# This will only run on the specified rules, not globally.
+[[allowlists]]
+targetRules = ["awesome-rule-1", "awesome-rule-2"]
+description = "Our test assets trigger false-positives in a couple rules."
+paths = ['''tests/expected/._\.json$''']
 ```
 
-### Verificação de Status
-```bash
-./scripts/maintenance/uninstall_master.sh
-# Escolha opção 6 (Verificar Status de Instalação)
+Refer to the default [gitleaks config](https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml) for examples or follow the [contributing guidelines](https://github.com/gitleaks/gitleaks/blob/master/CONTRIBUTING.md) if you would like to contribute to the default configuration. Additionally, you can check out [this gitleaks blog post](https://blog.gitleaks.io/stop-leaking-secrets-configuration-2-3-aeed293b1fbf) which covers advanced configuration setups.
+
+### Additional Configuration
+
+#### Composite Rules (Multi-part or `required` Rules)
+In v8.28.0 Gitleaks introduced composite rules, which are made up of a single "primary" rule and one or more auxiliary or `required` rules. To create a composite rule, add a `[[rules.required]]` table to the primary rule specifying an `id` and optionally `withinLines` and/or `withinColumns` proximity constraints. A fragment is a chunk of content that Gitleaks processes at once (typically a file, part of a file, or git diff), and proximity matching instructs the primary rule to only report a finding if the auxiliary `required` rules also find matches within the specified area of the fragment.
+
+**Proximity matching:** Using the `withinLines` and `withinColumns` fields instructs the primary rule to only report a finding if the auxiliary `required` rules also find matches within the specified proximity. You can set:
+
+- **`withinLines: N`** - required findings must be within N lines (vertically)
+- **`withinColumns: N`** - required findings must be within N characters (horizontally)  
+- **Both** - creates a rectangular search area (both constraints must be satisfied)
+- **Neither** - fragment-level matching (required findings can be anywhere in the same fragment)
+
+Here are diagrams illustrating each proximity behavior:
+
+```
+p = primary captured secret
+a = auxiliary (required) captured secret
+fragment = section of data gitleaks is looking at
+
+
+    *Fragment-level proximity*               
+    Any required finding in the fragment
+          ┌────────┐                       
+   ┌──────┤fragment├─────┐                 
+   │      └──────┬─┤     │ ┌───────┐       
+   │             │a│◀────┼─│✓ MATCH│       
+   │          ┌─┐└─┘     │ └───────┘       
+   │┌─┐       │p│        │                 
+   ││a│    ┌─┐└─┘        │ ┌───────┐       
+   │└─┘    │a│◀──────────┼─│✓ MATCH│       
+   └─▲─────┴─┴───────────┘ └───────┘       
+     │    ┌───────┐                        
+     └────│✓ MATCH│                        
+          └───────┘                        
+                                           
+                                           
+   *Column bounded proximity*
+   `withinColumns = 3`                    
+          ┌────────┐                       
+   ┌────┬─┤fragment├─┬───┐                 
+   │      └──────┬─┤     │ ┌───────────┐   
+   │    │        │a│◀┼───┼─│+1C ✓ MATCH│   
+   │          ┌─┐└─┘     │ └───────────┘   
+   │┌─┐ │     │p│    │   │                 
+┌──▶│a│  ┌─┐  └─┘        │ ┌───────────┐   
+│  │└─┘ ││a│◀────────┼───┼─│-2C ✓ MATCH│   
+│  │       ┘             │ └───────────┘   
+│  └── -3C ───0C─── +3C ─┘                 
+│  ┌─────────┐                             
+│  │ -4C ✗ NO│                             
+└──│  MATCH  │                             
+   └─────────┘                             
+                                           
+                                           
+   *Line bounded proximity*
+   `withinLines = 4`                      
+         ┌────────┐                        
+   ┌─────┤fragment├─────┐                  
+  +4L─ ─ ┴────────┘─ ─ ─│                  
+   │                    │                  
+   │              ┌─┐   │ ┌────────────┐   
+   │         ┌─┐  │a│◀──┼─│+1L ✓ MATCH │   
+   0L  ┌─┐   │p│  └─┘   │ ├────────────┤   
+   │   │a│◀──┴─┴────────┼─│-1L ✓ MATCH │   
+   │   └─┘              │ └────────────┘   
+   │                    │ ┌─────────┐      
+  -4L─ ─ ─ ─ ─ ─ ─ ─┌─┐─│ │-5L ✗ NO │      
+   │                │a│◀┼─│  MATCH  │      
+   └────────────────┴─┴─┘ └─────────┘      
+                                           
+                                           
+   *Line and column bounded proximity*
+   `withinLines = 4`                      
+   `withinColumns = 3`                    
+         ┌────────┐                        
+   ┌─────┤fragment├─────┐                  
+  +4L   ┌└────────┴ ┐   │                  
+   │            ┌─┐     │ ┌───────────────┐
+   │    │       │a│◀┼───┼─│+2L/+1C ✓ MATCH│
+   │         ┌─┐└─┘     │ └───────────────┘
+   0L   │    │p│    │   │                  
+   │         └─┘        │                  
+   │    │           │   │ ┌────────────┐   
+  -4L    ─ ─ ─ ─ ─ ─┌─┐ │ │-5L/+3C ✗ NO│   
+   │                │a│◀┼─│   MATCH    │   
+   └───-3C────0L───+3C┴─┘ └────────────┘   
 ```
 
-## 🛠️ Uso (Painel de Controle)
+<details><summary>Some final quick thoughts on composite rules.</summary>This is an experimental feature! It's subject to change so don't go sellin' a new B2B SaaS feature built ontop of this feature. Scan type (git vs dir) based context is interesting. I'm monitoring the situation. Composite rules might not be super useful for git scans because gitleaks only looks at additions in the git history. It could be useful to scan non-additions in git history for `required` rules. Oh, right this is a readme, I'll shut up now.</details>
+  
+#### gitleaks:allow
 
-O coração do projeto é o `manager.sh`. Ele oferece um menu interativo para controlar todos os aspectos do cluster.
+If you are knowingly committing a test secret that gitleaks will catch you can add a `gitleaks:allow` comment to that line which will instruct gitleaks
+to ignore that secret. Ex:
 
-**Para iniciar o painel de controle:**
-```bash
-./manager.sh
+```
+class CustomClass:
+    discord_client_secret = '8dyfuiRyq=vVc3RRr_edRk-fK__JItpZ'  #gitleaks:allow
+
 ```
 
-**Principais funcionalidades do painel:**
--   **Ações em Massa**: Iniciar, parar e reiniciar todos os serviços de uma vez.
--   **Gerenciamento Individual**: Controle fino sobre Ollama, Dask e OpenWebUI.
--   **🔍 Descoberta Automática**: Sistema inteligente para descobrir workers automaticamente na rede.
--   **Workers Remotos**: Adicione, configure, inicie, pare e execute comandos em nós remotos.
--   **Workers Android**: Gerencie workers Android via Termux com configuração guiada (opção 7).
--   **Configuração Interativa**: Menu completo para configurar workers Android e SSH (opção 7).
--   **Diagnóstico**: Execute health checks, gere relatórios de performance e verifique a qualidade do código.
--   **Manutenção**: Gerencie backups, restaure o sistema, atualize o projeto via Git e rotacione logs.
--   **Otimização**: Otimize os recursos do nó local e dos workers remotos com base no hardware detectado.
+#### .gitleaksignore
 
-## 🔍 Descoberta Automática de Workers
+You can ignore specific findings by creating a `.gitleaksignore` file at the root of your repo. In release v8.10.0 Gitleaks added a `Fingerprint` value to the Gitleaks report. Each leak, or finding, has a Fingerprint that uniquely identifies a secret. Add this fingerprint to the `.gitleaksignore` file to ignore that specific secret. See Gitleaks' [.gitleaksignore](https://github.com/gitleaks/gitleaks/blob/master/.gitleaksignore) for an example. Note: this feature is experimental and is subject to change in the future.
 
-O Cluster AI inclui um sistema avançado de descoberta automática que identifica e configura workers na sua rede local.
+#### Decoding
 
-### Como Usar a Descoberta Automática
+Sometimes secrets are encoded in a way that can make them difficult to find
+with just regex. Now you can tell gitleaks to automatically find and decode
+encoded text. The flag `--max-decode-depth` enables this feature (the default
+value "0" means the feature is disabled by default).
 
-#### Via Manager
-```bash
-./manager.sh
-# Escolha: "Gerenciar Workers Remotos (SSH)"
-# Escolha: "Executar Descoberta Automática"
+Recursive decoding is supported since decoded text can also contain encoded
+text.  The flag `--max-decode-depth` sets the recursion limit. Recursion stops
+when there are no new segments of encoded text to decode, so setting a really
+high max depth doesn't mean it will make that many passes. It will only make as
+many as it needs to decode the text. Overall, decoding only minimally increases
+scan times.
+
+The findings for encoded text differ from normal findings in the following
+ways:
+
+- The location points the bounds of the encoded text
+  - If the rule matches outside the encoded text, the bounds are adjusted to
+    include that as well
+- The match and secret contain the decoded value
+- Two tags are added `decoded:<encoding>` and `decode-depth:<depth>`
+
+Currently supported encodings:
+
+- **percent** - Any printable ASCII percent encoded values
+- **hex** - Any printable ASCII hex encoded values >= 32 characters
+- **base64** - Any printable ASCII base64 encoded values >= 16 characters
+
+#### Archive Scanning
+
+Sometimes secrets are packaged within archive files like zip files or tarballs,
+making them difficult to discover. Now you can tell gitleaks to automatically
+extract and scan the contents of archives. The flag `--max-archive-depth`
+enables this feature for both `dir` and `git` scan types. The default value of
+"0" means this feature is disabled by default.
+
+Recursive scanning is supported since archives can also contain other archives.
+The `--max-archive-depth` flag sets the recursion limit. Recursion stops when
+there are no new archives to extract, so setting a very high max depth just
+sets the potential to go that deep. It will only go as deep as it needs to.
+
+The findings for secrets located within an archive will include the path to the
+file inside the archive. Inner paths are separated with `!`.
+
+Example finding (shortened for brevity):
+
+```
+Finding:     DB_PASSWORD=8ae31cacf141669ddfb5da
+...
+File:        testdata/archives/nested.tar.gz!archives/files.tar!files/.env.prod
+Line:        4
+Commit:      6e6ee6596d337bb656496425fb98644eb62b4a82
+...
+Fingerprint: 6e6ee6596d337bb656496425fb98644eb62b4a82:testdata/archives/nested.tar.gz!archives/files.tar!files/.env.prod:generic-api-key:4
+Link:        https://github.com/leaktk/gitleaks/blob/6e6ee6596d337bb656496425fb98644eb62b4a82/testdata/archives/nested.tar.gz
 ```
 
-#### Via Script Direto
-```bash
-./scripts/deployment/auto_discover_workers.sh
+This means a secret was detected on line 4 of `files/.env.prod.` which is in
+`archives/files.tar` which is in `testdata/archives/nested.tar.gz`.
+
+Currently supported formats:
+
+The [compression](https://github.com/mholt/archives?tab=readme-ov-file#supported-compression-formats)
+and [archive](https://github.com/mholt/archives?tab=readme-ov-file#supported-archive-formats)
+formats supported by mholt's [archives package](https://github.com/mholt/archives)
+are supported.
+
+#### Reporting
+
+Gitleaks has built-in support for several report formats: [`json`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/json_simple.json), [`csv`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/csv_simple.csv?plain=1), [`junit`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/junit_simple.xml), and [`sarif`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/sarif_simple.sarif).
+
+If none of these formats fit your need, you can create your own report format with a [Go `text/template` .tmpl file](https://www.digitalocean.com/community/tutorials/how-to-use-templates-in-go#step-4-writing-a-template) and the `--report-template` flag. The template can use [extended functionality from the `Masterminds/sprig` template library](https://masterminds.github.io/sprig/).
+
+For example, the following template provides a custom JSON output:
+```gotemplate
+# jsonextra.tmpl
+[{{ $lastFinding := (sub (len . ) 1) }}
+{{- range $i, $finding := . }}{{with $finding}}
+    {
+        "Description": {{ quote .Description }},
+        "StartLine": {{ .StartLine }},
+        "EndLine": {{ .EndLine }},
+        "StartColumn": {{ .StartColumn }},
+        "EndColumn": {{ .EndColumn }},
+        "Line": {{ quote .Line }},
+        "Match": {{ quote .Match }},
+        "Secret": {{ quote .Secret }},
+        "File": "{{ .File }}",
+        "SymlinkFile": {{ quote .SymlinkFile }},
+        "Commit": {{ quote .Commit }},
+        "Entropy": {{ .Entropy }},
+        "Author": {{ quote .Author }},
+        "Email": {{ quote .Email }},
+        "Date": {{ quote .Date }},
+        "Message": {{ quote .Message }},
+        "Tags": [{{ $lastTag := (sub (len .Tags ) 1) }}{{ range $j, $tag := .Tags }}{{ quote . }}{{ if ne $j $lastTag }},{{ end }}{{ end }}],
+        "RuleID": {{ quote .RuleID }},
+        "Fingerprint": {{ quote .Fingerprint }}
+    }{{ if ne $i $lastFinding }},{{ end }}
+{{- end}}{{ end }}
+]
 ```
 
-### Funcionalidades da Descoberta Automática
-
--   **🔍 Escaneamento Inteligente**: Detecta dispositivos na rede local (mesma sub-rede)
--   **🔐 Configuração SSH Automática**: Gera e copia chaves SSH automaticamente
--   **📱 Suporte Android**: Detecta workers Android via Termux (porta 8022)
--   **🖥️ Suporte Linux**: Detecta workers Linux (porta 22)
--   **✅ Verificação de Cluster**: Confirma se dispositivos já têm Cluster AI instalado
--   **📊 Relatórios Detalhados**: Mostra progresso e resultados da descoberta
--   **🔄 Configuração Automática**: Registra workers automaticamente no cluster
-
-### Tipos de Dispositivos Detectados
-
--   **🎯 Workers Cluster AI**: Dispositivos com Cluster AI já instalado
--   **📱 Dispositivos Android**: Celulares/tablets com Termux
--   **🖥️ Servidores Linux**: Outros servidores Linux na rede
--   **❓ Dispositivos Genéricos**: Outros dispositivos com SSH ativo
-
-### Exemplo de Saída
-```
-🔍 DESCOBERTA AUTOMÁTICA DE WORKERS
-Escaneando rede 192.168.1.0/24 por portas SSH...
-
-✅ Conexão SSH estabelecida com 192.168.1.100:8022
-🎯 Worker Cluster AI encontrado: android-worker-1
-✅ Chave SSH copiada para android-worker-1
-
-📊 RELATÓRIO DE DESCOBERTA
-Workers Cluster AI descobertos: 1
-Dispositivos descobertos: 2
-Workers configurados: 1
+Usage:
+```sh
+$ gitleaks dir ~/leaky-repo/ --report-path "report.json" --report-format template --report-template testdata/report/jsonextra.tmpl
 ```
 
-## 🏗️ Arquitetura
+## Sponsorships
 
-O sistema é modular, permitindo que diferentes máquinas assumam papéis específicos.
+<p align="left">
+	<h3><a href="https://coderabbit.ai/?utm_source=oss&utm_medium=sponsorship&utm_campaign=gitleaks">coderabbit.ai</h3>
+	  <a href="https://coderabbit.ai/?utm_source=oss&utm_medium=sponsorship&utm_campaign=gitleaks">
+		  <img alt="CodeRabbit.ai Sponsorship" src="https://github.com/gitleaks/gitleaks/assets/15034943/76c30a85-887b-47ca-9956-17a8e55c6c41" width=200>
+	  </a>
+</p>
 
--   **Servidor Principal**: Hospeda o Dask Scheduler, a API do Ollama e a interface OpenWebUI. Centraliza o gerenciamento.
--   **Worker (GPU/CPU)**: Executa os processos `dask-worker` para realizar as tarefas de computação. Pode ou não ter uma GPU.
--   **Worker Android**: Expande o cluster usando dispositivos Android via Termux.
--   **Estação de Trabalho**: Um worker que também possui ferramentas de desenvolvimento (IDEs) instaladas.
 
-| Serviço        | Porta   | Protocolo | Descrição                  |
-| -------------- | ------- | --------- | -------------------------- |
-| Dask Scheduler | 8786    | TCP       | Coordenação do cluster     |
-| Dask Dashboard | 8787    | TCP       | Monitoramento web do Dask  |
-| OpenWebUI      | 3000    | TCP       | Interface web para modelos |
-| Ollama API     | 11434   | TCP       | API dos modelos de IA      |
-| SSH            | 22      | TCP       | Acesso remoto para workers |
+## Exit Codes
 
-## 📚 Documentação Completa
+You can always set the exit code when leaks are encountered with the --exit-code flag. Default exit codes below:
 
-### 📖 Documentação Organizada
-
-Toda a documentação foi reorganizada para facilitar a navegação. Consulte:
-
-#### 🚀 **Instalação e Setup**
-- **[📱 Android Workers](docs/organized/installation/ANDROID_GUIA_RAPIDO.md)** - Guia completo de instalação
-- **[🖥️ Instalação Geral](docs/organized/installation/INSTALACAO.md)** - Setup completo do sistema
-- **[🔍 Descoberta Automática](docs/organized/installation/)** - Workers na rede
-
-#### 📋 **Uso e Operação**
-- **[🤖 Ollama](docs/organized/usage/OLLAMA.md)** - Como usar modelos de IA
-- **[🌐 OpenWebUI](docs/organized/usage/OPENWEBUI.md)** - Interface web
-- **[📝 Prompts](docs/organized/prompts/README.md)** - Catálogos especializados
-
-#### 🔧 **Manutenção e Configuração**
-- **[💾 Backup](docs/organized/maintenance/BACKUP.md)** - Sistema de backup
-- **[⚙️ Configuração](docs/organized/maintenance/CONFIGURACAO.md)** - Configurações avançadas
-- **[🔒 Segurança](docs/organized/security/SECURITY_MEASURES.md)** - Medidas implementadas
-
-#### 📚 **Guias e Referências**
-- **[🚀 Guia Rápido](docs/organized/guides/quick-start.md)** - Início rápido
-- **[🔧 Troubleshooting](docs/organized/guides/TROUBLESHOOTING.md)** - Resolução de problemas
-- **[⚡ Otimização](docs/organized/guides/OPTIMIZATION.md)** - Performance e recursos
-
-### 🔄 **Guia de Migração**
-- **[📋 Migração da Documentação](docs/MIGRATION_GUIDE.md)** - Como navegar na nova estrutura
-- **[📖 Índice Principal](docs/organized/README.md)** - Visão geral organizada
-
-### 📖 **Documentação Original (Compatibilidade)**
-- **[Índice da Documentação](docs/INDEX.md)**: Ponto de entrada para todos os guias (estrutura antiga).
-- **[Manuais Técnicos](docs/manuals/)**: Documentação técnica detalhada.
-- **[Guias Gerais](docs/guides/)**: Guias específicos de funcionalidades.
-- **[Configurações](configs/)**: Configurações Docker, Nginx e TLS.
-
-## 🎯 Demonstrações e Testes
-
-### Scripts de Demonstração
-Após a instalação, teste o sistema com os scripts incluídos:
-
-#### 1. Demonstração Completa (`demo_cluster.py`)
-```bash
-source ~/cluster_env/bin/activate
-python demo_cluster.py
 ```
-**Funcionalidades:**
-- Processamento básico paralelo
-- Cálculo de Fibonacci distribuído
-- Operações com arrays grandes
-- Logging detalhado
-
-#### 2. Demonstração Interativa (`simple_demo.py`)
-```bash
-source ~/cluster_env/bin/activate
-python simple_demo.py
+0 - no leaks present
+1 - leaks or error encountered
+126 - unknown flag
 ```
-**Funcionalidades:**
-- Interface interativa
-- Escolha de operações
-- Comparação de performance
-- Dashboard em tempo real
-
-#### 3. Teste de Instalação (`test_installation.py`)
-```bash
-source ~/cluster_env/bin/activate
-python test_installation.py
-```
-**Testes realizados:**
-- ✅ Docker funcionando
-- ✅ Pacotes Python instalados
-- ✅ Cluster Dask operacional
-- ✅ Performance (Speedup médio: 2.3x)
-- ✅ Operações de data science
-
-### Performance Demonstrativa
-- **Processamento paralelo**: Speedup de 4.8x
-- **Cálculo Fibonacci**: Speedup de 1.5x
-- **Operações pesadas**: Speedup de 2.3x
-
-## 💡 Exemplos Práticos
-
-### 1. Processamento de Dados com Dask
-```python
-from dask.distributed import Client
-import dask.dataframe as dd
-import pandas as pd
-
-# Conectar ao cluster
-client = Client('tcp://localhost:8786')
-
-# Processar dataset grande
-df = dd.read_csv('large_dataset.csv')
-result = df.groupby('category').value.sum().compute()
-print(result)
-```
-
-### 2. Usando Modelos de IA via Ollama
-```python
-import ollama
-
-# Listar modelos disponíveis
-models = ollama.list()
-print("Modelos disponíveis:", [m['name'] for m in models['models']])
-
-# Fazer uma pergunta
-response = ollama.chat(model='llama3', messages=[
-    {'role': 'user', 'content': 'Explique machine learning em 3 frases'}
-])
-print(response['message']['content'])
-```
-
-### 3. Adicionando Worker Android
-```bash
-# No dispositivo Android (Termux)
-curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/scripts/android/setup_android_worker.sh | bash
-
-# No servidor, registrar worker
-./manager.sh
-# Escolha: "Gerenciar Workers Remotos (SSH)"
-# Escolha: "Executar Descoberta Automática"
-```
-
-### 4. Monitoramento em Tempo Real
-```bash
-# Dashboard Dask
-open http://localhost:8787
-
-# Interface OpenWebUI
-open http://localhost:3000
-
-# Status do cluster
-./manager.sh
-# Escolha: "Verificar Status dos Serviços"
-```
-
-### 5. Backup e Restauração
-```bash
-# Fazer backup completo
-./manager.sh
-# Escolha: "Manutenção" > "Fazer Backup do Sistema"
-
-# Restaurar de backup
-./manager.sh
-# Escolha: "Manutenção" > "Restaurar Sistema"
-```
-
-## 🧪 Testes e Qualidade
-
-### Executar Todos os Testes
-```bash
-# Testes completos
-./scripts/validation/run_all_tests.sh
-
-# Testes específicos
-pytest tests/                    # Todos os testes Python
-pytest tests/security/          # Testes de segurança
-pytest tests/performance/       # Testes de performance
-pytest tests/integration/       # Testes de integração
-```
-
-### Cobertura de Testes
-- **Testes Unitários**: Componentes individuais
-- **Testes de Integração**: Interação entre componentes
-- **Testes de Segurança**: Validação e autenticação
-- **Testes de Performance**: Benchmarks e profiling
-- **Testes E2E**: Fluxos completos do usuário
-
-## 🔒 Segurança
-
-### Medidas Implementadas
-- **Autenticação SSH**: Chaves RSA de 4096 bits
-- **Validação de Entrada**: Sanitização de dados
-- **Controle de Acesso**: Baseado em roles
-- **Auditoria**: Logs detalhados de segurança
-- **Criptografia**: Comunicação segura entre nós
-
-### Verificações de Segurança
-```bash
-# Executar auditoria de segurança
-./scripts/security/security_audit.sh
-
-# Verificar permissões de arquivos
-./scripts/security/check_permissions.sh
-```
-
-## ⚡ Performance e Otimização
-
-### Métricas de Performance
-- **Latência**: < 100ms para operações locais
-- **Throughput**: 1000+ operações/segundo
-- **Escalabilidade**: Até 100 workers simultâneos
-- **Eficiência de Memória**: < 2GB por worker básico
-
-### Otimizações Disponíveis
-```bash
-# Otimizar recursos do sistema
-./scripts/optimization/optimize_system.sh
-
-# Monitor de performance em tempo real
-./scripts/monitoring/performance_monitor.sh
-```
-
-## 🔧 Troubleshooting
-
-### Problemas Comuns
-
-#### Sistema Não Inicia
-```bash
-# Verificar status dos serviços
-./manager.sh
-# Escolha: "Verificar Status dos Serviços"
-
-# Ver logs detalhados
-tail -f logs/cluster.log
-```
-
-#### Workers Não Conectam
-```bash
-# Testar conectividade SSH
-ssh -T worker@192.168.1.100
-
-# Verificar configuração do worker
-./scripts/deployment/verify_worker.sh
-```
-
-#### Performance Baixa
-```bash
-# Executar diagnóstico
-./scripts/diagnostic/performance_check.sh
-
-# Otimizar recursos
-./scripts/optimization/resource_optimizer.sh
-```
-
-### Logs e Debug
-```bash
-# Logs principais
-tail -f ~/.cluster_optimization/optimization.log
-tail -f logs/dask_scheduler.log
-tail -f logs/ollama.log
-
-# Debug mode
-export CLUSTER_DEBUG=1
-./manager.sh
-```
-
-## 📡 API e Integração
-
-### Endpoints Principais
-| Serviço | URL | Descrição |
-|---------|-----|-----------|
-| **OpenWebUI** | http://localhost:3000 | Interface web para IA |
-| **Dask Dashboard** | http://localhost:8787 | Monitoramento do cluster |
-| **Ollama API** | http://localhost:11434 | API dos modelos de IA |
-| **Manager CLI** | - | Interface de linha de comando |
-
-### Integração Programática
-```python
-# Exemplo de uso do cluster via Python
-from dask.distributed import Client
-import ollama
-
-# Conectar ao cluster
-client = Client('tcp://localhost:8786')
-
-# Usar modelo de IA
-response = ollama.chat(model='llama3', messages=[{'role': 'user', 'content': 'Olá!'}])
-```
-
-## ❓ FAQ
-
-### Gerais
-**P: O sistema funciona em Windows/Mac?**
-R: Atualmente suporta apenas Linux. Suporte para outros SOs está planejado.
-
-**P: Posso usar sem GPU?**
-R: Sim, mas com performance reduzida. Recomendamos GPU para modelos maiores.
-
-### Workers
-**P: Quantos workers posso adicionar?**
-R: Teoricamente ilimitado, limitado apenas pelos recursos de rede.
-
-**P: Workers Android são confiáveis?**
-R: Sim, com Termux. Recomendamos dispositivos com boa bateria e conexão WiFi estável.
-
-### Performance
-**P: Qual o speedup típico?**
-R: 2-5x dependendo da tarefa e número de workers.
-
-**P: Como otimizar para meu hardware?**
-R: Execute `./scripts/optimization/hardware_optimizer.sh` para configuração automática.
-
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Por favor, leia o nosso **Guia de Contribuição** para saber como participar.
-
-### Como Contribuir
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## 📄 Licença
-
-Este projeto está licenciado sob a Licença MIT. Veja o arquivo LICENSE.txt para mais detalhes.
-
-## 🙏 Agradecimentos
-
--   **Dask**: Framework de computação distribuída
--   **Ollama**: Execução local de modelos de IA
--   **OpenWebUI**: Interface web para modelos
--   **Comunidade Open Source**: Por tornar possível este projeto
-
----
-
-**📧 Suporte**: Para dúvidas e suporte, abra uma issue no GitHub.
-**📚 Documentação**: [docs/INDEX.md](docs/INDEX.md)
-**🚀 Início Rápido**: [Guia de Início Rápido](docs/guides/quick-start.md)

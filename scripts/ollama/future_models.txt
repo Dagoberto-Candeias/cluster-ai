@@ -1,0 +1,22 @@
+# Lista de modelos para download futuro (opcionais)
+# Execute manualmente: ollama pull <modelo>
+
+llama3.1:8b
+llama3.2
+phi3
+phi4
+gemma2:9b
+qwen3
+deepseek-chat
+deepseek-coder-v2:16b
+codellama-7b
+starcoder2:7b
+qwen2.5-coder:1.5b
+deepseek-coder
+qwen2-vl
+minicpm-v
+codegemma
+nomic-embed-text
+text-embedding-3-small
+gemma-embed
+mistral-embed
