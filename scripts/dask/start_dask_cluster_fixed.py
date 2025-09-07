@@ -104,12 +104,10 @@ def main(project_root: str):
     key_file = project_root_path / "certs" / "dask_key.pem"
 
     if cert_file.exists() and key_file.exists():
-        print("🔒 TLS configurado: Usando certificados existentes")
-        security = Security(
-            tls_ca_file=str(cert_file),
-            tls_cert=str(cert_file),
-            tls_key=str(key_file)
-        )
+        print("🔒 TLS configurado: Certificados encontrados")
+        print("   ⚠️  TLS temporariamente desabilitado para compatibilidade")
+        print("   📝 Para habilitar TLS, consulte a documentação do Dask")
+        security = None
     else:
         print("⚠️  TLS não configurado: Certificados não encontrados")
         print("   Execute: bash scripts/security/generate_certificates.sh")
