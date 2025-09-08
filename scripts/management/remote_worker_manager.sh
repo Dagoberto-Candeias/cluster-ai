@@ -195,6 +195,8 @@ do_status() {
     # Cabeçalho da tabela aprimorado
     printf "%-20s | %-15s | %-18s | %-15s | %-12s | %-12s | %-12s | %-10s\n" "Hostname" "IP" "Worker Status" "Node CPU Load" "Node Mem %" "Disk Usage" "Dask Mem" "Ping (ms)"
     printf "%s\n" "----------------------|-----------------|--------------------|-----------------|--------------|--------------|--------------|-----------"
+    printf "%-20s | %-15s | %-18s | %-15s | %-12s | %-12s | %-12s | %-10s | %-20s\n" "Hostname" "IP" "Worker Status" "Node CPU Load" "Node Mem %" "Disk Usage" "Dask Mem" "Ping (ms)" "Uptime"
+    printf "%s\n" "----------------------|-----------------|--------------------|-----------------|--------------|--------------|--------------|-----------|---------------------"
 
     while read -r hostname ip user port; do
         if [ -z "$hostname" ]; then continue; fi
@@ -284,6 +286,12 @@ do_status() {
             ping_display="${GREEN}${ping_ms} ms${NC}"
         fi
 
+        # Uptime
+        local uptime_display="N/A"
+        if [[ -n "$uptime_raw" ]]; then
+            uptime_display="${BLUE}${uptime_raw}${NC}"
+        fi
+
         # 4. Imprimir a linha da tabela com as novas métricas
         printf "%-20s | %-15s | " "$hostname" "$ip"
         print_padded_colored "$worker_status" 18
@@ -297,6 +305,8 @@ do_status() {
         print_padded_colored "$dask_mem_display" 12
         printf " | "
         print_padded_colored "$ping_display" 10
+        printf " | "
+        print_padded_colored "$uptime_display" 20
         printf "\n"
     done < <(get_nodes)
 }
