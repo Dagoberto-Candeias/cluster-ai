@@ -100,6 +100,9 @@ copy_ssh_key() {
 
     log_info "Copiando chave SSH para $hostname ($user@$ip:$port)..."
 
+    # Adicionar a chave do host ao known_hosts para evitar prompts interativos de segurança
+    ssh-keyscan -p "$port" -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null
+
     # Verificar se ssh-copy-id está disponível
     if ! command_exists ssh-copy-id; then
         log_error "ssh-copy-id não encontrado. Instale-o com: sudo apt install openssh-client"
@@ -107,7 +110,7 @@ copy_ssh_key() {
     fi
 
     # Tentar copiar a chave SSH
-    if ssh-copy-id -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" 2>/dev/null; then
+    if ssh-copy-id -o ConnectTimeout=10 -p "$port" "$user@$ip"; then
         log_success "Chave SSH copiada com sucesso para $hostname"
 
         # Verificar se a configuração funcionou
@@ -156,24 +159,14 @@ main() {
             continue
         fi
 
-        # Debug: mostrar linha sendo processada
-        log_info "Processando linha: '$line'"
-
-        # Usar read com mais segurança
-        hostname=$(echo "$line" | awk '{print $1}')
-        alias=$(echo "$line" | awk '{print $2}')
-        ip=$(echo "$line" | awk '{print $3}')
-        user=$(echo "$line" | awk '{print $4}')
-        port=$(echo "$line" | awk '{print $5}')
-        status=$(echo "$line" | awk '{print $6}')
+        # Usar read para parsear a linha de forma mais segura
+        local hostname ip user port
+        read -r hostname _ ip user port _ <<< "$line"
 
         if [[ -z "$hostname" ]]; then
             log_warning "Erro ao ler linha: $line"
             continue
         fi
-
-        # Debug: mostrar valores lidos
-        log_info "Hostname: '$hostname', IP: '$ip', User: '$user', Port: '$port', Status: '$status'"
 
         # Verificar se temos pelo menos hostname e IP
         if [[ -z "$hostname" || -z "$ip" || "$ip" == " " ]]; then
@@ -184,7 +177,6 @@ main() {
         # Definir valores padrão se não especificados
         user="${user:-$USER}"
         port="${port:-22}"
-        status="${status:-inactive}"
 
         ((total_workers++))
         echo
@@ -222,10 +214,10 @@ main() {
 
     if [[ $successful_configs -gt 0 ]]; then
         echo
-        log_success "✅ Execute novamente o script de inicialização:"
-        echo "   ./scripts/auto_init_project.sh"
+        log_success "✅ Configuração SSH bem-sucedida para $successful_configs worker(s)."
         echo
-        log_info "Agora os workers devem aparecer como 'online' em vez de 'pingable (SSH não configurado)'"
+        log_info "Para verificar o status atualizado, execute:"
+        echo "   ./manager.sh status"
     fi
 
     if [[ $failed_configs -gt 0 ]]; then

@@ -181,6 +181,116 @@ start_dask_workers() {
     fi
 }
 
+# Verificar se porta está em uso
+check_port_usage() {
+    local port="$1"
+    if lsof -i :$port >/dev/null 2>&1; then
+        # Obter informações sobre o processo usando a porta
+        local process_info=$(lsof -i :$port | tail -n +2 | head -1)
+        echo "$process_info"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Resolver conflito de portas
+resolve_port_conflict() {
+    local port="$1"
+    local service_name="$2"
+
+    log_warning "Porta $port já está em uso pelo serviço $service_name"
+
+    # Verificar se é um processo Dask
+    if pgrep -f "dask-scheduler" >/dev/null; then
+        log_info "Dask scheduler local já está rodando. Parando automaticamente os containers Docker para resolver conflito..."
+
+        # Parar serviços Docker se estiverem rodando
+        if command_exists docker; then
+            if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
+                log_info "Parando containers Docker existentes..."
+                if command_exists docker-compose; then
+                    docker-compose down
+                elif docker compose version >/dev/null 2>&1; then
+                    docker compose down
+                else
+                    # Fallback: parar containers individualmente
+                    docker stop $(docker ps -q --filter "name=dask") 2>/dev/null || true
+                    docker rm $(docker ps -aq --filter "name=dask") 2>/dev/null || true
+                fi
+            fi
+        fi
+        log_success "Serviços Docker parados. Usando scheduler local."
+        return 0
+    else
+        log_warning "Porta $port em uso por outro processo. Procurando alternativa..."
+        return 1
+    fi
+}
+
+# Encontrar porta disponível para Docker
+find_available_port() {
+    local base_port="$1"
+    local max_attempts=10
+
+    for ((i=0; i<max_attempts; i++)); do
+        local test_port=$((base_port + i))
+        if ! lsof -i :$test_port >/dev/null 2>&1; then
+            echo "$test_port"
+            return 0
+        fi
+    done
+
+    log_error "Não foi possível encontrar uma porta disponível após $max_attempts tentativas"
+    return 1
+}
+
+# Criar configuração Docker alternativa com portas diferentes
+create_alternative_docker_config() {
+    local scheduler_port="$1"
+    local dashboard_port="$2"
+    local config_file="docker-compose-alt.yml"
+
+    log_info "Criando configuração Docker alternativa com portas $scheduler_port/$dashboard_port..."
+
+    cat > "$config_file" << EOF
+services:
+  dask-scheduler:
+    image: daskdev/dask:latest
+    ports:
+      - "${scheduler_port}:8786"
+      - "${dashboard_port}:8787"
+    command: dask-scheduler
+    networks:
+      - dask-network
+
+  dask-worker:
+    image: daskdev/dask:latest
+    depends_on:
+      - dask-scheduler
+    command: dask-worker dask-scheduler:8786
+    deploy:
+      replicas: 1
+    networks:
+      - dask-network
+
+networks:
+  dask-network:
+    driver: bridge
+EOF
+
+    log_success "Configuração alternativa criada: $config_file"
+    echo "$config_file"
+}
+
+# Limpar configurações Docker alternativas
+cleanup_alternative_configs() {
+    if [[ -f "docker-compose-alt.yml" ]]; then
+        rm -f "docker-compose-alt.yml"
+        log_info "Configuração alternativa removida"
+    fi
+}
+
 # Verificar e iniciar serviços Docker
 check_docker_services() {
     log_info "Verificando serviços Docker..."
@@ -189,42 +299,153 @@ check_docker_services() {
     if [[ -f "docker-compose.yml" ]]; then
         log_info "Arquivo docker-compose.yml encontrado"
 
-        # Verificar se serviços estão rodando (usando nomes corretos dos containers)
+        # Verificar se há um scheduler Dask local rodando
+        local local_scheduler_running=false
+        if pgrep -f "dask-scheduler" >/dev/null; then
+            local_scheduler_running=true
+            log_info "Scheduler Dask local detectado. Priorizando serviços locais."
+        fi
+
+        # Verificar se serviços Docker estão rodando
         if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
             log_success "Serviços Docker estão rodando"
-        else
-            log_warning "Serviços Docker não estão rodando. Iniciando automaticamente..."
 
-            # Tentar iniciar os serviços Docker
-            if command_exists docker && command_exists docker-compose; then
-                log_info "Iniciando serviços Docker com docker-compose..."
-                if docker-compose up -d; then
-                    sleep 3  # Aguardar inicialização
+            # Se há scheduler local, verificar conflitos
+            if [[ "$local_scheduler_running" == "true" ]]; then
+                if check_port_usage 8787 >/dev/null; then
+                    local port_user=$(check_port_usage 8787 | awk '{print $1}')
+                    log_warning "Porta 8787 em uso por processo: $port_user"
+                    resolve_port_conflict 8787 "Dask Dashboard"
+                fi
+            fi
+        else
+            # Serviços Docker não estão rodando
+            if [[ "$local_scheduler_running" == "true" ]]; then
+                log_info "Scheduler local ativo. Pulando inicialização Docker para evitar conflitos."
+                return 0
+            fi
+
+            log_info "Serviços Docker não estão rodando. Tentando iniciar..."
+
+            # Verificar conflitos de portas antes de iniciar
+            local can_start_docker=true
+            if check_port_usage 8786 >/dev/null || check_port_usage 8787 >/dev/null; then
+                log_warning "Portas 8786/8787 em uso. Verificando se é possível resolver..."
+
+                # Tentar resolver conflitos
+                if check_port_usage 8786 >/dev/null; then
+                    if ! resolve_port_conflict 8786 "Dask Scheduler"; then
+                        can_start_docker=false
+                    fi
+                fi
+
+                if check_port_usage 8787 >/dev/null; then
+                    if ! resolve_port_conflict 8787 "Dask Dashboard"; then
+                        can_start_docker=false
+                    fi
+                fi
+
+                # Verificar novamente após resolução
+                if [[ "$can_start_docker" == "true" ]]; then
+                    if check_port_usage 8786 >/dev/null || check_port_usage 8787 >/dev/null; then
+                        log_warning "Conflitos de porta não resolvidos. Pulando inicialização Docker."
+                        can_start_docker=false
+                    fi
+                fi
+            fi
+
+            # Tentar iniciar serviços Docker se não há conflitos
+            if [[ "$can_start_docker" == "true" ]]; then
+                local docker_command=""
+                local docker_ps_command=""
+                local compose_file="docker-compose.yml"
+
+                # Determinar qual comando Docker usar
+                if command_exists docker-compose; then
+                    docker_command="docker-compose -f $compose_file up -d"
+                    docker_ps_command="docker-compose -f $compose_file ps"
+                elif command_exists docker && docker compose version >/dev/null 2>&1; then
+                    docker_command="docker compose -f $compose_file up -d"
+                    docker_ps_command="docker compose -f $compose_file ps"
+                else
+                    log_error "docker-compose ou 'docker compose' não encontrado"
+                    log_info "Instale docker-compose ou use './manager.sh start' para iniciar os serviços"
+                    return 1
+                fi
+
+                log_info "Iniciando serviços Docker..."
+                if eval "$docker_command"; then
+                    log_info "Aguardando inicialização dos containers..."
+                    sleep 10  # Aguardar mais tempo para inicialização completa
+
                     if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
                         log_success "Serviços Docker iniciados com sucesso"
+
+                        # Verificar se os serviços estão realmente acessíveis
+                        if curl -s --max-time 10 http://localhost:8787 >/dev/null 2>&1; then
+                            log_success "Dashboard Docker acessível em http://localhost:8787"
+                        else
+                            log_warning "Dashboard Docker pode não estar totalmente pronto"
+                        fi
                     else
-                        log_warning "Serviços Docker foram iniciados mas podem não estar totalmente prontos"
+                        log_warning "Serviços Docker foram iniciados mas containers podem não estar prontos"
+                        log_info "Verificando status dos containers..."
+                        eval "$docker_ps_command"
                     fi
                 else
-                    log_error "Falha ao iniciar serviços Docker com docker-compose"
+                    log_error "Falha ao iniciar serviços Docker"
+                    log_info "Verificando possíveis causas..."
+                    eval "$docker_ps_command"
                     log_info "Use './manager.sh start' para tentar iniciar manualmente"
                 fi
-            elif command_exists docker && docker compose version >/dev/null 2>&1; then
-                log_info "Iniciando serviços Docker com 'docker compose'..."
-                if docker compose up -d; then
-                    sleep 3  # Aguardar inicialização
-                    if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
-                        log_success "Serviços Docker iniciados com sucesso"
-                    else
-                        log_warning "Serviços Docker foram iniciados mas podem não estar totalmente prontos"
-                    fi
-                else
-                    log_error "Falha ao iniciar serviços Docker com 'docker compose'"
-                    log_info "Use './manager.sh start' para tentar iniciar manualmente"
-                fi
+
+                # Limpar configuração alternativa se foi usada
+                cleanup_alternative_configs
             else
-                log_error "docker-compose ou 'docker compose' não encontrado"
-                log_info "Instale docker-compose ou use './manager.sh start' para iniciar os serviços"
+                # Tentar usar portas alternativas se conflitos não puderam ser resolvidos
+                log_warning "Tentando usar portas alternativas para Docker..."
+
+                local alt_scheduler_port=$(find_available_port 8788)
+                local alt_dashboard_port=$(find_available_port 8789)
+
+                if [[ -n "$alt_scheduler_port" && -n "$alt_dashboard_port" ]]; then
+                    local alt_config=$(create_alternative_docker_config "$alt_scheduler_port" "$alt_dashboard_port")
+
+                    if [[ -n "$alt_config" ]]; then
+                        log_info "Tentando iniciar Docker com configuração alternativa..."
+
+                        local docker_command=""
+                        local docker_ps_command=""
+
+                        if command_exists docker-compose; then
+                            docker_command="docker-compose -f $alt_config up -d"
+                            docker_ps_command="docker-compose -f $alt_config ps"
+                        elif command_exists docker && docker compose version >/dev/null 2>&1; then
+                            docker_command="docker compose -f $alt_config up -d"
+                            docker_ps_command="docker compose -f $alt_config ps"
+                        fi
+
+                        if [[ -n "$docker_command" ]]; then
+                            if eval "$docker_command"; then
+                                sleep 10
+                                if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
+                                    log_success "Serviços Docker iniciados com portas alternativas"
+                                    log_info "Scheduler: http://localhost:$alt_scheduler_port"
+                                    log_info "Dashboard: http://localhost:$alt_dashboard_port"
+                                else
+                                    log_warning "Falha ao iniciar com portas alternativas"
+                                    eval "$docker_ps_command"
+                                fi
+                            fi
+                        fi
+
+                        # Limpar configuração alternativa
+                        cleanup_alternative_configs
+                    fi
+                else
+                    log_error "Não foi possível encontrar portas alternativas disponíveis"
+                    log_info "Considere parar o scheduler local ou liberar as portas 8786/8787"
+                fi
             fi
         fi
     else
@@ -311,13 +532,25 @@ list_workers() {
         read -r hostname alias ip user port status <<< "$line"
 
         # Testar conectividade se IP estiver definido
-        local connectivity="unknown"
+        local connectivity_status=""
         if [[ -n "$ip" && "$ip" != " " ]]; then
-            connectivity=$(test_worker_connectivity "$hostname" "$ip" "$user" "$port")
+            local connectivity_result
+            connectivity_result=$(test_worker_connectivity "$hostname" "$ip" "${user:-$USER}" "${port:-22}")
+            case "$connectivity_result" in
+                "online")
+                    connectivity_status="${GREEN}ONLINE${NC}"
+                    ;;
+                "pingable (SSH não configurado)")
+                    connectivity_status="${YELLOW}PING OK (SSH requer config)${NC}"
+                    ;;
+                *)
+                    connectivity_status="${RED}OFFLINE${NC}"
+                    ;;
+            esac
         fi
 
         # Formatar display com status de conectividade
-        local worker_display="$hostname ($ip) - Config: $status - Status: $connectivity"
+        local worker_display="$hostname ($ip) - Status: $connectivity_status"
 
         if [[ "$status" == "active" ]]; then
             active_workers+=("$worker_display")
@@ -330,7 +563,7 @@ list_workers() {
     log_info "Workers Ativos:"
     if [[ ${#active_workers[@]} -gt 0 ]]; then
         for worker in "${active_workers[@]}"; do
-            echo "  • $worker"
+            echo -e "  • $worker"
         done
     else
         echo "  • Nenhum worker ativo"
@@ -340,7 +573,7 @@ list_workers() {
     log_info "Workers Inativos:"
     if [[ ${#inactive_workers[@]} -gt 0 ]]; then
         for worker in "${inactive_workers[@]}"; do
-            echo "  • $worker"
+            echo -e "  • $worker"
         done
     else
         echo "  • Nenhum worker inativo"
@@ -371,6 +604,13 @@ refresh_worker_list() {
     fi
 }
 
+# Sincronizar configuração de workers para o formato JSON
+sync_worker_config() {
+    if [ -f "scripts/utils/sync_config.sh" ]; then
+        log_info "Sincronizando configuração de workers para JSON..."
+        bash scripts/utils/sync_config.sh
+    fi
+}
 # Função principal
 main() {
     echo
@@ -386,6 +626,7 @@ main() {
     activate_venv
     check_python_dependencies
     check_configuration
+    sync_worker_config # Adicionado aqui para garantir a sincronização
     refresh_worker_list
     start_dask_cluster
     start_dask_workers

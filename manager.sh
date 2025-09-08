@@ -129,6 +129,108 @@ validate_input() {
     return 0
 }
 
+# Função para verificar se usuário está autorizado
+check_user_authorization() {
+    # Verificar se usuário está no grupo sudo ou wheel
+    if groups "$(whoami)" 2>/dev/null | grep -qE '\b(sudo|wheel|admin)\b'; then
+        audit_log "USER_AUTHORIZED_GROUP" "User: $(whoami) is in privileged group"
+        return 0
+    fi
+
+    audit_log "USER_NOT_AUTHORIZED" "User: $(whoami), SUDO_USER: ${SUDO_USER:-}"
+    error "Usuário não autorizado para executar operações administrativas"
+    info "Para executar este script, você precisa ser um usuário autorizado ou estar no grupo sudo/wheel"
+    return 1
+}
+
+# Função de auditoria para registrar ações de segurança
+audit_log() {
+    local action="$1"
+    local details="$2"
+    local audit_file="/var/log/cluster_ai_audit.log"
+
+    # Criar diretório de logs se não existir
+    sudo mkdir -p /var/log 2>/dev/null
+
+    # Verificar se podemos escrever no arquivo de auditoria
+    if sudo touch "$audit_file" 2>/dev/null; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" | sudo tee -a "$audit_file" >/dev/null
+    else
+        # Fallback para arquivo local se não conseguir escrever em /var/log
+        local local_audit="${PROJECT_ROOT}/logs/security_audit.log"
+        mkdir -p "${PROJECT_ROOT}/logs"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" >> "$local_audit"
+    fi
+}
+
+# Função para validar entrada do usuário
+validate_input() {
+    local input="$1"
+    local type="$2"
+
+    case "$type" in
+        "ip")
+            # Validar formato de IP
+            if [[ ! "$input" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                error "Formato de IP inválido: $input"
+                return 1
+            fi
+            # Verificar se cada octeto está entre 0-255 e evitar octetos consecutivos vazios
+            IFS='.' read -ra octets <<< "$input"
+            for octet in "${octets[@]}"; do
+                if [[ -z "$octet" || $octet -lt 0 || $octet -gt 255 ]]; then
+                    error "Octeto inválido no IP: $octet"
+                    return 1
+                fi
+            done
+            # Verificar se não há octetos vazios consecutivos (ex: 192..168.1)
+            if [[ "$input" =~ \.\. ]]; then
+                error "IP contém octetos vazios consecutivos: $input"
+                return 1
+            fi
+            ;;
+        "port")
+            # Validar porta (1-65535)
+            if [[ ! "$input" =~ ^[0-9]+$ ]] || [[ $input -lt 1 || $input -gt 65535 ]]; then
+                error "Porta inválida: $input (deve ser entre 1-65535)"
+                return 1
+            fi
+            ;;
+        "hostname")
+            # Validar nome de host (letras, números, hífen, ponto)
+            # Adicionar validação para evitar pontos consecutivos e início/fim com hífen ou ponto
+            if [[ ! "$input" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+                error "Nome de host inválido: $input"
+                return 1
+            fi
+            if [[ "$input" =~ \.\. ]]; then
+                error "Nome de host contém pontos consecutivos: $input"
+                return 1
+            fi
+            if [[ "$input" =~ ^[-.] || "$input" =~ [-.]$ ]]; then
+                error "Nome de host não pode começar ou terminar com hífen ou ponto: $input"
+                return 1
+            fi
+            ;;
+        "filepath")
+            # Validar caminho de arquivo (evitar caracteres perigosos)
+            if [[ "$input" =~ [\;\|\&\$\`\(\)\<\>\"\'\\] ]]; then
+                error "Caminho de arquivo contém caracteres não permitidos: $input"
+                return 1
+            fi
+            ;;
+        "service_name")
+            # Validar nome de serviço (apenas letras, números, hífen, underscore)
+            if [[ ! "$input" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                error "Nome de serviço inválido: $input"
+                return 1
+            fi
+            ;;
+    esac
+
+    return 0
+}
+
 # Função para confirmar operações críticas
 confirm_critical_operation() {
     local operation="$1"
@@ -762,27 +864,6 @@ show_system_info_submenu() {
     done
 }
 
-# Menu principal
-show_menu() {
-    subsection "Menu Principal"
-
-    echo -e "\n${CYAN}🚀 OPERAÇÕES DO CLUSTER${NC}"
-    echo " 1) ▶️  Iniciar Cluster"
-    echo " 2) ⏹️  Parar Cluster"
-    echo " 3) 🔄 Reiniciar Cluster"
-    echo " ⚡) Quick-Start (Ativa servidor, rede e monitor)"
-    echo " 4) 📈 Status Detalhado do Cluster"
-
-    echo -e "\n${PURPLE}🗂️ MENUS${NC}"
-    echo " 5) 🔧 Manutenção & Diagnóstico"
-    echo " 6) ⚙️ Configuração & Ferramentas"
-    echo " 7) ℹ️ Informações & Ajuda"
-
-    echo
-    echo "0) ❌ Sair"
-    echo
-}
-
 # Para um processo usando seu arquivo PID
 # Uso: stop_process_by_pid <nome_serviço> <arquivo_pid>
 stop_process_by_pid() {
@@ -1002,6 +1083,26 @@ show_diagnostics() {
     if ! command_exists docker; then
         info "• Instale Docker para funcionalidades completas"
     fi
+}
+
+# Resolvedor de conectividade de workers
+resolve_worker_connectivity() {
+    section "🔗 Resolvedor de Conectividade de Workers"
+
+    local resolver_script="${SCRIPT_DIR}/scripts/management/worker_connectivity_resolver.sh"
+
+    if ! file_exists "$resolver_script"; then
+        error "Script do resolvedor não encontrado: $resolver_script"
+        info "Verifique se o arquivo existe ou execute a instalação completa"
+        return 1
+    fi
+
+    info "Iniciando resolvedor de conectividade de workers..."
+    info "Este utilitário ajuda a diagnosticar e resolver problemas de conectividade com workers"
+    echo
+
+    # Executa o script do resolvedor
+    bash "$resolver_script"
 }
 
 # Mostra ajuda
@@ -1226,28 +1327,141 @@ manage_backup_restore() {
     done
 }
 # =============================================================================
-# FUNÇÕES DE PROCESSAMENTO DO MENU
+# MENUS E INTERFACE DO USUÁRIO
 # =============================================================================
 
-# Processa a escolha do usuário no menu interativo
-process_menu_choice() {
-    local choice="$1"
+show_cluster_operations_menu() {
+    while true; do
+        clear; section "🚀 Gerenciamento do Cluster"
+        echo "1) ▶️  Iniciar TODOS os serviços do cluster"
+        echo "2) ⏹️  Parar TODOS os serviços do cluster"
+        echo "3) 🔄 Reiniciar TODOS os serviços do cluster"
+        echo "4) 📈 Status Detalhado do Cluster"
+        echo "5) ⚡ Quick-Start (Ativa servidor, descobre nós e configura monitor)"
+        echo "0) ↩️  Voltar ao Menu Principal"
+        echo
+        read -p "Sua opção: " sub_choice
+        case $sub_choice in
+            1) start_cluster ;;
+            2) stop_cluster ;;
+            3) restart_cluster ;;
+            4) show_detailed_status ;;
+            5) quick_start_cluster ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
 
-    case $choice in
-        1) start_cluster ;;
-        2) stop_cluster ;;
-        3) restart_cluster ;;
-        "⚡") quick_start_cluster ;;
-        4) show_detailed_status ;;
-        5) show_maintenance_submenu ;;
-        6) show_tools_submenu ;;
-        7) show_help_submenu ;;
-        0)
-            success "Gerenciador encerrado."
-            return 1 # Sinaliza para sair do loop
-            ;;
-    esac
-    return 0 # Sinaliza para continuar no loop
+show_worker_management_menu() {
+    while true; do
+        clear; section "🌐 Gerenciamento de Workers"
+        echo "1) 👨‍💻 Gerenciar Workers Remotos (SSH)"
+        echo "2) 🤖 Gerenciar Workers Registrados Automaticamente"
+        echo "3) 📡 Descobrir Novos Workers na Rede"
+        echo "4) 🔗 Resolvedor de Conectividade de Workers"
+        echo "5) 📱 Instruções para Configurar Worker Android (Termux)"
+        echo "0) ↩️  Voltar ao Menu Principal"
+        echo
+        read -p "Sua opção: " sub_choice
+        case $sub_choice in
+            1) manage_remote_workers ;;
+            2) manage_auto_registered_workers ;;
+            3) bash "${SCRIPT_DIR}/scripts/management/network_discovery.sh" ;;
+            4) resolve_worker_connectivity ;;
+            5) show_android_setup_instructions ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
+show_maintenance_menu() {
+    while true; do
+        clear; section "🛠️ Manutenção e Diagnóstico"
+        echo "1) 🩺 Diagnóstico Rápido do Sistema"
+        echo "2) ✅ Executar Testes de Validação"
+        echo "3) 💾 Gerenciar Backup e Restauração"
+        echo "4) 📜 Visualizar Logs do Sistema"
+        echo "5) 🔎 Verificador de Qualidade de Código (Linter)"
+        echo "6) 🧽 Limpar Todos os Logs"
+        echo "7) 🗄️ Arquivar Logs Atuais"
+        echo "0) ↩️  Voltar ao Menu Principal"
+        echo
+        read -p "Sua opção: " sub_choice
+        case $sub_choice in
+            1) show_diagnostics ;;
+            2) run_tests ;;
+            3) manage_backup_restore ;;
+            4) view_system_logs ;;
+            5) run_linter ;;
+            6) clear_all_logs ;;
+            7) archive_logs ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
+show_config_tools_menu() {
+    while true; do
+        clear; section "⚙️ Configuração e Ferramentas"
+        echo "1) 🚀 Otimizador de Performance"
+        echo "2) 🛡️  Ferramentas de Segurança"
+        echo "3) 💻 Gerenciador VSCode"
+        echo "4) ⏰ Gerenciar Tarefas Agendadas (Cron)"
+        echo "5) 🔄 Atualização Automática do Projeto"
+        echo "0) ↩️  Voltar ao Menu Principal"
+        echo
+        read -p "Sua opção: " sub_choice
+        case $sub_choice in
+            1) run_optimizer ;;
+            2) manage_security ;;
+            3) manage_vscode ;;
+            4) setup_cron_job ;;
+            5) run_updater ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        read -p "Pressione Enter para continuar..."
+    done
+}
+
+show_info_help_menu() {
+    while true; do
+        clear; section "ℹ️ Informações e Ajuda"
+        echo "1) 🖥️  Informações do Sistema"
+        echo "2) ❓ Ajuda (Comandos da Linha de Comando)"
+        echo "0) ↩️  Voltar ao Menu Principal"
+        echo
+        read -p "Sua opção: " sub_choice
+        case $sub_choice in
+            1) show_system_info_submenu ;;
+            2) show_help ;;
+            0) return ;;
+            *) error "Opção inválida." ;;
+        esac
+        # A função show_system_info_submenu já tem sua própria pausa
+        if [[ "$sub_choice" != "1" ]]; then
+            read -p "Pressione Enter para continuar..."
+        fi
+    done
+}
+
+# Menu principal unificado
+show_main_menu() {
+    subsection "Menu Principal"
+    echo "1) 🚀 Gerenciamento do Cluster (Iniciar, Parar, Status)"
+    echo "2) 🌐 Gerenciamento de Workers (Adicionar, Descobrir, Conectar)"
+    echo "3) 🛠️  Manutenção e Diagnóstico (Logs, Testes, Backups)"
+    echo "4) ⚙️  Configuração e Ferramentas (Otimizador, Segurança, Atualizações)"
+    echo "5) ℹ️  Informações e Ajuda"
+    echo
+    echo "0) ❌ Sair"
+    echo
 }
 
 # =============================================================================
@@ -1374,32 +1588,27 @@ main() {
 
     # Menu interativo
     while true; do
+        clear
         show_banner
         display_cluster_status "simple"
-        show_menu
+        show_main_menu
 
-        read -p "Digite sua opção (0-7 ou ⚡): " choice
-        
-        # Validação da entrada: deve ser um número ou '⚡'
-        if [[ ! "$choice" =~ ^([0-7]|⚡)$ ]]; then
-            error "Opção inválida. Por favor, digite um número de 0 a 7 ou '⚡'."
-            sleep 2
-        else
-            # Processa a escolha e verifica se deve sair
-            if ! process_menu_choice "$choice"; then
-                exit 0
-            fi
+        read -p "Digite sua opção (0-5): " choice
+
+        case $choice in
+            1) show_cluster_operations_menu ;;
+            2) show_worker_management_menu ;;
+            3) show_maintenance_menu ;;
+            4) show_config_tools_menu ;;
+            5) show_info_help_menu ;;
+            0) success "Gerenciador encerrado."; exit 0 ;;
+            *) error "Opção inválida."; sleep 2 ;;
         fi
 
         # Pausa para o usuário ver a saída, a menos que a opção seja sair
         if [[ "$choice" != "0" ]]; then
             echo
-            read -p "Pressione Enter para continuar..."
-        fi
-
-        # Limpa a tela para a próxima iteração, exceto ao sair
-        if [[ "$choice" != "0" ]]; then
-            clear
+            read -p "Pressione Enter para voltar ao menu principal..."
         fi
     done
 }
@@ -1921,9 +2130,16 @@ EOF
                 section "Adicionando Novo Worker"
                 echo "Digite as informações do worker:"
                 read -p "Nome do worker (ex: android-worker): " worker_name
+                ! validate_input "$worker_name" "hostname" && continue
+
                 read -p "Apelido (alias) para facilitar reconhecimento: " worker_alias
+                ! validate_input "$worker_alias" "hostname" && continue
+
                 read -p "IP do worker: " worker_ip
+                ! validate_input "$worker_ip" "ip" && continue
+
                 read -p "Usuário SSH: " worker_user
+                ! validate_input "$worker_user" "hostname" && continue
 
                 local default_port=22
                 if [[ "$worker_name" == "android-worker" ]]; then
@@ -1931,6 +2147,8 @@ EOF
                     info "Detectado worker Android, porta padrão sugerida: 8022"
                 fi
                 read -p "Porta SSH (padrão $default_port): " worker_port
+                worker_port=${worker_port:-$default_port}
+                ! validate_input "$worker_port" "port" && continue
 
                 # Valores padrão
                 worker_port=${worker_port:-$default_port}
@@ -1952,6 +2170,9 @@ EOF
                 # Adicionar ao arquivo
                 echo "$worker_name $worker_alias $worker_ip $worker_user $worker_port active" >> "$config_file"
                 success "Worker '$worker_name' com alias '$worker_alias' adicionado à configuração."
+
+                # Sincronizar com cluster.conf
+                bash "${PROJECT_ROOT}/scripts/utils/sync_config.sh"
 
                 # Testa a conexão imediatamente para dar feedback ao usuário
                 test_worker_connection_interactive "$worker_name" "$worker_ip" "$worker_user" "$worker_port" "$config_file"
@@ -1990,6 +2211,8 @@ EOF
                     if [ $line_num -gt 1 ] && sed -n "${line_num}p" "$config_file" | grep -q .; then
                         local worker_name=$(sed -n "${line_num}p" "$config_file" | awk '{print $1}')
                         sed -i "${line_num}d" "$config_file"
+                        # Sincronizar com cluster.conf
+                        bash "${PROJECT_ROOT}/scripts/utils/sync_config.sh"
                         success "Worker '$worker_name' removido"
                     else
                         error "Worker não encontrado"
@@ -2030,6 +2253,9 @@ EOF
                     done < "$config_file"
 
                     success "Status atualizado para $updated workers"
+                    # Sincronizar com cluster.conf
+                    bash "${PROJECT_ROOT}/scripts/utils/sync_config.sh"
+
                 else
                     warn "Nenhum worker configurado."
                 fi
@@ -2485,44 +2711,6 @@ EOF
     done
 }
 
-# =============================================================================
-# FUNÇÃO PARA CONFIGURAR CLUSTER (IMPLEMENTAÇÃO DA OPÇÃO 7)
-# =============================================================================
-
-configure_cluster() {
-    section "Configuração do Cluster"
-
-    echo "Opções de Configuração:"
-    echo "1) Gerenciar Workers Remotos (SSH)"
-    echo "2) Configurar Worker Android (Termux)"
-    echo "3) Gerenciar Workers Registrados Automaticamente"
-    echo "0) Voltar ao Menu Principal"
-    echo
-
-    read -p "Digite sua opção: " option
-
-    case $option in
-        1)
-            manage_remote_workers
-            ;;
-        2)
-            show_android_setup_instructions
-            ;;
-        3)
-            manage_auto_registered_workers
-            ;;
-        0)
-            return
-            ;;
-        *)
-            error "Opção inválida."
-            ;;
-    esac
-
-    echo
-    read -p "Pressione Enter para continuar..."
-    clear
-}
 # EXECUÇÃO
 # =============================================================================
 
