@@ -465,6 +465,83 @@ display_cluster_status() {
     (command_exists nginx && command_exists systemctl && sudo systemctl is-active --quiet nginx && success "🌐 Nginx: Ativo") || warn "🌐 Nginx: Inativo"
     echo
 
+    # --- Status dos Workers ---
+    subsection "Workers do Cluster"
+    local remote_workers_conf="$HOME/.cluster_config/nodes_list.conf"
+    local auto_workers_conf="$HOME/.cluster_config/workers.conf"
+    local total_workers=0
+    local online_workers=0
+    local offline_workers=0
+
+    # Processar workers manuais
+    if [ -f "$remote_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$remote_workers_conf" | grep -q .; then
+        while IFS= read -r line; do
+            local name alias ip user port status
+            read -r name alias ip user port status <<< "$line"
+            ((total_workers++))
+
+            # Testar conectividade - tentar hostname primeiro, depois IP
+            local connection_target="$ip"
+            local connection_success=false
+
+            # Tentar conectar usando hostname se disponível
+            if [ "$name" != "unknown-$ip" ] && [ -n "$name" ]; then
+                if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no -p "$port" "$user@$name" "echo 'OK'" >/dev/null 2>&1; then
+                    connection_target="$name"
+                    connection_success=true
+                fi
+            fi
+
+            # Se hostname falhou, tentar IP
+            if [ "$connection_success" = false ]; then
+                if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
+                    connection_target="$ip"
+                    connection_success=true
+                fi
+            fi
+
+            if [ "$connection_success" = true ]; then
+                echo -e "  ${GREEN}●${NC} $name ($alias) - $connection_target:$port - ${GREEN}ONLINE${NC}"
+                ((online_workers++))
+                sed -i "s/^\($name $alias $ip $user $port\).*/\1 active/" "$remote_workers_conf"
+            else
+                echo -e "  ${RED}●${NC} $name ($alias) - $ip:$port - ${RED}OFFLINE${NC}"
+                ((offline_workers++))
+                sed -i "s/^\($name $alias $ip $user $port\).*/\1 inactive/" "$remote_workers_conf"
+            fi
+        done < <(grep -vE '^\s*#|^\s*$' "$remote_workers_conf")
+    fi
+
+    # Processar workers registrados automaticamente
+    if [ -f "$auto_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$auto_workers_conf" | grep -q .; then
+        while IFS= read -r line; do
+            local name ip user port status timestamp
+            read -r name ip user port status timestamp <<< "$line"
+            ((total_workers++))
+
+            # Testar conectividade rapidamente com timeout mais curto
+            if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
+                echo -e "  ${GREEN}●${NC} $name ($ip:$port) - ${GREEN}ONLINE${NC} [auto]"
+                ((online_workers++))
+                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active $(date +%s)/" "$auto_workers_conf"
+            else
+                echo -e "  ${RED}●${NC} $name ($ip:$port) - ${RED}OFFLINE${NC} [auto]"
+                ((offline_workers++))
+                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port inactive $(date +%s)/" "$auto_workers_conf"
+            fi
+        done < <(grep -vE '^\s*#|^\s*$' "$auto_workers_conf")
+    fi
+
+    # Resumo dos workers
+    if [ $total_workers -gt 0 ]; then
+        echo
+        echo -e "  📊 ${GREEN}Online: $online_workers${NC} | ${RED}Offline: $offline_workers${NC} | Total: $total_workers"
+    else
+        echo -e "  ${YELLOW}ℹ️  Nenhum worker configurado${NC}"
+        echo -e "     Use: ./manager.sh configure"
+    fi
+    echo
+
     # --- Seções Detalhadas ---
     if [[ "$mode" == "detailed" ]]; then
         # Recursos do sistema
@@ -1802,8 +1879,8 @@ manage_remote_workers() {
 cat > "$config_file" <<EOF
 # =============================================================================
 # Configuração de Workers Remotos para Cluster AI
-# Formato: hostname IP user port status
-# Exemplo: android-worker 192.168.1.100 u0_a249 8022 active
+# Formato: hostname alias IP user port status
+# Exemplo: android-worker android 192.168.1.100 u0_a249 8022 active
 
 # Adicione seus workers remotos aqui:
 EOF
@@ -1818,6 +1895,9 @@ EOF
         echo "3) Testar Conexão com Worker"
         echo "4) Remover Worker"
         echo "5) Atualizar Status dos Workers"
+        echo "6) Descobrir Workers na Rede"
+        echo "7) Conectar por Hostname"
+        echo "8) Sincronizar Workers"
         echo "0) Voltar"
         echo
 
@@ -1830,7 +1910,7 @@ EOF
                 if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
                     echo "Workers encontrados:"
                     echo
-                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " - " $2 ":" $4 " (" $3 ") - " ($5 ? $5 : "unknown")}' "$config_file"
+                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " (" $2 ") - " $3 ":" $5 " (" $4 ") - " ($6 ? $6 : "unknown")}' "$config_file"
                 else
                     warn "Nenhum worker configurado ainda."
                     info "Use a opção 2 para adicionar um worker."
@@ -1841,6 +1921,7 @@ EOF
                 section "Adicionando Novo Worker"
                 echo "Digite as informações do worker:"
                 read -p "Nome do worker (ex: android-worker): " worker_name
+                read -p "Apelido (alias) para facilitar reconhecimento: " worker_alias
                 read -p "IP do worker: " worker_ip
                 read -p "Usuário SSH: " worker_user
 
@@ -1869,8 +1950,8 @@ EOF
                 fi
 
                 # Adicionar ao arquivo
-                echo "$worker_name $worker_ip $worker_user $worker_port active" >> "$config_file"
-                success "Worker '$worker_name' adicionado à configuração."
+                echo "$worker_name $worker_alias $worker_ip $worker_user $worker_port active" >> "$config_file"
+                success "Worker '$worker_name' com alias '$worker_alias' adicionado à configuração."
 
                 # Testa a conexão imediatamente para dar feedback ao usuário
                 test_worker_connection_interactive "$worker_name" "$worker_ip" "$worker_user" "$worker_port" "$config_file"
@@ -1880,11 +1961,11 @@ EOF
                 section "Testando Conexão"
                 if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
                     echo "Workers disponíveis:"
-                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " - " $2 ":" $4 " (" $3 ")"}' "$config_file"
+                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " (" $2 ") - " $3 ":" $5 " (" $4 ")"}' "$config_file"
                     echo
                     read -p "Digite o número do worker para testar: " worker_num
 
-                    local worker_info=$(awk "NR==$((worker_num+1)) && !/^#/ {print \$1,\$2,\$3,\$4}" "$config_file")
+                    local worker_info=$(awk "NR==$((worker_num+1)) && !/^#/ {print \$1,\$3,\$4,\$5}" "$config_file")
                     if [ -n "$worker_info" ]; then
                         local name ip user port
                         read -r name ip user port <<< "$worker_info"
@@ -1901,7 +1982,7 @@ EOF
                 section "Removendo Worker"
                 if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
                     echo "Workers disponíveis:"
-                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " - " $2 ":" $4 " (" $3 ")"}' "$config_file"
+                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " (" $2 ") - " $3 ":" $5 " (" $4 ")"}' "$config_file"
                     echo
                     read -p "Digite o número do worker para remover: " worker_num
 
@@ -1952,6 +2033,122 @@ EOF
                 else
                     warn "Nenhum worker configurado."
                 fi
+                ;;
+            6)
+                # Descobrir workers na rede
+                section "Descobrindo Workers na Rede"
+                if [ -f "scripts/utils/network_discovery.sh" ]; then
+                    bash scripts/utils/network_discovery.sh discover
+                else
+                    error "Script de descoberta de rede não encontrado"
+                    info "Verifique se o arquivo scripts/utils/network_discovery.sh existe"
+                fi
+                ;;
+            7)
+                # Conectar por hostname
+                section "Conectando por Hostname"
+                echo "Digite o hostname, alias ou IP do worker:"
+                read -p "Worker: " worker_spec
+
+                if [ -n "$worker_spec" ]; then
+                    if [ -f "scripts/utils/network_discovery.sh" ]; then
+                        local resolved_info
+                        resolved_info=$(bash scripts/utils/network_discovery.sh resolve "$worker_spec")
+
+                        if [ -n "$resolved_info" ]; then
+                            local hostname ip user port status
+                            IFS=':' read -r hostname ip user port status <<< "$resolved_info"
+
+                            echo -e "${GREEN}✅ Worker resolvido:${NC}"
+                            echo "  Hostname: $hostname"
+                            echo "  IP: $ip"
+                            echo "  Usuário: $user"
+                            echo "  Porta: $port"
+                            echo "  Status: $status"
+                            echo
+
+                            if confirm_operation "Deseja testar a conexão SSH?"; then
+                                if [ -f "scripts/utils/network_discovery.sh" ]; then
+                                    bash scripts/utils/network_discovery.sh test "$ip" --user "$user" --port "$port"
+                                fi
+                            fi
+
+                            if confirm_operation "Deseja adicionar este worker à configuração?"; then
+                                local alias=$(echo "$hostname" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+                                echo "$hostname $alias $ip $user $port inactive" >> "$config_file"
+                                success "Worker '$hostname' ($alias) adicionado à configuração"
+                            fi
+                        else
+                            error "Não foi possível resolver o worker '$worker_spec'"
+                            info "Verifique se o hostname está correto ou se o dispositivo está na rede"
+                        fi
+                    else
+                        error "Script de descoberta de rede não encontrado"
+                    fi
+                else
+                    warn "Nenhum worker especificado"
+                fi
+                ;;
+            8)
+                # Sincronizar workers
+                section "Sincronização de Workers - Menu"
+                echo "1) Sincronizar Todos os Workers"
+                echo "2) Verificar Status de Sincronização"
+                echo "3) Criar Pacote de Atualização"
+                echo "4) Limpar Atualizações Antigas"
+                echo "0) Voltar"
+
+                read -p "Digite sua opção: " sync_option
+
+                case $sync_option in
+                    1)
+                        subsection "Sincronizando todos os workers"
+                        if [ -f "scripts/utils/worker_sync.sh" ]; then
+                            bash scripts/utils/worker_sync.sh sync
+                        else
+                            error "Script de sincronização não encontrado"
+                        fi
+                        ;;
+                    2)
+                        subsection "Verificando status de sincronização"
+                        if [ -f "scripts/utils/worker_sync.sh" ]; then
+                            bash scripts/utils/worker_sync.sh status
+                        else
+                            error "Script de sincronização não encontrado"
+                        fi
+                        ;;
+                    3)
+                        subsection "Criando pacote de atualização"
+                        read -p "Nome do pacote (ou Enter para automático): " package_name
+                        if [ -z "$package_name" ]; then
+                            package_name="update-$(date +%Y%m%d_%H%M%S)"
+                        fi
+
+                        if [ -f "scripts/utils/worker_sync.sh" ]; then
+                            bash scripts/utils/worker_sync.sh create "$package_name"
+                        else
+                            error "Script de sincronização não encontrado"
+                        fi
+                        ;;
+                    4)
+                        subsection "Limpando atualizações antigas"
+                        read -p "Dias de idade (padrão: 30): " days_old
+                        if [ -z "$days_old" ]; then
+                            days_old=30
+                        fi
+
+                        if [ -f "scripts/utils/worker_sync.sh" ]; then
+                            bash scripts/utils/worker_sync.sh clean "$days_old"
+                        else
+                            error "Script de sincronização não encontrado"
+                        fi
+                        ;;
+                    0)
+                        ;;
+                    *)
+                        error "Opção inválida"
+                        ;;
+                esac
                 ;;
             0)
                 return

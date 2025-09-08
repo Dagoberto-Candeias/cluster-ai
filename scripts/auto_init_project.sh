@@ -181,7 +181,7 @@ start_dask_workers() {
     fi
 }
 
-# Verificar serviços Docker
+# Verificar e iniciar serviços Docker
 check_docker_services() {
     log_info "Verificando serviços Docker..."
 
@@ -189,11 +189,43 @@ check_docker_services() {
     if [[ -f "docker-compose.yml" ]]; then
         log_info "Arquivo docker-compose.yml encontrado"
 
-        # Verificar se serviços estão rodando
-        if docker ps | grep -q "cluster-ai"; then
+        # Verificar se serviços estão rodando (usando nomes corretos dos containers)
+        if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
             log_success "Serviços Docker estão rodando"
         else
-            log_info "Serviços Docker não estão rodando. Use './manager.sh' para iniciá-los."
+            log_warning "Serviços Docker não estão rodando. Iniciando automaticamente..."
+
+            # Tentar iniciar os serviços Docker
+            if command_exists docker && command_exists docker-compose; then
+                log_info "Iniciando serviços Docker com docker-compose..."
+                if docker-compose up -d; then
+                    sleep 3  # Aguardar inicialização
+                    if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
+                        log_success "Serviços Docker iniciados com sucesso"
+                    else
+                        log_warning "Serviços Docker foram iniciados mas podem não estar totalmente prontos"
+                    fi
+                else
+                    log_error "Falha ao iniciar serviços Docker com docker-compose"
+                    log_info "Use './manager.sh start' para tentar iniciar manualmente"
+                fi
+            elif command_exists docker && docker compose version >/dev/null 2>&1; then
+                log_info "Iniciando serviços Docker com 'docker compose'..."
+                if docker compose up -d; then
+                    sleep 3  # Aguardar inicialização
+                    if docker ps --format '{{.Names}}' | grep -qE "(dask-scheduler|dask-worker)"; then
+                        log_success "Serviços Docker iniciados com sucesso"
+                    else
+                        log_warning "Serviços Docker foram iniciados mas podem não estar totalmente prontos"
+                    fi
+                else
+                    log_error "Falha ao iniciar serviços Docker com 'docker compose'"
+                    log_info "Use './manager.sh start' para tentar iniciar manualmente"
+                fi
+            else
+                log_error "docker-compose ou 'docker compose' não encontrado"
+                log_info "Instale docker-compose ou use './manager.sh start' para iniciar os serviços"
+            fi
         fi
     else
         log_info "Arquivo docker-compose.yml não encontrado"
@@ -235,6 +267,110 @@ check_configuration() {
     fi
 }
 
+# Testar conectividade de um worker
+test_worker_connectivity() {
+    local hostname="$1"
+    local ip="$2"
+    local user="$3"
+    local port="$4"
+
+    # Primeiro tentar ping
+    if ping -c 1 -W 2 "$ip" >/dev/null 2>&1; then
+        # Se ping funciona, testar SSH
+        if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'test'" >/dev/null 2>&1; then
+            echo "online"
+        else
+            # SSH falhou, mas ping funcionou - worker está acessível mas SSH não configurado
+            echo "pingable (SSH não configurado)"
+        fi
+    else
+        echo "offline"
+    fi
+}
+
+# Listar workers configurados com status de conectividade
+list_workers() {
+    local config_file="$HOME/.cluster_config/nodes_list.conf"
+
+    if [[ ! -f "$config_file" ]]; then
+        log_warning "Arquivo de configuração dos workers não encontrado: $config_file"
+        return 1
+    fi
+
+    log_info "Verificando lista de workers configurados..."
+
+    local active_workers=()
+    local inactive_workers=()
+
+    while IFS= read -r line; do
+        if [[ $line =~ ^# ]] || [[ -z "$line" ]]; then
+            continue
+        fi
+
+        local hostname alias ip user port status
+        read -r hostname alias ip user port status <<< "$line"
+
+        # Testar conectividade se IP estiver definido
+        local connectivity="unknown"
+        if [[ -n "$ip" && "$ip" != " " ]]; then
+            connectivity=$(test_worker_connectivity "$hostname" "$ip" "$user" "$port")
+        fi
+
+        # Formatar display com status de conectividade
+        local worker_display="$hostname ($ip) - Config: $status - Status: $connectivity"
+
+        if [[ "$status" == "active" ]]; then
+            active_workers+=("$worker_display")
+        else
+            inactive_workers+=("$worker_display")
+        fi
+    done < "$config_file"
+
+    echo
+    log_info "Workers Ativos:"
+    if [[ ${#active_workers[@]} -gt 0 ]]; then
+        for worker in "${active_workers[@]}"; do
+            echo "  • $worker"
+        done
+    else
+        echo "  • Nenhum worker ativo"
+    fi
+
+    echo
+    log_info "Workers Inativos:"
+    if [[ ${#inactive_workers[@]} -gt 0 ]]; then
+        for worker in "${inactive_workers[@]}"; do
+            echo "  • $worker"
+        done
+    else
+        echo "  • Nenhum worker inativo"
+    fi
+    echo
+}
+
+# Atualizar lista de workers via descoberta de rede
+refresh_worker_list() {
+    log_info "Atualizando lista de workers via descoberta de rede..."
+
+    if [[ -f "scripts/utils/network_discovery.sh" ]]; then
+        # Executar descoberta de rede em background para não bloquear
+        bash scripts/utils/network_discovery.sh discover --no-mdns > /dev/null 2>&1 &
+        local pid=$!
+
+        # Aguardar um pouco para a descoberta
+        sleep 5
+
+        # Verificar se o processo ainda está rodando
+        if kill -0 $pid 2>/dev/null; then
+            log_info "Descoberta de rede em andamento... (PID: $pid)"
+        else
+            log_success "Descoberta de rede concluída"
+        fi
+    else
+        log_warning "Script de descoberta de rede não encontrado"
+    fi
+}
+
 # Função principal
 main() {
     echo
@@ -250,8 +386,10 @@ main() {
     activate_venv
     check_python_dependencies
     check_configuration
+    refresh_worker_list
     start_dask_cluster
     start_dask_workers
+    list_workers
     check_docker_services
 
     echo

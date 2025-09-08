@@ -1,14 +1,16 @@
-# TODO: Disable Automatic Model Downloads
+# TODO - Enhance Worker Status Display
 
-## Tasks
-- [x] Modify scripts/ollama/auto_download_models.sh to add --scheduled flag
-- [x] Only download models if --scheduled or --interactive flag is provided
-- [x] Re-enable time check for scheduled runs (00:00-07:00)
-- [x] Update comments to reflect the change
-- [x] Test the script to ensure it exits without downloading when run normally
+## Current Task: Add Online/Offline Status to Worker List
+- [x] Add connectivity test function to auto_init_project.sh
+- [x] Modify list_workers() function to check actual connectivity
+- [x] Update display format to show both config status and connectivity status
+- [x] Test the enhanced worker status display
 
-## Followup Steps
-- [x] Verify scheduled downloads work with --scheduled flag
-- [x] Confirm interactive mode still functions
-- [x] Set up cron job for scheduled downloads if needed
-- [x] Comprehensive system testing completed
+## Additional Task: Analyze Docker Services Auto-Start Issue
+- [x] Investigate why Docker services don't start automatically with project
+- [x] Check docker-compose.yml configuration
+- [x] Review check_docker_services() function in auto_init_project.sh
+- [x] Identify missing auto-start logic
+- [x] Fix container name check (was looking for "cluster-ai" instead of "dask-scheduler|dask-worker")
+- [x] Add automatic Docker service startup logic
+- [x] Test enhanced Docker auto-start functionality
