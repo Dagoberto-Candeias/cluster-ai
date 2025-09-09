@@ -249,7 +249,7 @@ check_ollama() {
             success "✅ Serviço Ollama: Ativo"
 
             # Verificar API Ollama
-            local api_response=$(curl --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 -s -w "%{http_code}" http://localhost:11434/api/tags -o /dev/null 2>/dev/null || echo "000")
+            local api_response=$(curl --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 -s -w "%{http_code}" http://localhost:11434/api/tags -o /dev/null 2>/dev/null || echo "000")
             if [ "$api_response" = "200" ]; then
                 success "✅ API Ollama: Respondendo (HTTP 200)"
 
@@ -284,7 +284,7 @@ check_ollama() {
     else
         warn "⚠️  Ollama: Não instalado"
         if confirm_operation "Deseja tentar instalar o Ollama agora?"; then
-            if curl --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 -fsSL https://ollama.com/install.sh | sh; then
+            if curl --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 --connect-timeout 30 --max-time 120 -fsSL https://ollama.com/install.sh | sh; then
                 success "✅ Ollama instalado. Execute o health check novamente para configurar."
             fi
         fi

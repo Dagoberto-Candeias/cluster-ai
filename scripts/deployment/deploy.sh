@@ -13,6 +13,18 @@ SCRIPT_DIR="${PROJECT_ROOT}/scripts/deployment"
 ENVIRONMENT="${1:-development}"
 DEPLOY_STRATEGY="${2:-rolling}"
 
+# Performance monitoring configuration
+MEMORY_THRESHOLD=85
+CPU_THRESHOLD=90
+MONITOR_INTERVAL=10
+MEMORY_LIMIT_MB=2048  # 2GB memory limit for long-running processes
+PERFORMANCE_LOG="${PROJECT_ROOT}/logs/deploy_performance_$(date +%Y%m%d_%H%M%S).log"
+
+# Caching configuration
+RSYNC_CACHE_DIR="${PROJECT_ROOT}/.cache/rsync"
+DEPLOY_CACHE_FILE="${RSYNC_CACHE_DIR}/deploy_cache_$(date +%Y%m%d).tar.gz"
+CACHE_MAX_AGE=7  # days
+
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -41,6 +53,246 @@ declare -A ENV_CONFIGS=(
 
 log() {
     echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $1"
+}
+
+# Performance monitoring functions
+start_performance_monitoring() {
+    local operation="$1"
+    echo "Starting performance monitoring for: $operation" >> "$PERFORMANCE_LOG"
+    echo "Timestamp: $(date)" >> "$PERFORMANCE_LOG"
+    echo "Operation: $operation" >> "$PERFORMANCE_LOG"
+    echo "---" >> "$PERFORMANCE_LOG"
+}
+
+log_performance_metrics() {
+    local timestamp=$(date +%s)
+    local mem_usage=$(free | awk 'NR==2{printf "%.1f", $3*100/$2}')
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+    local disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+
+    echo "$timestamp,$mem_usage,$cpu_usage,$disk_usage" >> "$PERFORMANCE_LOG"
+}
+
+check_performance_thresholds() {
+    local mem_usage=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+
+    if (( $(echo "$mem_usage > $MEMORY_THRESHOLD" | bc -l) )); then
+        warning "Memory usage high: ${mem_usage}% (threshold: ${MEMORY_THRESHOLD}%)"
+        return 1
+    fi
+
+    if (( $(echo "$cpu_usage > $CPU_THRESHOLD" | bc -l) )); then
+        warning "CPU usage high: ${cpu_usage}% (threshold: ${CPU_THRESHOLD}%)"
+        return 1
+    fi
+
+    return 0
+}
+
+monitor_operation() {
+    local operation="$1"
+    local pid="$2"
+
+    start_performance_monitoring "$operation"
+
+    # Monitor in background
+    (
+        while kill -0 "$pid" 2>/dev/null; do
+            log_performance_metrics
+            sleep "$MONITOR_INTERVAL"
+        done
+    ) &
+    local monitor_pid=$!
+
+    # Enforce memory limit on the monitored process
+    (
+        while kill -0 "$pid" 2>/dev/null; do
+            mem_usage_kb=$(pmap "$pid" 2>/dev/null | tail -n 1 | awk '/[0-9]K/{print $2}' | sed 's/K//')
+            mem_usage_mb=$((mem_usage_kb / 1024))
+            if [ "$mem_usage_mb" -gt "$MEMORY_LIMIT_MB" ]; then
+                warning "Process $pid exceeded memory limit (${mem_usage_mb}MB > ${MEMORY_LIMIT_MB}MB). Killing process."
+                kill -9 "$pid"
+                break
+            fi
+            sleep 5
+        done
+    ) &
+
+    # Wait for operation to complete
+    wait "$pid" 2>/dev/null
+    local exit_code=$?
+
+    # Stop monitoring
+    kill "$monitor_pid" 2>/dev/null || true
+    wait "$monitor_pid" 2>/dev/null || true
+
+    # Final metrics
+    log_performance_metrics
+    echo "Exit code: $exit_code" >> "$PERFORMANCE_LOG"
+    echo "---" >> "$PERFORMANCE_LOG"
+
+    return $exit_code
+}
+
+# Intelligent caching functions
+setup_rsync_cache() {
+    mkdir -p "$RSYNC_CACHE_DIR"
+
+    # Clean old cache files
+    find "$RSYNC_CACHE_DIR" -name "deploy_cache_*.tar.gz" -mtime +$CACHE_MAX_AGE -delete 2>/dev/null || true
+
+    # Check if today's cache exists
+    if [ -f "$DEPLOY_CACHE_FILE" ]; then
+        echo "✅ Cache de deploy encontrado para hoje"
+        return 0
+    else
+        echo "📦 Criando novo cache de deploy..."
+        return 1
+    fi
+}
+
+# Docker layer caching functions
+setup_docker_cache() {
+    local docker_cache_dir="$HOME/.cache/docker"
+    mkdir -p "$docker_cache_dir"
+
+    # Configure Docker daemon for better caching
+    local daemon_config="/etc/docker/daemon.json"
+    if [ ! -f "$daemon_config" ] || ! grep -q "storage-driver" "$daemon_config"; then
+        log "Configurando Docker para melhor cache..."
+        sudo tee "$daemon_config" > /dev/null << EOF
+{
+    "storage-driver": "overlay2",
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "100m",
+        "max-file": "3"
+    },
+    "registry-mirrors": ["https://registry-1.docker.io"],
+    "experimental": true,
+    "features": {
+        "buildkit": true
+    },
+    "builder": {
+        "gc": {
+            "enabled": true,
+            "defaultKeepStorage": "20GB",
+            "policy": [
+                {"keepStorage": "10GB", "filter": ["unused-for=2200h"]},
+                {"keepStorage": "25GB", "filter": ["unused-for=3300h"]},
+                {"keepStorage": "50GB", "all": true}
+            ]
+        }
+    }
+}
+EOF
+        sudo systemctl restart docker 2>/dev/null || true
+        log "✅ Docker configurado com cache otimizado"
+    fi
+}
+
+build_with_cache() {
+    local dockerfile_path="$1"
+    local image_tag="$2"
+    local context_dir="$3"
+
+    # Enable BuildKit for better caching
+    export DOCKER_BUILDKIT=1
+
+    # Use build cache mounts for common operations
+    log "Construindo imagem Docker com cache otimizado..."
+
+    docker build \
+        --tag "$image_tag" \
+        --cache-from "$image_tag:latest" \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --progress=plain \
+        "$context_dir" \
+        -f "$dockerfile_path"
+
+    if [ $? -eq 0 ]; then
+        log "✅ Imagem construída com sucesso usando cache"
+        return 0
+    else
+        log "❌ Falha na construção da imagem"
+        return 1
+    fi
+}
+
+pull_with_cache() {
+    local image="$1"
+    local max_retries=3
+    local attempt=1
+
+    while [ $attempt -le $max_retries ]; do
+        log "🐳 Tentativa $attempt/$max_retries: Baixando imagem $image com cache..."
+
+        # Check if image exists locally first
+        if docker image inspect "$image" >/dev/null 2>&1; then
+            log "✅ Imagem $image já existe localmente"
+            return 0
+        fi
+
+        if docker pull "$image"; then
+            log "✅ Imagem $image baixada com sucesso"
+            return 0
+        fi
+
+        sleep 2
+        ((attempt++))
+    done
+
+    log "❌ Falha ao baixar imagem $image após $max_retries tentativas"
+    return 1
+}
+
+create_deploy_cache() {
+    local source_dir="$1"
+
+    log "Criando cache de deploy..."
+    cd "$source_dir" || return 1
+
+    # Create compressed cache of deploy files
+    tar -czf "$DEPLOY_CACHE_FILE" \
+        --exclude='.git' \
+        --exclude='__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='.pytest_cache' \
+        --exclude='logs' \
+        --exclude='.cache' \
+        .
+
+    if [ $? -eq 0 ]; then
+        success "Cache de deploy criado: $DEPLOY_CACHE_FILE"
+        return 0
+    else
+        error "Falha ao criar cache de deploy"
+        return 1
+    fi
+}
+
+use_deploy_cache() {
+    local target_dir="$1"
+
+    if [ -f "$DEPLOY_CACHE_FILE" ]; then
+        log "Usando cache de deploy..."
+        mkdir -p "$target_dir"
+        cd "$target_dir" || return 1
+
+        # Extract from cache
+        tar -xzf "$DEPLOY_CACHE_FILE"
+
+        if [ $? -eq 0 ]; then
+            success "Cache de deploy extraído com sucesso"
+            return 0
+        else
+            error "Falha ao extrair cache de deploy"
+            return 1
+        fi
+    fi
+
+    return 1
 }
 
 success() {
@@ -108,29 +360,38 @@ validate_environment() {
 prepare_deploy() {
     section "PREPARAÇÃO DO DEPLOY"
 
-    # Criar diretório temporário para o deploy
-    DEPLOY_TMP_DIR=$(mktemp -d)
-    log "Diretório temporário criado: $DEPLOY_TMP_DIR"
+    # Try to use cache first
+    setup_rsync_cache
+    if use_deploy_cache "$DEPLOY_TMP_DIR"; then
+        log "Usando cache de deploy existente"
+    else
+        # Criar diretório temporário para o deploy
+        DEPLOY_TMP_DIR=$(mktemp -d)
+        log "Diretório temporário criado: $DEPLOY_TMP_DIR"
 
-    # Fazer checkout limpo do código
-    log "Preparando código para deploy..."
-    git archive --format=tar --output="${DEPLOY_TMP_DIR}/cluster-ai.tar" HEAD
-    cd "$DEPLOY_TMP_DIR"
-    tar -xf cluster-ai.tar
-    rm cluster-ai.tar
+        # Fazer checkout limpo do código
+        log "Preparando código para deploy..."
+        git archive --format=tar --output="${DEPLOY_TMP_DIR}/cluster-ai.tar" HEAD
+        cd "$DEPLOY_TMP_DIR"
+        tar -xf cluster-ai.tar
+        rm cluster-ai.tar
 
-    # Instalar dependências Python
-    if [ -f "requirements.txt" ]; then
-        log "Instalando dependências Python..."
-        python3 -m venv venv
-        source venv/bin/activate
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        deactivate
+        # Instalar dependências Python
+        if [ -f "requirements.txt" ]; then
+            log "Instalando dependências Python..."
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            deactivate
+        fi
+
+        # Configurar permissões
+        find . -name "*.sh" -exec chmod +x {} \;
+
+        # Create cache for future use
+        create_deploy_cache "$DEPLOY_TMP_DIR"
     fi
-
-    # Configurar permissões
-    find . -name "*.sh" -exec chmod +x {} \;
 
     success "Preparação do deploy concluída"
 }
@@ -148,27 +409,164 @@ deploy_rolling() {
 
     log "Iniciando deploy rolling para ${ENVIRONMENT}..."
 
-    # Criar backup
-    log "Criando backup da versão atual..."
-    ssh "${user}@${host}" "cd '${path}' && tar -czf backup_$(date +%Y%m%d_%H%M%S).tar.gz ."
-
-    # Sincronizar arquivos
-    log "Sincronizando arquivos..."
-    rsync -avz --delete --exclude='.git' --exclude='__pycache__' \
-        --exclude='*.pyc' --exclude='.pytest_cache' \
-        "${DEPLOY_TMP_DIR}/" "${user}@${host}:${path}/"
-
-    # Executar migrações se necessário
-    if ssh "${user}@${host}" "[ -f '${path}/scripts/migration.sh' ]"; then
-        log "Executando migrações..."
-        ssh "${user}@${host}" "cd '${path}' && bash scripts/migration.sh"
+    # Check performance before starting
+    if ! check_performance_thresholds; then
+        warning "System resources are high, but proceeding with deploy..."
     fi
 
-    # Reiniciar serviços
+    # Criar backup with monitoring
+    log "Criando backup da versão atual..."
+    ssh "${user}@${host}" "cd '${path}' && tar -czf backup_$(date +%Y%m%d_%H%M%S).tar.gz ." &
+    local backup_pid=$!
+    monitor_operation "backup_creation" "$backup_pid"
+
+    # Sincronizar arquivos with parallel optimization and monitoring
+    log "Sincronizando arquivos com paralelização otimizada..."
+
+    # Enhanced parallel rsync function with I/O optimization
+    parallel_rsync_deploy() {
+        local source_dir="$1"
+        local dest="$2"
+        local max_parallel=4
+
+        # Check available memory and adjust parallelism
+        local mem_usage
+        mem_usage=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
+        if [ "$mem_usage" -gt 80 ]; then
+            max_parallel=2
+            log "Memory high (${mem_usage}%), reducing parallel rsync to $max_parallel"
+        elif [ "$mem_usage" -gt 60 ]; then
+            max_parallel=3
+            log "Memory moderate (${mem_usage}%), setting parallel rsync to $max_parallel"
+        fi
+
+        # Create file list for parallel sync with size-based sorting
+        local file_list
+        file_list=$(mktemp)
+
+        # Generate file list with sizes (excluding large directories)
+        find "$source_dir" -type f \
+            -not -path '*/.git/*' \
+            -not -path '*/__pycache__/*' \
+            -not -name '*.pyc' \
+            -not -path '*/.pytest_cache/*' \
+            -not -name '*.log' \
+            -exec stat -f "%z %N" {} \; 2>/dev/null | sort -nr > "$file_list"
+
+        local total_files
+        total_files=$(wc -l < "$file_list")
+
+        if [ "$total_files" -lt 10 ]; then
+            # For few files, use normal rsync with optimized flags
+            rsync -avz --delete --exclude='.git' --exclude='__pycache__' \
+                --exclude='*.pyc' --exclude='.pytest_cache' \
+                --bwlimit=0 --compress-level=6 \
+                "$source_dir/" "$dest/"
+        else
+            # For many files, use enhanced parallelization
+            log "Sincronizando $total_files arquivos em paralelo (max $max_parallel jobs)..."
+
+            # Split files into chunks (larger files first for better I/O)
+            local chunk_size=$(( (total_files + max_parallel - 1) / max_parallel ))
+            local temp_dir
+            temp_dir=$(mktemp -d)
+
+            # Create sync scripts for each chunk with I/O optimization
+            for ((i=0; i<max_parallel; i++)); do
+                local start=$((i * chunk_size + 1))
+                local end=$((start + chunk_size - 1))
+
+                if [ $start -le $total_files ]; then
+                    sed -n "${start},${end}p" "$file_list" | awk '{print $2}' > "${temp_dir}/files_${i}.txt"
+
+                    cat > "${temp_dir}/sync_${i}.sh" << EOF
+#!/bin/bash
+# Set I/O priority for background sync
+ionice -c 3 -p \$\$
+
+while IFS= read -r file; do
+    # Calculate relative path
+    relative_path=\${file#$source_dir/}
+    dest_dir=\$(dirname "$dest/\$relative_path")
+
+    # Create directory if it doesn't exist
+    ssh "${user}@${host}" "mkdir -p '\$dest_dir'" 2>/dev/null || true
+
+    # Sync individual file with optimized flags
+    rsync -az --bwlimit=0 --compress-level=6 "\$file" "${user}@${host}:$dest/\$relative_path" 2>/dev/null || true
+done < "${temp_dir}/files_${i}.txt"
+EOF
+                    chmod +x "${temp_dir}/sync_${i}.sh"
+                fi
+            done
+
+            # Execute syncs in parallel with monitoring
+            local pids=()
+            local start_time=$(date +%s)
+            for script in "${temp_dir}"/sync_*.sh; do
+                if [ -f "$script" ]; then
+                    "$script" &
+                    pids+=($!)
+                fi
+            done
+
+            # Monitor progress and wait for completion
+            local completed=0
+            local total_pids=${#pids[@]}
+            while [ $completed -lt $total_pids ]; do
+                completed=0
+                for pid in "${pids[@]}"; do
+                    if ! kill -0 "$pid" 2>/dev/null; then
+                        ((completed++))
+                    fi
+                done
+                sleep 2
+            done
+
+            # Wait for all processes to finish
+            for pid in "${pids[@]}"; do
+                wait "$pid"
+            done
+
+            local end_time=$(date +%s)
+            local duration=$((end_time - start_time))
+            log "Parallel sync completed in ${duration}s"
+
+            # Cleanup
+            rm -rf "$temp_dir"
+        fi
+
+        # Clean temp file
+        rm -f "$file_list"
+
+        # Final sync for directory structure, permissions, and any missed files
+        rsync -avz --delete --exclude='.git' --exclude='__pycache__' \
+            --exclude='*.pyc' --exclude='.pytest_cache' \
+            --exclude='*.log' --bwlimit=0 --compress-level=6 \
+            "$source_dir/" "$dest/"
+    }
+
+    # Execute parallel rsync with monitoring
+    parallel_rsync_deploy "${DEPLOY_TMP_DIR}" "${user}@${host}:${path}" &
+    local rsync_pid=$!
+    monitor_operation "parallel_file_sync" "$rsync_pid"
+
+    # Executar migrações se necessário with monitoring
+    if ssh "${user}@${host}" "[ -f '${path}/scripts/migration.sh' ]"; then
+        log "Executando migrações..."
+        ssh "${user}@${host}" "cd '${path}' && bash scripts/migration.sh" &
+        local migration_pid=$!
+        monitor_operation "migration" "$migration_pid"
+    fi
+
+    # Reiniciar serviços with monitoring
     log "Reiniciando serviços..."
-    ssh "${user}@${host}" "cd '${path}' && bash scripts/restart_services.sh"
+    ssh "${user}@${host}" "cd '${path}' && bash scripts/restart_services.sh" &
+    local restart_pid=$!
+    monitor_operation "service_restart" "$restart_pid"
 
     success "Deploy rolling concluído"
+    info "Performance log saved to: $PERFORMANCE_LOG"
 }
 
 deploy_blue_green() {

@@ -30,6 +30,7 @@ Bem-vindo à documentação completa do Cluster AI! Este índice organiza todos 
 -   **[Solução de Problemas](guides/troubleshooting.md)**: FAQ, diagnóstico e resolução de problemas comuns.
 -   **[Otimização de Performance](guides/performance.md)**: Técnicas avançadas de otimização.
 -   **[Monitoramento](guides/monitoring.md)**: Ferramentas e práticas de monitoramento.
+-   **[Novas Funcionalidades de Deployment](guides/deployment-features.md)**: Descoberta automática de workers e instalador web unificado.
 
 ## 🚀 Deploy e Produção
 
