@@ -17,14 +17,42 @@ fi
 # =============================================================================
 
 # Arquivos de auditoria
-readonly AUDIT_LOG_FILE="/var/log/cluster_ai_audit.log"
-readonly LOCAL_AUDIT_FILE="${LOGS_DIR}/security_audit.log"
+if [[ -z "${AUDIT_LOG_FILE:-}" ]]; then
+    readonly AUDIT_LOG_FILE="/var/log/cluster_ai_audit.log"
+else
+    readonly AUDIT_LOG_FILE
+fi
+
+if [[ -z "${LOCAL_AUDIT_FILE:-}" ]]; then
+    readonly LOCAL_AUDIT_FILE="${LOGS_DIR:-/var/log}/security_audit.log"
+else
+    readonly LOCAL_AUDIT_FILE
+fi
 
 # Níveis de risco
-readonly RISK_LOW="low"
-readonly RISK_MEDIUM="medium"
-readonly RISK_HIGH="high"
-readonly RISK_CRITICAL="critical"
+if [[ -z "${RISK_LOW:-}" ]]; then
+    readonly RISK_LOW="low"
+else
+    readonly RISK_LOW
+fi
+
+if [[ -z "${RISK_MEDIUM:-}" ]]; then
+    readonly RISK_MEDIUM="medium"
+else
+    readonly RISK_MEDIUM
+fi
+
+if [[ -z "${RISK_HIGH:-}" ]]; then
+    readonly RISK_HIGH="high"
+else
+    readonly RISK_HIGH
+fi
+
+if [[ -z "${RISK_CRITICAL:-}" ]]; then
+    readonly RISK_CRITICAL="critical"
+else
+    readonly RISK_CRITICAL
+fi
 
 # =============================================================================
 # FUNÇÕES DE AUDITORIA
@@ -371,7 +399,11 @@ confirm_critical_operation() {
 # =============================================================================
 
 # Arquivo para controlar rate limiting
-readonly RATE_LIMIT_FILE="${RUN_DIR}/rate_limit.cache"
+if [[ -z "${RATE_LIMIT_FILE:-}" ]]; then
+    readonly RATE_LIMIT_FILE="${RUN_DIR:-/tmp}/rate_limit.cache"
+else
+    readonly RATE_LIMIT_FILE
+fi
 
 # Verificar rate limiting
 check_rate_limit() {

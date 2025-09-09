@@ -7,6 +7,10 @@
 # =============================================================================
 # Este é o painel de controle principal do Cluster AI. Permite iniciar,
 # parar, configurar e monitorar todos os componentes do sistema.
+#
+# ARQUITETURA MODULAR: Este script foi refatorado para usar módulos core
+# (common.sh, security.sh, services.sh, workers.sh, ui.sh) para melhor
+# organização e manutenção do código.
 
 set -euo pipefail  # Modo estrito: para em erros, variáveis não definidas e falhas em pipelines
 
@@ -25,6 +29,15 @@ source "${SCRIPT_DIR}/scripts/core/security.sh"
 source "${SCRIPT_DIR}/scripts/core/services.sh"
 source "${SCRIPT_DIR}/scripts/core/workers.sh"
 source "${SCRIPT_DIR}/scripts/core/ui.sh"
+
+# Funções de compatibilidade para interface
+section() {
+    ui_section "$1"
+}
+
+subsection() {
+    ui_subsection "$1"
+}
 
 # Funções básicas agora fornecidas pelos módulos core
 # log(), confirm_operation(), etc. estão disponíveis via common.sh e security.sh
@@ -61,46 +74,7 @@ show_banner() {
     echo
 }
 
-# Inicia um processo em background, salva seu PID e log.
-# Uso: start_process <nome_serviço> <arquivo_pid> <comando> <arquivo_log>
-start_process() {
-    local service_name="$1"
-    local pid_file="$2"
-    local command_to_run="$3"
-    local log_file="$4"
-    local venv_path="${PROJECT_ROOT}/.venv"
 
-    # Verifica se o diretório de PID existe
-    mkdir -p "$(dirname "$pid_file")"
-
-    # Verifica se o processo já está rodando
-    if [ -f "$pid_file" ] && ps -p "$(cat "$pid_file")" > /dev/null; then
-        success "$service_name já está em execução (PID: $(cat "$pid_file"))."
-        return 0
-    fi
-
-    progress "Iniciando $service_name..."
-
-    # Ativa o ambiente virtual para executar o comando
-    source "${venv_path}/bin/activate"
-
-    # Executa o comando em background
-    nohup ${command_to_run} > "$log_file" 2>&1 &
-    local pid=$!
-
-    # Desativa o ambiente virtual
-    deactivate
-
-    # Salva o PID
-    echo "$pid" > "$pid_file"
-    sleep 2 # Dá um tempo para o processo iniciar
-
-    if ps -p "$pid" > /dev/null; then
-        success "$service_name iniciado com sucesso (PID: $pid)."
-    else
-        error "Falha ao iniciar $service_name. Verifique o log: $log_file"
-    fi
-}
 
 # =============================================================================
 # FUNÇÃO UNIFICADA DE STATUS
@@ -285,18 +259,31 @@ show_system_info_submenu() {
         read -p "Digite sua opção: " choice
 
         case $choice in
-            1) show_general_system_info ;;
-            2) show_cpu_details ;;
-            3) show_memory_details ;;
-            4) show_disk_details ;;
+            1)
+                show_general_system_info
+                ;;
+            2)
+                show_cpu_details
+                ;;
+            3)
+                show_memory_details
+                ;;
+            4)
+                show_disk_details
+                ;;
             5)
+                # Sub-menu para gerenciamento de processos
                 local filter_user=""
                 local filter_command=""
+
                 while true; do
                     show_top_processes "$filter_user" "$filter_command"
                     echo
+
                     if [ -n "$filter_user" ] || [ -n "$filter_command" ]; then
                         echo -e "${YELLOW}Filtros ativos: [Usuário: ${filter_user:-nenhum}] [Comando: ${filter_command:-nenhum}]${NC}"
+                    fi
+
                     echo "Opções:"
                     echo "  'k' - Matar (kill) um processo"
                     echo "  'f' - Filtrar a lista"
@@ -304,10 +291,13 @@ show_system_info_submenu() {
                     echo "  'c' - Limpar filtros"
                     echo "  'q' - Voltar ao menu anterior"
                     echo
+
                     read -p "Digite sua opção [k/f/r/c/q]: " action
 
                     case $action in
-                        k|K) kill_process_interactive ;;
+                        k|K)
+                            kill_process_interactive
+                            ;;
                         f|F)
                             subsection "Filtrar Lista de Processos"
                             read -p "Filtrar por nome de usuário (deixe em branco para ignorar): " filter_user
@@ -322,65 +312,75 @@ show_system_info_submenu() {
                             ;;
                         c|C)
                             if [ -n "$filter_user" ] || [ -n "$filter_command" ]; then
+                                filter_user=""
                                 filter_command=""
+                                info "Filtros limpos."
                             else
                                 info "Nenhum filtro ativo para limpar."
                             fi
                             sleep 1
                             ;;
-                        q|Q) break ;;
-                        *) error "Opção inválida." ;;
+                        q|Q)
+                            break
+                            ;;
+                        *)
+                            error "Opção inválida."
+                            sleep 1
+                            ;;
                     esac
                 done
                 ;;
-            0) return ;;
-            *) error "Opção inválida." ;;
+            0)
+                return
+                ;;
+            *)
+                error "Opção inválida."
+                sleep 1
+                ;;
         esac
-        echo
-        read -p "Pressione Enter para continuar..."
+
+        if [ "$choice" != "0" ]; then
+            echo
+            read -p "Pressione Enter para continuar..."
+        fi
     done
 }
 
-# Para um processo usando seu arquivo PID
-# Uso: stop_process_by_pid <nome_serviço> <arquivo_pid>
-stop_process_by_pid() {
-    local service_name="$1"
-    local pid_file="$2"
+# Funções auxiliares para gerenciamento de processos
+# Uso: show_top_processes <filter_user> <filter_command>
+show_top_processes() {
+    local filter_user="$1"
+    local filter_command="$2"
 
-    if [ ! -f "$pid_file" ]; then
-        info "$service_name não parece estar rodando (arquivo PID não encontrado)."
-        return
+    echo "Processos do sistema (Top 20 por uso de CPU):"
+    echo "PID    USER    %CPU  %MEM    VSZ    RSS  COMMAND"
+    echo "------------------------------------------------"
+
+    # Usar ps para listar processos com filtros
+    local ps_cmd="ps aux --sort=-%cpu | head -21 | tail -20"
+
+    if [ -n "$filter_user" ]; then
+        ps_cmd="ps aux --sort=-%cpu | grep '$filter_user' | head -20"
     fi
 
-    local pid
-    pid=$(cat "$pid_file")
-
-    if [ -z "$pid" ]; then
-        warn "Arquivo PID para $service_name está vazio."
-        rm -f "$pid_file"
-        return
+    if [ -n "$filter_command" ]; then
+        ps_cmd="ps aux --sort=-%cpu | grep '$filter_command' | head -20"
     fi
 
-    # Verifica se o processo existe
-    if ps -p "$pid" > /dev/null; then
-        progress "Parando $service_name (PID: $pid)..."
-        # Tenta parar de forma graciosa primeiro (SIGTERM)
-        kill -15 "$pid"
-        sleep 3
-
-        # Se ainda estiver rodando, força a parada (SIGKILL)
-        if ps -p "$pid" > /dev/null; then
-            warn "$service_name não parou de forma graciosa. Forçando..."
-            kill -9 "$pid"
-            sleep 1
-        fi
-        success "$service_name parado."
-    else
-        info "$service_name (PID: $pid) já estava parado."
-    fi
-
-    rm -f "$pid_file"
+    eval "$ps_cmd" | while read -r line; do
+        echo "$line"
+    done
 }
+
+# Função para matar processo interativamente
+# Uso: kill_process_interactive
+kill_process_interactive() {
+    echo "Função de matar processo - implementação pendente"
+    echo "Esta função precisa ser implementada com lógica para seleção e kill de processos"
+    sleep 2
+}
+
+
 
 # Inicia o cluster
 start_cluster() {
@@ -397,7 +397,8 @@ start_cluster() {
     # Inicia Dask (gerenciado por PID)
     local dask_cmd="python3 ${PROJECT_ROOT}/scripts/dask/start_dask_cluster.py $PROJECT_ROOT"
     local dask_pid_file="${PROJECT_ROOT}/run/dask_cluster.pid"
-    start_process "Dask Cluster" "$dask_pid_file" "$dask_cmd" "${PROJECT_ROOT}/logs/dask_cluster.log"
+    local dask_log_file="${PROJECT_ROOT}/logs/dask_cluster.log"
+    start_background_process "Dask Cluster" "$dask_pid_file" "$dask_cmd" "$dask_log_file"
 
     # Inicia serviços systemd e Docker
     manage_systemd_service "start" "ollama"
@@ -416,7 +417,7 @@ stop_cluster() {
     info "Parando todos os serviços gerenciados..."
 
     # Para Dask (gerenciado por PID)
-    stop_process_by_pid "Dask Cluster" "${PROJECT_ROOT}/run/dask_cluster.pid"
+    stop_background_process "Dask Cluster" "${PROJECT_ROOT}/run/dask_cluster.pid"
 
     # Para serviços systemd e Docker
     manage_systemd_service "stop" "ollama"
@@ -1089,15 +1090,35 @@ main() {
         read -p "Digite sua opção (0-5): " choice
 
         case $choice in
-            1) show_cluster_operations_menu ;;
-            2) show_worker_management_menu ;;
-            3) show_maintenance_menu ;;
-            4) show_config_tools_menu ;;
-            5) show_info_help_menu ;;
-            "r"|"R") refresh_status_cache; info "Atualização de status iniciada."; sleep 2 ;;
-            0) success "Gerenciador encerrado."; exit 0 ;;
-            *) error "Opção inválida."; sleep 2 ;;
-        fi
+            1)
+                show_cluster_operations_menu
+                ;;
+            2)
+                show_worker_management_menu
+                ;;
+            3)
+                show_maintenance_menu
+                ;;
+            4)
+                show_config_tools_menu
+                ;;
+            5)
+                show_info_help_menu
+                ;;
+            "r"|"R")
+                refresh_status_cache
+                info "Atualização de status iniciada."
+                sleep 2
+                ;;
+            0)
+                success "Gerenciador encerrado."
+                exit 0
+                ;;
+            *)
+                error "Opção inválida."
+                sleep 2
+                ;;
+        esac
 
         # Pausa para o usuário ver a saída, a menos que a opção seja sair
         if [[ "$choice" != "0" ]]; then

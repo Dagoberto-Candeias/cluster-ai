@@ -8,12 +8,13 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
 
-# Carregar funções comuns
-if [ ! -f "${UTILS_DIR}/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
-    exit 1
-fi
-source "${UTILS_DIR}/common.sh"
+# Carregar módulos core
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR/../.."
+
+# Carregar módulos na ordem correta (common primeiro)
+source "${PROJECT_ROOT}/scripts/core/common.sh"
+source "${PROJECT_ROOT}/scripts/core/security.sh"
 
 # --- Configurações de Backup ---
 BACKUP_BASE_DIR="${PROJECT_ROOT}/backups"

@@ -20,16 +20,13 @@ METRICS_FILE="${METRICS_DIR}/cluster_metrics.json"
 ALERTS_LOG="${ALERTS_DIR}/alerts.log"
 MONITOR_LOG="${LOGS_DIR}/monitor.log"
 
-# Carregar funções comuns
-if [ ! -f "${PROJECT_ROOT}/scripts/utils/common.sh" ]; then
-    echo "ERRO: Script de funções comuns não encontrado."
-    exit 1
-fi
+# Carregar módulos core
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR/../.."
 
-# Definir variável global de log para common.sh
-export CLUSTER_AI_LOG_FILE="${PROJECT_ROOT}/logs/cluster_ai.log"
-
-source "${PROJECT_ROOT}/scripts/utils/common.sh"
+# Carregar módulos na ordem correta (common primeiro)
+source "${PROJECT_ROOT}/scripts/core/common.sh"
+source "${PROJECT_ROOT}/scripts/core/security.sh"
 
 # Carregar utilitários de progresso
 if [ ! -f "${PROJECT_ROOT}/scripts/utils/progress_utils.sh" ]; then
@@ -454,6 +451,9 @@ rotate_logs() {
 main() {
     # Criar diretórios necessários
     mkdir -p "$METRICS_DIR" "$ALERTS_DIR"
+
+    # Importar funções UI do módulo core ui.sh
+    source "${PROJECT_ROOT}/scripts/core/ui.sh"
 
     case "${1:-monitor}" in
         monitor)

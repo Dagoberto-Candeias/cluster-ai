@@ -295,6 +295,11 @@ spinner() {
     printf "\r%s\n" "$(printf ' %.0s' {1..50})" # Limpar linha
 }
 
+# Função de progresso simples (compatibilidade com manager.sh)
+progress() {
+    info "[...] $1"
+}
+
 # =============================================================================
 # FUNÇÕES DE VALIDAÇÃO DE ENTRADA
 # =============================================================================
