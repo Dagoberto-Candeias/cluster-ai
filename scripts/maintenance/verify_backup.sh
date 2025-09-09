@@ -1,131 +1,114 @@
 #!/bin/bash
-# Script para verificar a integridade de um arquivo de backup.
-# Garante que o arquivo .tar.gz não está corrompido e pode ser lido.
+# Script para Verificar a Integridade de Backups
+# Descrição: Verifica um arquivo de backup usando seu checksum SHA256.
 
 set -euo pipefail
 
 # --- Configuração Inicial ---
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LIB_DIR="${PROJECT_ROOT}/scripts/lib"
-BACKUP_DIR="${PROJECT_ROOT}/backups"
+UTILS_DIR="${PROJECT_ROOT}/scripts/utils"
 
 # Carregar funções comuns
-if [ ! -f "${LIB_DIR}/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado em $LIB_DIR."
+if [ ! -f "${UTILS_DIR}/common.sh" ]; then
+    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
     exit 1
 fi
-source "${LIB_DIR}/common.sh"
+source "${UTILS_DIR}/common.sh"
+
+# --- Configurações ---
+BACKUP_BASE_DIR="${PROJECT_ROOT}/backups"
 
 # --- Funções ---
 
-# Lista todos os backups disponíveis
-list_all_backups() {
-    section "Backups Disponíveis para Verificação"
-    if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR"/*.tar.gz* 2>/dev/null)" ]; then
-        warn "Nenhum backup encontrado em $BACKUP_DIR."
-        return 1
-    fi
-
-    local i=1
-    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/*.tar.gz* 2>/dev/null)
-    for backup in "${backups[@]}"; do
-        local size
-        size=$(du -h "$backup" | cut -f1)
-        echo "  $i) $(basename "$backup") ($size)"
-        ((i++))
-    done
-    return 0
+show_help() {
+    echo "Uso: $0 [caminho_para_backup]"
+    echo "Verifica a integridade de um arquivo de backup usando seu checksum SHA256."
+    echo ""
+    echo "Se nenhum caminho for fornecido, um menu interativo será exibido."
 }
 
-# Verifica a integridade de um único arquivo de backup
-verify_backup_integrity() {
+# Função para verificar um único arquivo de backup
+verify_single_backup() {
     local backup_file="$1"
-    subsection "Verificando: $(basename "$backup_file")"
-    audit_log "VERIFY_START" "Backup: $(basename "$backup_file")"
+    local checksum_file="${backup_file}.sha256"
 
-    progress "Verificando se o arquivo existe e é legível..."
-    if [ ! -r "$backup_file" ]; then
-        error "Arquivo de backup não encontrado ou sem permissão de leitura: $backup_file"
+    subsection "Verificando: $(basename "$backup_file")"
+
+    if [ ! -f "$backup_file" ]; then
+        error "Arquivo de backup não encontrado: $backup_file"
         return 1
     fi
-    success "Arquivo encontrado e legível."
 
+    if [ ! -f "$checksum_file" ]; then
+        warn "Arquivo de checksum não encontrado: $checksum_file"
+        info "Não é possível verificar a integridade deste backup."
+        return 1
+    fi
+
+    # Lidar com arquivos criptografados
+    local file_to_check="$backup_file"
+    local temp_decrypted_file=""
     if [[ "$backup_file" == *.enc ]]; then
-        subsection "Verificando Backup Criptografado"
-        if ! command_exists "openssl"; then
-            error "Comando 'openssl' não encontrado. Não é possível verificar o backup."
+        if ! command_exists openssl; then
+            error "Comando 'openssl' não encontrado. Não é possível verificar backup criptografado."
             return 1
         fi
-
+        info "Este backup está criptografado."
         local password
-        read -s -p "Digite a senha do backup para verificação: " password
+        read -s -p "Digite a senha para descriptografar e verificar: " password
         echo
         if [ -z "$password" ]; then
-            error "A senha não pode estar em branco. Abortando."
+            error "Senha não fornecida. Verificação cancelada."
             return 1
         fi
 
-        progress "1/2 - Tentando descriptografar e verificar a integridade do Gzip..."
-        # Este pipeline descriptografa, descomprime e lista o conteúdo para /dev/null.
-        # Uma falha em qualquer etapa (senha, Gzip, Tar) resultará em um código de saída diferente de zero.
-        if openssl enc -d -aes-256-cbc -pbkdf2 -in "$backup_file" -pass pass:"$password" -nostd -out /dev/null 2>/dev/null; then
-            success "Descriptografia bem-sucedida (senha correta)."
-            progress "2/2 - Verificando a integridade do arquivo (Tar)..."
-            openssl enc -d -aes-256-cbc -pbkdf2 -in "$backup_file" -pass pass:"$password" | tar -tz > /dev/null
-            success "🎉 O arquivo de backup criptografado '$(basename "$backup_file")' está íntegro."
-            audit_log "VERIFY_SUCCESS" "Encrypted backup $(basename "$backup_file") is integral"
-        else
-            error "Falha na verificação! O arquivo pode estar corrompido ou a senha está incorreta."
-            audit_log "VERIFY_FAIL" "Encrypted backup $(basename "$backup_file") failed integrity check"
+        temp_decrypted_file=$(mktemp)
+        trap 'rm -f "$temp_decrypted_file"' EXIT
+
+        progress "Descriptografando para verificação (arquivo temporário)..."
+        if ! openssl enc -d -aes-256-cbc -pbkdf2 -in "$backup_file" -out "$temp_decrypted_file" -pass pass:"$password"; then
+            error "Falha ao descriptografar. Senha incorreta ou arquivo corrompido."
             return 1
         fi
+        file_to_check="$temp_decrypted_file"
+    fi
+
+    progress "Calculando checksum do arquivo..."
+    if sha256sum --check --status "$checksum_file"; then
+        success "✅ Integridade confirmada! O backup está consistente."
+        audit_log "VERIFY_SUCCESS" "File: $(basename "$backup_file")"
     else
-        subsection "Verificando Backup Não Criptografado"
-        progress "Verificando a integridade da compressão (Gzip)..."
-        if ! gzip -t "$backup_file"; then
-            error "Arquivo corrompido! Falha na verificação do Gzip."
-            audit_log "VERIFY_FAIL" "Backup $(basename "$backup_file") failed Gzip check"
-            return 1
-        fi
-        success "Integridade do Gzip está OK."
-
-        progress "Verificando a integridade da estrutura (Tar)..."
-        if ! tar -tzf "$backup_file" > /dev/null; then
-            error "Arquivo corrompido! Falha na verificação da estrutura do Tar."
-            audit_log "VERIFY_FAIL" "Backup $(basename "$backup_file") failed Tar check"
-            return 1
-        fi
-        success "Integridade do Tar está OK."
-        echo
-        success "🎉 O arquivo de backup '$(basename "$backup_file")' parece estar íntegro."
-        audit_log "VERIFY_SUCCESS" "Backup $(basename "$backup_file") is integral"
+        error "❌ CORROMPIDO! A verificação de integridade falhou."
+        warn "O arquivo de backup pode estar danificado ou foi modificado."
+        audit_log "VERIFY_FAIL" "File: $(basename "$backup_file")"
     fi
 }
 
-# --- Menu Principal ---
+# --- Execução ---
 main() {
-    section "🔍 Verificador de Integridade de Backup"
+    section "Verificador de Integridade de Backup"
 
-    if ! list_all_backups; then
-        return 1
+    if [ -n "${1:-}" ]; then
+        verify_single_backup "$1"
+        return
     fi
 
-    echo ""
-    read -p "Digite o número do backup que deseja verificar (ou 0 para sair): " choice
-
-    if [[ "$choice" -eq 0 ]]; then
-        info "Verificação cancelada."
-        exit 0
+    # Menu interativo
+    mapfile -t backups < <(find "$BACKUP_BASE_DIR" -name "*.tar.*" ! -name "*.sha256" -printf "%f\n" | sort -r)
+    if [ ${#backups[@]} -eq 0 ]; then
+        warn "Nenhum backup encontrado para verificar."
+        return
     fi
 
-    mapfile -t backups < <(ls -1t "$BACKUP_DIR"/*.tar.gz* 2>/dev/null)
-    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#backups[@]} ]; then
-        error "Seleção inválida."
-        return 1
-    fi
-
-    local backup_to_verify="${backups[$((choice-1))]}"
-    verify_backup_integrity "$backup_to_verify"
+    info "Selecione o backup que deseja verificar:"
+    select backup_choice in "${backups[@]}"; do
+        if [ -n "$backup_choice" ]; then
+            verify_single_backup "${BACKUP_BASE_DIR}/${backup_choice}"
+            break
+        else
+            error "Seleção inválida."
+        fi
+    done
 }
 
 main "$@"

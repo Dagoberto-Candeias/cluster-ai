@@ -50,6 +50,32 @@ security_scan:
       sast:
         - semgrep.json
 
+integration_test:
+  stage: test
+  # Usa uma imagem que já contém Docker para simplificar
+  image: docker:24.0-cli
+  services:
+    # Habilita Docker-in-Docker
+    - name: docker:24.0-dind
+      alias: docker
+  variables:
+    # Configura o cliente Docker para se conectar ao daemon DinD
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: "" # Desabilita TLS para a conexão local
+  before_script:
+    # Instala dependências para o teste de integração
+    - apk add --no-cache bash openssh-client bats coreutils
+  script:
+    - echo "Executando testes de integração..."
+    # Espera o serviço Docker-in-Docker iniciar completamente
+    - sleep 15
+    # Executa o script de teste BATS
+    - bats tests/integration/test_manager_worker_comm.bats
+  artifacts:
+    when: on_failure
+    paths:
+      - logs/
+
 test_and_coverage:
   stage: test
   variables:

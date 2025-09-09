@@ -105,6 +105,28 @@ port_open() {
     fi
 }
 
+# Função para ler um valor de um arquivo de configuração YAML
+# Uso: get_config_value <chave_yaml> <arquivo> <valor_padrão>
+# Ex: get_config_value "dask.scheduler_port" "cluster.yaml" "8786"
+get_config_value() {
+    local yaml_key="$1"
+    local config_file="$2"
+    local default_value="$3"
+
+    if [ ! -f "$config_file" ]; then
+        echo "$default_value"
+        return
+    fi
+
+    if ! command_exists yq; then
+        # Não usar 'error' aqui para não poluir a saída de scripts que usam isso para obter valores
+        echo "$default_value"
+        return
+    fi
+
+    # Usa yq para ler o valor. O operador '//' fornece um valor padrão se a chave for nula ou não existir.
+    yq e ".${yaml_key} // \"${default_value}\"" "$config_file"
+}
 # Função para registrar problemas encontrados
 report_issue() {
     local type="$1"

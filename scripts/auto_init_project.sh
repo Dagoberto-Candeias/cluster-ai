@@ -85,6 +85,25 @@ check_system_dependencies() {
         log_error "Pip não encontrado. Instalação necessária."
         exit 1
     fi
+
+    # Verificar yq (necessário para configuração YAML)
+    if command_exists yq; then
+        log_success "yq (processador YAML) encontrado"
+    else
+        log_warning "Comando 'yq' não encontrado. É necessário para gerenciar a configuração."
+        read -p "Deseja tentar instalar o 'yq' via snap? (s/N): " choice
+        if [[ "$choice" =~ ^[Ss]$ ]]; then
+            if command_exists snap; then
+                log_info "Instalando yq via snap..."
+                sudo snap install yq
+                log_success "yq instalado com sucesso!"
+            else
+                log_error "Comando 'snap' não encontrado. Não foi possível instalar o yq."
+                log_info "Por favor, instale o yq manualmente: https://github.com/mikefarah/yq/#install"
+                exit 1
+            fi
+        fi
+    fi
 }
 
 # Verificar e instalar dependências Python
@@ -473,11 +492,11 @@ create_directories() {
 check_configuration() {
     log_info "Verificando configuração..."
 
-    # Verificar arquivo de configuração principal
-    if [[ -f "cluster.conf" ]]; then
-        log_success "Arquivo cluster.conf encontrado"
+    # Verificar arquivo de configuração principal (YAML)
+    if [[ -f "cluster.yaml" ]]; then
+        log_success "Arquivo cluster.yaml encontrado"
     else
-        log_warning "Arquivo cluster.conf não encontrado. Usando configurações padrão."
+        log_warning "Arquivo cluster.yaml não encontrado. Usando configurações padrão."
     fi
 
     # Verificar arquivo de configuração automática
@@ -606,8 +625,8 @@ refresh_worker_list() {
 
 # Sincronizar configuração de workers para o formato JSON
 sync_worker_config() {
-    if [ -f "scripts/utils/sync_config.sh" ]; then
-        log_info "Sincronizando configuração de workers para JSON..."
+    if [ -f "scripts/utils/sync_config.sh" ] && command_exists yq; then
+        log_info "Sincronizando configuração de workers para YAML..."
         bash scripts/utils/sync_config.sh
     fi
 }

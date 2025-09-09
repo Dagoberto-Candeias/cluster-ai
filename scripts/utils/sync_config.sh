@@ -14,7 +14,7 @@ if [ -f "${UTILS_DIR}/common.sh" ]; then
     source "${UTILS_DIR}/common.sh"
 else
     # Fallback de funções de log
-    info() { echo "[INFO] $1"; }
+    log() { echo "[INFO] $1"; }
     warn() { echo "[WARN] $1"; }
     error() { echo "[ERROR] $1"; }
     success() { echo "[SUCCESS] $1"; }
@@ -22,25 +22,26 @@ fi
 
 # --- Constantes ---
 NODES_LIST_FILE="$HOME/.cluster_config/nodes_list.conf"
-CLUSTER_CONF_FILE="${PROJECT_ROOT}/cluster.conf"
+CLUSTER_CONF_FILE="${PROJECT_ROOT}/cluster.yaml" # Alterado para .yaml
 
 # --- Função Principal ---
 main() {
-    if ! command_exists jq; then
-        error "Comando 'jq' não encontrado. É necessário para a sincronização de configuração."
-        info "Instale-o com: sudo apt install jq (ou equivalente para sua distro)."
+    if ! command_exists yq; then
+        error "Comando 'yq' não encontrado. É necessário para a sincronização de configuração."
+        log "Instale-o com: sudo snap install yq (ou equivalente)."
         return 1
     fi
 
     if [ ! -f "$NODES_LIST_FILE" ]; then
-        warn "Arquivo de lista de workers não encontrado em '$NODES_LIST_FILE'. Nada para sincronizar."
+        warn "Arquivo de lista de workers '$NODES_LIST_FILE' não encontrado. Nada para sincronizar."
         return 0
     fi
 
-    info "Sincronizando '$NODES_LIST_FILE' para '$CLUSTER_CONF_FILE'..."
+    log "Sincronizando '$NODES_LIST_FILE' para '$CLUSTER_CONF_FILE' (YAML)..."
 
-    # Inicia um objeto JSON vazio para os workers
-    local workers_json="{}"
+    # Cria um arquivo YAML temporário para construir a configuração
+    local temp_yaml_file; temp_yaml_file=$(mktemp)
+    echo "workers: {}" > "$temp_yaml_file"
 
     # Lê o arquivo de workers linha por linha
     while IFS= read -r line; do
@@ -62,24 +63,21 @@ main() {
         port="${port:-22}"
         status="${status:-inactive}"
 
-        # Constrói o objeto JSON para o worker atual e o adiciona ao objeto principal
-        workers_json=$(echo "$workers_json" | jq \
-            --arg name "$hostname" \
-            --arg ip "$ip" \
-            --argjson port "$port" \
-            --arg user "$user" \
-            --arg status "$status" \
-            '. + {($name): {ip: $ip, port: $port, user: $user, status: $status}}')
+        # Usa yq para adicionar a entrada do worker ao arquivo YAML temporário
+        yq e ".workers[\"$hostname\"].ip = \"${ip}\"" -i "$temp_yaml_file"
+        yq e ".workers[\"$hostname\"].port = ${port}" -i "$temp_yaml_file"
+        yq e ".workers[\"$hostname\"].user = \"${user}\"" -i "$temp_yaml_file"
+        yq e ".workers[\"$hostname\"].status = \"${status}\"" -i "$temp_yaml_file"
 
     done < "$NODES_LIST_FILE"
 
-    # Garante que o arquivo cluster.conf exista com um objeto JSON válido
-    [ ! -f "$CLUSTER_CONF_FILE" ] && echo "{}" > "$CLUSTER_CONF_FILE"
+    # Atualiza o arquivo de configuração principal, preservando outras chaves que possam existir
+    # Se o arquivo principal não existir, ele será criado.
+    yq eval-all '. as $item ireduce ({}; . * $item)' "$CLUSTER_CONF_FILE" "$temp_yaml_file" > "${CLUSTER_CONF_FILE}.tmp" 2>/dev/null || cp "$temp_yaml_file" "${CLUSTER_CONF_FILE}.tmp"
+    mv "${CLUSTER_CONF_FILE}.tmp" "$CLUSTER_CONF_FILE"
+    rm -f "$temp_yaml_file"
 
-    # Atualiza a chave "workers" no cluster.conf, preservando o resto do conteúdo
-    jq --argjson workers "$workers_json" '.workers = $workers' "$CLUSTER_CONF_FILE" > "${CLUSTER_CONF_FILE}.tmp" && mv "${CLUSTER_CONF_FILE}.tmp" "$CLUSTER_CONF_FILE"
-
-    success "Configuração JSON em '$CLUSTER_CONF_FILE' foi atualizada com sucesso."
+    success "Configuração YAML em '$CLUSTER_CONF_FILE' foi atualizada com sucesso."
 }
 
 main "$@"

@@ -14,450 +14,37 @@ set -euo pipefail  # Modo estrito: para em erros, variáveis não definidas e fa
 # INICIALIZAÇÃO
 # =============================================================================
 
-# Carrega funções comuns
+# Carrega módulos core
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR" # Assumindo que manager.sh está na raiz
-CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
-source "${SCRIPT_DIR}/scripts/lib/common.sh"
+CONFIG_FILE="${PROJECT_ROOT}/cluster.yaml"
 
-# Função de log adicional (se não estiver definida em common.sh)
-log() {
-    echo -e "${CYAN}[LOG] $1${NC}"
-}
+# Carregar módulos na ordem correta (common primeiro)
+source "${SCRIPT_DIR}/scripts/core/common.sh"
+source "${SCRIPT_DIR}/scripts/core/security.sh"
+source "${SCRIPT_DIR}/scripts/core/services.sh"
+source "${SCRIPT_DIR}/scripts/core/workers.sh"
+source "${SCRIPT_DIR}/scripts/core/ui.sh"
 
-# Função para solicitar confirmação do usuário
-confirm_operation() {
-    local message="$1"
-    read -p "$(echo -e "${YELLOW}AVISO:${NC} $message Deseja continuar? (s/N) ")" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Ss]$ ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
+# Funções básicas agora fornecidas pelos módulos core
+# log(), confirm_operation(), etc. estão disponíveis via common.sh e security.sh
 
 # =============================================================================
-# FUNÇÕES DE SEGURANÇA E VALIDAÇÃO
+# FUNÇÕES DE SEGURANÇA E VALIDAÇÃO (AGORA VIA MÓDULOS CORE)
 # =============================================================================
-
-# Função de auditoria para registrar ações de segurança
-audit_log() {
-    local action="$1"
-    local details="$2"
-    local audit_file="/var/log/cluster_ai_audit.log"
-
-    # Criar diretório de logs se não existir
-    sudo mkdir -p /var/log 2>/dev/null
-
-    # Verificar se podemos escrever no arquivo de auditoria
-    if sudo touch "$audit_file" 2>/dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" | sudo tee -a "$audit_file" >/dev/null
-    else
-        # Fallback para arquivo local se não conseguir escrever em /var/log
-        local local_audit="${PROJECT_ROOT}/logs/security_audit.log"
-        mkdir -p "${PROJECT_ROOT}/logs"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" >> "$local_audit"
-    fi
-}
-
-# Função para validar entrada do usuário
-validate_input() {
-    local input="$1"
-    local type="$2"
-
-    case "$type" in
-        "ip")
-            # Validar formato de IP
-            if [[ ! "$input" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-                error "Formato de IP inválido: $input"
-                return 1
-            fi
-            # Verificar se cada octeto está entre 0-255 e evitar octetos consecutivos vazios
-            IFS='.' read -ra octets <<< "$input"
-            for octet in "${octets[@]}"; do
-                if [[ -z "$octet" || $octet -lt 0 || $octet -gt 255 ]]; then
-                    error "Octeto inválido no IP: $octet"
-                    return 1
-                fi
-            done
-            # Verificar se não há octetos vazios consecutivos (ex: 192..168.1)
-            if [[ "$input" =~ \.\. ]]; then
-                error "IP contém octetos vazios consecutivos: $input"
-                return 1
-            fi
-            ;;
-        "port")
-            # Validar porta (1-65535)
-            if [[ ! "$input" =~ ^[0-9]+$ ]] || [[ $input -lt 1 || $input -gt 65535 ]]; then
-                error "Porta inválida: $input (deve ser entre 1-65535)"
-                return 1
-            fi
-            ;;
-        "hostname")
-            # Validar nome de host (letras, números, hífen, ponto)
-            # Adicionar validação para evitar pontos consecutivos e início/fim com hífen ou ponto
-            if [[ ! "$input" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
-                error "Nome de host inválido: $input"
-                return 1
-            fi
-            if [[ "$input" =~ \.\. ]]; then
-                error "Nome de host contém pontos consecutivos: $input"
-                return 1
-            fi
-            if [[ "$input" =~ ^[-.] || "$input" =~ [-.]$ ]]; then
-                error "Nome de host não pode começar ou terminar com hífen ou ponto: $input"
-                return 1
-            fi
-            ;;
-        "filepath")
-            # Validar caminho de arquivo (evitar caracteres perigosos)
-            if [[ "$input" =~ [\;\|\&\$\`\(\)\<\>\"\'\\] ]]; then
-                error "Caminho de arquivo contém caracteres não permitidos: $input"
-                return 1
-            fi
-            ;;
-        "service_name")
-            # Validar nome de serviço (apenas letras, números, hífen, underscore)
-            if [[ ! "$input" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-                error "Nome de serviço inválido: $input"
-                return 1
-            fi
-            ;;
-    esac
-
-    return 0
-}
-
-# Função para verificar se usuário está autorizado
-check_user_authorization() {
-    # Verificar se usuário está no grupo sudo ou wheel
-    if groups "$(whoami)" 2>/dev/null | grep -qE '\b(sudo|wheel|admin)\b'; then
-        audit_log "USER_AUTHORIZED_GROUP" "User: $(whoami) is in privileged group"
-        return 0
-    fi
-
-    audit_log "USER_NOT_AUTHORIZED" "User: $(whoami), SUDO_USER: ${SUDO_USER:-}"
-    error "Usuário não autorizado para executar operações administrativas"
-    info "Para executar este script, você precisa ser um usuário autorizado ou estar no grupo sudo/wheel"
-    return 1
-}
-
-# Função de auditoria para registrar ações de segurança
-audit_log() {
-    local action="$1"
-    local details="$2"
-    local audit_file="/var/log/cluster_ai_audit.log"
-
-    # Criar diretório de logs se não existir
-    sudo mkdir -p /var/log 2>/dev/null
-
-    # Verificar se podemos escrever no arquivo de auditoria
-    if sudo touch "$audit_file" 2>/dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" | sudo tee -a "$audit_file" >/dev/null
-    else
-        # Fallback para arquivo local se não conseguir escrever em /var/log
-        local local_audit="${PROJECT_ROOT}/logs/security_audit.log"
-        mkdir -p "${PROJECT_ROOT}/logs"
-        echo "$(date '+%Y-%m-%d %H:%M:%S') [$(whoami)@$(hostname)] $action: $details" >> "$local_audit"
-    fi
-}
-
-# Função para validar entrada do usuário
-validate_input() {
-    local input="$1"
-    local type="$2"
-
-    case "$type" in
-        "ip")
-            # Validar formato de IP
-            if [[ ! "$input" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-                error "Formato de IP inválido: $input"
-                return 1
-            fi
-            # Verificar se cada octeto está entre 0-255 e evitar octetos consecutivos vazios
-            IFS='.' read -ra octets <<< "$input"
-            for octet in "${octets[@]}"; do
-                if [[ -z "$octet" || $octet -lt 0 || $octet -gt 255 ]]; then
-                    error "Octeto inválido no IP: $octet"
-                    return 1
-                fi
-            done
-            # Verificar se não há octetos vazios consecutivos (ex: 192..168.1)
-            if [[ "$input" =~ \.\. ]]; then
-                error "IP contém octetos vazios consecutivos: $input"
-                return 1
-            fi
-            ;;
-        "port")
-            # Validar porta (1-65535)
-            if [[ ! "$input" =~ ^[0-9]+$ ]] || [[ $input -lt 1 || $input -gt 65535 ]]; then
-                error "Porta inválida: $input (deve ser entre 1-65535)"
-                return 1
-            fi
-            ;;
-        "hostname")
-            # Validar nome de host (letras, números, hífen, ponto)
-            # Adicionar validação para evitar pontos consecutivos e início/fim com hífen ou ponto
-            if [[ ! "$input" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
-                error "Nome de host inválido: $input"
-                return 1
-            fi
-            if [[ "$input" =~ \.\. ]]; then
-                error "Nome de host contém pontos consecutivos: $input"
-                return 1
-            fi
-            if [[ "$input" =~ ^[-.] || "$input" =~ [-.]$ ]]; then
-                error "Nome de host não pode começar ou terminar com hífen ou ponto: $input"
-                return 1
-            fi
-            ;;
-        "filepath")
-            # Validar caminho de arquivo (evitar caracteres perigosos)
-            if [[ "$input" =~ [\;\|\&\$\`\(\)\<\>\"\'\\] ]]; then
-                error "Caminho de arquivo contém caracteres não permitidos: $input"
-                return 1
-            fi
-            ;;
-        "service_name")
-            # Validar nome de serviço (apenas letras, números, hífen, underscore)
-            if [[ ! "$input" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-                error "Nome de serviço inválido: $input"
-                return 1
-            fi
-            ;;
-    esac
-
-    return 0
-}
-
-# Função para confirmar operações críticas
-confirm_critical_operation() {
-    local operation="$1"
-    local risk_level="$2"  # low, medium, high, critical
-    local details="$3"
-
-    audit_log "CRITICAL_OPERATION_REQUEST" "Operation: $operation, Risk: $risk_level, Details: $details"
-
-    case "$risk_level" in
-        "critical")
-            echo -e "${RED}🚨 OPERAÇÃO CRÍTICA DETECTADA${NC}"
-            echo -e "${RED}Esta operação pode comprometer a segurança do sistema${NC}"
-            ;;
-        "high")
-            echo -e "${RED}⚠️  OPERAÇÃO DE ALTO RISCO${NC}"
-            ;;
-        "medium")
-            echo -e "${YELLOW}⚡ OPERAÇÃO DE RISCO MÉDIO${NC}"
-            ;;
-        "low")
-            echo -e "${GREEN}ℹ️  OPERAÇÃO DE BAIXO RISCO${NC}"
-            ;;
-    esac
-
-    echo
-    echo "Operação: $operation"
-    if [ -n "$details" ]; then
-        echo "Detalhes: $details"
-    fi
-    echo
-
-    local confirm_count=0
-    local max_attempts=3
-
-    while [ $confirm_count -lt $max_attempts ]; do
-        if [[ "$risk_level" == "critical" ]]; then
-            read -p "Digite 'CONFIRMAR' para prosseguir (ou 'cancelar' para abortar): " response
-            if [[ "$response" == "CONFIRMAR" ]]; then
-                audit_log "CRITICAL_OPERATION_CONFIRMED" "Operation: $operation"
-                return 0
-            elif [[ "$response" == "cancelar" ]]; then
-                audit_log "CRITICAL_OPERATION_CANCELLED" "Operation: $operation"
-                return 1
-            fi
-        else
-            if confirm_operation "Confirmar execução desta operação?"; then
-                audit_log "OPERATION_CONFIRMED" "Operation: $operation, Risk: $risk_level"
-                return 0
-            else
-                audit_log "OPERATION_CANCELLED" "Operation: $operation, Risk: $risk_level"
-                return 1
-            fi
-        fi
-
-        ((confirm_count++))
-        if [ $confirm_count -lt $max_attempts ]; then
-            warn "Tentativa $confirm_count de $max_attempts. Tente novamente."
-        fi
-    done
-
-    error "Número máximo de tentativas excedido. Operação cancelada."
-    audit_log "OPERATION_CANCELLED_MAX_ATTEMPTS" "Operation: $operation"
-    return 1
-}
-
-# Função para verificar se usuário está autorizado
-check_user_authorization() {
-    local authorized_users=("root" "${SUDO_USER:-}" "$(whoami)" "$(logname 2>/dev/null || echo '')")
-
-    # Lista de usuários explicitamente autorizados (pode ser configurada)
-    local explicit_auth=("dcm" "dagoberto" "admin")
-
-    for user in "${explicit_auth[@]}"; do
-        if [[ "$(whoami)" == "$user" ]] || [[ "${SUDO_USER:-}" == "$user" ]]; then
-            audit_log "USER_AUTHORIZED" "User: $(whoami), SUDO_USER: ${SUDO_USER:-}"
-            return 0
-        fi
-    done
-
-    # Verificar se usuário está no grupo sudo ou wheel
-    if groups "$(whoami)" 2>/dev/null | grep -qE '\b(sudo|wheel|admin)\b'; then
-        audit_log "USER_AUTHORIZED_GROUP" "User: $(whoami) is in privileged group"
-        return 0
-    fi
-
-    audit_log "USER_NOT_AUTHORIZED" "User: $(whoami), SUDO_USER: ${SUDO_USER:-}"
-    error "Usuário não autorizado para executar operações administrativas"
-    info "Para executar este script, você precisa ser um usuário autorizado ou estar no grupo sudo/wheel"
-    return 1
-}
+# Funções de segurança, validação e auditoria agora fornecidas pelos módulos core:
+# - audit_log() via security.sh
+# - validate_input() via security.sh
+# - check_user_authorization() via security.sh
+# - confirm_critical_operation() via security.sh
 # =============================================================================
-# FUNÇÕES DE GERENCIAMENTO DE SERVIÇOS
+# FUNÇÕES DE GERENCIAMENTO DE SERVIÇOS (AGORA VIA MÓDULOS CORE)
 # =============================================================================
-
-# Gerencia um serviço systemd (start, stop)
-# Uso: manage_systemd_service <start|stop> <nome_serviço>
-manage_systemd_service() {
-    local action="$1"
-    local service="$2"
-
-    # Validar entrada
-    if ! validate_input "$service" "service_name"; then
-        audit_log "INVALID_SERVICE_NAME" "Service: $service"
-        return 1
-    fi
-
-    if ! command_exists systemctl; then
-        audit_log "SYSTEMCTL_NOT_FOUND" "Attempted to manage service: $service"
-        return 1
-    fi
-
-    # Confirmar operação crítica (systemd services)
-    local risk_level="medium"
-    if [[ "$service" =~ (sshd|nginx|docker|firewalld|ufw) ]]; then
-        risk_level="high"
-    fi
-
-    if ! confirm_critical_operation "Gerenciar serviço systemd: $action $service" "$risk_level" "Ação: $action, Serviço: $service"; then
-        return 1
-    fi
-
-    audit_log "SYSTEMD_SERVICE_MANAGEMENT" "Action: $action, Service: $service"
-
-    case "$action" in
-        start)
-            if ! sudo systemctl is-active --quiet "$service"; then
-                progress "Iniciando serviço $service..."
-                if sudo systemctl start "$service" 2>/dev/null; then
-                    success "Serviço $service iniciado com sucesso"
-                    audit_log "SYSTEMD_SERVICE_STARTED" "Service: $service"
-                else
-                    warn "Falha ao iniciar serviço $service. Pode não estar instalado."
-                    audit_log "SYSTEMD_SERVICE_START_FAILED" "Service: $service"
-                fi
-            else
-                info "Serviço $service já está ativo"
-            fi
-            ;;
-        stop)
-            if sudo systemctl is-active --quiet "$service"; then
-                progress "Parando serviço $service..."
-                if sudo systemctl stop "$service"; then
-                    success "Serviço $service parado com sucesso"
-                    audit_log "SYSTEMD_SERVICE_STOPPED" "Service: $service"
-                else
-                    warn "Falha ao parar serviço $service"
-                    audit_log "SYSTEMD_SERVICE_STOP_FAILED" "Service: $service"
-                fi
-            else
-                info "Serviço $service já está parado"
-            fi
-            ;;
-    esac
-}
-
-# Gerencia um container Docker (start, stop)
-# Uso: manage_docker_container <start|stop> <nome_container>
-manage_docker_container() {
-    local action="$1"
-    local container="$2"
-
-    # Validar entrada
-    if ! validate_input "$container" "service_name"; then
-        audit_log "INVALID_CONTAINER_NAME" "Container: $container"
-        return 1
-    fi
-
-    if ! command_exists docker; then
-        audit_log "DOCKER_NOT_FOUND" "Attempted to manage container: $container"
-        return 1
-    fi
-
-    # Verificar se Docker está acessível
-    if ! sudo docker info >/dev/null 2>&1; then
-        error "Docker não está acessível ou não está rodando"
-        audit_log "DOCKER_INACCESSIBLE" "Container: $container"
-        return 1
-    fi
-
-    # Confirmar operação crítica (Docker containers)
-    local risk_level="medium"
-    if [[ "$container" =~ (database|db|postgres|mysql|redis|mongodb) ]]; then
-        risk_level="high"
-    fi
-
-    if ! confirm_critical_operation "Gerenciar container Docker: $action $container" "$risk_level" "Ação: $action, Container: $container"; then
-        return 1
-    fi
-
-    audit_log "DOCKER_CONTAINER_MANAGEMENT" "Action: $action, Container: $container"
-
-    case "$action" in
-        start)
-            if ! sudo docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
-                if sudo docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
-                    progress "Iniciando container $container parado..."
-                    if sudo docker start "$container" >/dev/null; then
-                        success "Container $container iniciado com sucesso"
-                        audit_log "DOCKER_CONTAINER_STARTED" "Container: $container"
-                    else
-                        warn "Falha ao iniciar container $container"
-                        audit_log "DOCKER_CONTAINER_START_FAILED" "Container: $container"
-                    fi
-                else
-                    warn "Container $container não encontrado. Execute o script de setup apropriado."
-                    audit_log "DOCKER_CONTAINER_NOT_FOUND" "Container: $container"
-                fi
-            else
-                info "Container $container já está rodando"
-            fi
-            ;;
-        stop)
-            if sudo docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
-                progress "Parando container $container..."
-                if sudo docker stop "$container" >/dev/null; then
-                    success "Container $container parado com sucesso"
-                    audit_log "DOCKER_CONTAINER_STOPPED" "Container: $container"
-                else
-                    warn "Falha ao parar container $container"
-                    audit_log "DOCKER_CONTAINER_STOP_FAILED" "Container: $container"
-                fi
-            else
-                info "Container $container já está parado"
-            fi
-            ;;
-    esac
-}
+# Funções de gerenciamento de serviços agora fornecidas pelos módulos core:
+# - manage_systemd_service() via services.sh
+# - manage_docker_container() via services.sh
+# - start_background_process() via services.sh
+# - stop_background_process() via services.sh
 
 # =============================================================================
 # FUNÇÕES DO GERENCIADOR
@@ -521,6 +108,7 @@ start_process() {
 
 # Função unificada para exibir o status do cluster com diferentes níveis de detalhe.
 # Argumento: "simple" ou "detailed". Padrão é "simple".
+# Esta função lê de um arquivo de cache para ser instantânea.
 display_cluster_status() {
     local mode="${1:-simple}"
 
@@ -537,115 +125,56 @@ display_cluster_status() {
         echo
     else
         section "Status do Cluster"
+        # echo "🔍 Verificando serviços..."
     fi
 
-    # --- Status dos Serviços (Comum a ambos os modos) ---
-    if [[ "$mode" == "detailed" ]]; then
-        subsection "Serviços"
-    else
-        echo "🔍 Verificando serviços..."
-        echo
+    local cache_file="${PROJECT_ROOT}/run/status.cache"
+    if [ ! -f "$cache_file" ]; then
+        warn "Cache de status não encontrado. Execute a atualização (Opção 'r' no menu)."
+        return
     fi
 
-    if ! file_exists "$CONFIG_FILE"; then
-        warn "Arquivo de configuração não encontrado: $CONFIG_FILE"
-        info "Execute ./install.sh primeiro"
-        return 1
-    fi
+    # Função auxiliar para ler do cache
+    get_cache() { grep "^$1=" "$cache_file" 2>/dev/null | cut -d'=' -f2; }
 
-    local DASK_SCHEDULER_PORT; DASK_SCHEDULER_PORT=$(get_config_value "dask" "scheduler_port" "$CONFIG_FILE" "8786")
-    local DASK_DASHBOARD_PORT; DASK_DASHBOARD_PORT=$(get_config_value "dask" "dashboard_port" "$CONFIG_FILE" "8787")
-    local OLLAMA_PORT; OLLAMA_PORT=$(get_config_value "services" "ollama_port" "$CONFIG_FILE" "11434")
-    local OPENWEBUI_PORT; OPENWEBUI_PORT=$(get_config_value "services" "openwebui_port" "$CONFIG_FILE" "3000")
-
-    # Verificações de serviço
-    (command_exists docker && docker info >/dev/null 2>&1 && success "🐳 Docker: Ativo") || error "🐳 Docker: Inativo"
-    (is_port_open "$DASK_SCHEDULER_PORT" && success "📊 Dask Scheduler: Ativo (porta $DASK_SCHEDULER_PORT)") || warn "📊 Dask Scheduler: Inativo"
-    (is_port_open "$DASK_DASHBOARD_PORT" && success "📈 Dask Dashboard: Ativo (porta $DASK_DASHBOARD_PORT)") || warn "📈 Dask Dashboard: Inativo"
-    (is_port_open "$OLLAMA_PORT" && success "🧠 Ollama: Ativo (porta $OLLAMA_PORT)") || warn "🧠 Ollama: Inativo"
-    (is_port_open "$OPENWEBUI_PORT" && success "🌐 OpenWebUI: Ativo (porta $OPENWEBUI_PORT)") || warn "🌐 OpenWebUI: Inativo"
-    (command_exists nginx && command_exists systemctl && sudo systemctl is-active --quiet nginx && success "🌐 Nginx: Ativo") || warn "🌐 Nginx: Inativo"
+    subsection "Serviços"
+    [[ "$(get_cache 'service_docker')" == "online" ]] && success "🐳 Docker: Ativo" || error "🐳 Docker: Inativo"
+    [[ "$(get_cache 'service_dask_scheduler')" == "online" ]] && success "📊 Dask Scheduler: Ativo" || warn "📊 Dask Scheduler: Inativo"
+    [[ "$(get_cache 'service_dask_dashboard')" == "online" ]] && success "📈 Dask Dashboard: Ativo" || warn "📈 Dask Dashboard: Inativo"
+    [[ "$(get_cache 'service_ollama')" == "online" ]] && success "🧠 Ollama: Ativo" || warn "🧠 Ollama: Inativo"
+    [[ "$(get_cache 'service_openwebui')" == "online" ]] && success "🌐 OpenWebUI: Ativo" || warn "🌐 OpenWebUI: Inativo"
+    [[ "$(get_cache 'service_nginx')" == "online" ]] && success "🌐 Nginx: Ativo" || warn "🌐 Nginx: Inativo"
     echo
 
     # --- Status dos Workers ---
     subsection "Workers do Cluster"
-    local remote_workers_conf="$HOME/.cluster_config/nodes_list.conf"
-    local auto_workers_conf="$HOME/.cluster_config/workers.conf"
-    local total_workers=0
-    local online_workers=0
-    local offline_workers=0
+    local total_workers; total_workers=$(get_cache "workers_total")
+    local online_workers; online_workers=$(get_cache "workers_online")
+    local offline_workers=$((total_workers - online_workers))
 
-    # Processar workers manuais
-    if [ -f "$remote_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$remote_workers_conf" | grep -q .; then
-        while IFS= read -r line; do
-            local name alias ip user port status
-            read -r name alias ip user port status <<< "$line"
-            ((total_workers++))
-
-            # Testar conectividade - tentar hostname primeiro, depois IP
-            local connection_target="$ip"
-            local connection_success=false
-
-            # Tentar conectar usando hostname se disponível
-            if [ "$name" != "unknown-$ip" ] && [ -n "$name" ]; then
-                if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no -p "$port" "$user@$name" "echo 'OK'" >/dev/null 2>&1; then
-                    connection_target="$name"
-                    connection_success=true
-                fi
-            fi
-
-            # Se hostname falhou, tentar IP
-            if [ "$connection_success" = false ]; then
-                if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
-                    connection_target="$ip"
-                    connection_success=true
-                fi
-            fi
-
-            if [ "$connection_success" = true ]; then
-                echo -e "  ${GREEN}●${NC} $name ($alias) - $connection_target:$port - ${GREEN}ONLINE${NC}"
-                ((online_workers++))
-                sed -i "s/^\($name $alias $ip $user $port\).*/\1 active/" "$remote_workers_conf"
-            else
-                echo -e "  ${RED}●${NC} $name ($alias) - $ip:$port - ${RED}OFFLINE${NC}"
-                ((offline_workers++))
-                sed -i "s/^\($name $alias $ip $user $port\).*/\1 inactive/" "$remote_workers_conf"
-            fi
-        done < <(grep -vE '^\s*#|^\s*$' "$remote_workers_conf")
-    fi
-
-    # Processar workers registrados automaticamente
-    if [ -f "$auto_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$auto_workers_conf" | grep -q .; then
-        while IFS= read -r line; do
-            local name ip user port status timestamp
-            read -r name ip user port status timestamp <<< "$line"
-            ((total_workers++))
-
-            # Testar conectividade rapidamente com timeout mais curto
-            if timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
-                echo -e "  ${GREEN}●${NC} $name ($ip:$port) - ${GREEN}ONLINE${NC} [auto]"
-                ((online_workers++))
-                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active $(date +%s)/" "$auto_workers_conf"
-            else
-                echo -e "  ${RED}●${NC} $name ($ip:$port) - ${RED}OFFLINE${NC} [auto]"
-                ((offline_workers++))
-                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port inactive $(date +%s)/" "$auto_workers_conf"
-            fi
-        done < <(grep -vE '^\s*#|^\s*$' "$auto_workers_conf")
-    fi
+    # Ler e exibir status de cada worker do cache
+    grep '^worker_.*_status=' "$cache_file" 2>/dev/null | while IFS='=' read -r key value; do
+        local worker_name; worker_name=$(echo "$key" | sed -e 's/^worker_//' -e 's/_status$//')
+        local worker_info; worker_info=$(get_cache "worker_${worker_name}_info")
+        if [[ "$value" == "online" ]]; then
+            echo -e "  ${GREEN}●${NC} $worker_info - ${GREEN}ONLINE${NC}"
+        else
+            echo -e "  ${RED}●${NC} $worker_info - ${RED}OFFLINE${NC}"
+        fi
+    done
 
     # Resumo dos workers
-    if [ $total_workers -gt 0 ]; then
+    if [ "${total_workers:-0}" -gt 0 ]; then
         echo
-        echo -e "  📊 ${GREEN}Online: $online_workers${NC} | ${RED}Offline: $offline_workers${NC} | Total: $total_workers"
+        echo -e "  📊 ${GREEN}Online: ${online_workers:-0}${NC} | ${RED}Offline: ${offline_workers:-0}${NC} | Total: ${total_workers:-0}"
     else
         echo -e "  ${YELLOW}ℹ️  Nenhum worker configurado${NC}"
         echo -e "     Use: ./manager.sh configure"
     fi
     echo
 
-    # --- Seções Detalhadas ---
     if [[ "$mode" == "detailed" ]]; then
+        # --- Seções Detalhadas ---
         # Recursos do sistema
         subsection "Recursos"
         echo "📊 Uso de CPU: $(uptime | awk -F'load average:' '{ print $2 }' | sed 's/,//g' | awk '{print $1, $2, $3}') Load Average"
@@ -667,73 +196,24 @@ display_cluster_status() {
             netstat -tln | grep LISTEN | head -10
         elif command_exists ss; then
             ss -tln | grep LISTEN | head -10
+        else
+            info "Para mais detalhes, use: ./manager.sh status"
         fi
-    else
-        info "Para mais detalhes, use: ./manager.sh status"
+    local last_update; last_update=$(get_cache "last_update")
+    if [ -n "$last_update" ]; then
+        info "Última atualização de status: $last_update"
+    fi
     fi
 }
 
-# Função para verificar o status de todos os workers (manuais e automáticos)
-check_all_workers_status() {
-    section "Verificando Status de Todos os Workers"
-
-    local remote_workers_conf="$HOME/.cluster_config/nodes_list.conf"
-    local auto_workers_conf="$HOME/.cluster_config/workers.conf"
-    local total_workers=0
-    local online_workers=0
-
-    # --- Processar workers manuais ---
-    if [ -f "$remote_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$remote_workers_conf" | grep -q .; then
-        subsection "Workers Manuais ($remote_workers_conf)"
-        
-        # Usar um loop while com process substitution para evitar subshell
-        while IFS= read -r line; do
-            local name ip user port status
-            read -r name ip user port status <<< "$line"
-            
-            ((total_workers++))
-            echo -n -e "  -> Testando ${YELLOW}$name${NC} ($user@$ip:$port)... "
-            
-            if ssh -o BatchMode=yes -o ConnectTimeout=5 -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
-                echo -e "${GREEN}ONLINE${NC}"
-                ((online_workers++))
-                sed -i "s/^\($name $ip $user $port\).*/\1 active/" "$remote_workers_conf"
-            else
-                echo -e "${RED}OFFLINE${NC}"
-                sed -i "s/^\($name $ip $user $port\).*/\1 inactive/" "$remote_workers_conf"
-            fi
-        done < <(grep -vE '^\s*#|^\s*$' "$remote_workers_conf")
-    fi
-
-    # --- Processar workers registrados automaticamente ---
-    if [ -f "$auto_workers_conf" ] && grep -vE '^\s*#|^\s*$' "$auto_workers_conf" | grep -q .; then
-        subsection "Workers Registrados Automaticamente ($auto_workers_conf)"
-        
-        while IFS= read -r line; do
-            local name ip user port status timestamp
-            read -r name ip user port status timestamp <<< "$line"
-
-            ((total_workers++))
-            echo -n -e "  -> Testando ${YELLOW}$name${NC} ($user@$ip:$port)... "
-
-            if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
-                echo -e "${GREEN}ONLINE${NC}"
-                ((online_workers++))
-                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active $(date +%s)/" "$auto_workers_conf"
-            else
-                echo -e "${RED}OFFLINE${NC}"
-                sed -i "s/^$name $ip $user $port .*/$name $ip $user $port inactive $(date +%s)/" "$auto_workers_conf"
-            fi
-        done < <(grep -vE '^\s*#|^\s*$' "$auto_workers_conf")
-    fi
-
-    subsection "Resumo da Verificação"
-    if [ $total_workers -eq 0 ]; then
-        warn "Nenhum worker configurado para verificação."
-    else
-        success "Verificação concluída: ${GREEN}$online_workers de $total_workers${NC} workers estão online."
-    fi
-}
+# =============================================================================
+# FUNÇÕES DE GERENCIAMENTO DE WORKERS (AGORA VIA MÓDULOS CORE)
+# =============================================================================
+# Funções de gerenciamento de workers agora fornecidas pelos módulos core:
+# - check_all_workers_status() via workers.sh
+# - test_worker_connectivity() via workers.sh
+# - manage_remote_workers() via workers.sh
+# - manage_auto_registered_workers() via workers.sh
 
 # --- Funções do Sub-menu de Informações do Sistema ---
 
@@ -817,7 +297,6 @@ show_system_info_submenu() {
                     echo
                     if [ -n "$filter_user" ] || [ -n "$filter_command" ]; then
                         echo -e "${YELLOW}Filtros ativos: [Usuário: ${filter_user:-nenhum}] [Comando: ${filter_command:-nenhum}]${NC}"
-                    fi
                     echo "Opções:"
                     echo "  'k' - Matar (kill) um processo"
                     echo "  'f' - Filtrar a lista"
@@ -843,9 +322,7 @@ show_system_info_submenu() {
                             ;;
                         c|C)
                             if [ -n "$filter_user" ] || [ -n "$filter_command" ]; then
-                                filter_user=""
                                 filter_command=""
-                                success "Filtros removidos."
                             else
                                 info "Nenhum filtro ativo para limpar."
                             fi
@@ -1300,13 +777,14 @@ manage_backup_restore() {
                     0) continue ;;
                     *) error "Opção inválida."; continue ;;
                 esac
-                bash "$backup_script" "$backup_type"
 
-                local encrypt_arg=""
-                if confirm_operation "Deseja criptografar este backup com uma senha?"; then
-                    encrypt_arg="--encrypt"
+                if [[ -n "$backup_type" ]]; then
+                    local encrypt_arg=""
+                    if confirm_operation "Deseja criptografar este backup com uma senha?"; then
+                        encrypt_arg="--encrypt"
+                    fi
+                    bash "$backup_script" "$backup_type" "$encrypt_arg"
                 fi
-                bash "$backup_script" "$backup_type" "$encrypt_arg"
                 ;;
             2)
                 bash "$restore_script"
@@ -1361,16 +839,18 @@ show_worker_management_menu() {
         echo "2) 🤖 Gerenciar Workers Registrados Automaticamente"
         echo "3) 📡 Descobrir Novos Workers na Rede"
         echo "4) 🔗 Resolvedor de Conectividade de Workers"
+        echo "5) 🩺 Health Check de um Worker Específico"
         echo "5) 📱 Instruções para Configurar Worker Android (Termux)"
         echo "0) ↩️  Voltar ao Menu Principal"
         echo
         read -p "Sua opção: " sub_choice
         case $sub_choice in
             1) manage_remote_workers ;;
-            2) manage_auto_registered_workers ;;
+            2) manage_auto_registered_workers ;;  # Now uses function from workers.sh module
             3) bash "${SCRIPT_DIR}/scripts/management/network_discovery.sh" ;;
             4) resolve_worker_connectivity ;;
-            5) show_android_setup_instructions ;;
+            5) run_worker_health_check ;;
+            6) show_android_setup_instructions ;;
             0) return ;;
             *) error "Opção inválida." ;;
         esac
@@ -1462,6 +942,16 @@ show_main_menu() {
     echo
     echo "0) ❌ Sair"
     echo
+}
+
+# Função para atualizar o cache de status em background
+refresh_status_cache() {
+    local cache_updater_script="${PROJECT_ROOT}/scripts/utils/update_status_cache.sh"
+    if [ -f "$cache_updater_script" ]; then
+        info "🔄 Atualizando status do cluster em background..."
+        # Executa em background para não bloquear o menu
+        bash "$cache_updater_script" &
+    fi
 }
 
 # =============================================================================
@@ -1589,6 +1079,9 @@ main() {
     # Menu interativo
     while true; do
         clear
+        # Atualiza o cache na primeira vez que o menu é exibido
+        [ ! -f "${PROJECT_ROOT}/run/status.cache" ] && refresh_status_cache && sleep 2
+
         show_banner
         display_cluster_status "simple"
         show_main_menu
@@ -1601,6 +1094,7 @@ main() {
             3) show_maintenance_menu ;;
             4) show_config_tools_menu ;;
             5) show_info_help_menu ;;
+            "r"|"R") refresh_status_cache; info "Atualização de status iniciada."; sleep 2 ;;
             0) success "Gerenciador encerrado."; exit 0 ;;
             *) error "Opção inválida."; sleep 2 ;;
         fi
@@ -1968,7 +1462,7 @@ view_system_logs() {
                 info "Pressione CTRL+C para parar de visualizar o log."
             else
                 info "Pressione 'q' para sair do visualizador de log."
-            fi
+        fi
             sleep 2
             (set -x; $log_cmd)
         fi
@@ -1976,418 +1470,11 @@ view_system_logs() {
     done
 }
 
-# Testa a conexão com um worker de forma interativa e amigável
-test_worker_connection_interactive() {
-    local name="$1"
-    local ip="$2"
-    local user="$3"
-    local port="$4"
-    local config_file="$5"
-
-    # Validar entradas
-    if ! validate_input "$name" "hostname"; then
-        audit_log "INVALID_WORKER_NAME" "Name: $name"
-        return 1
-    fi
-
-    if ! validate_input "$ip" "ip"; then
-        audit_log "INVALID_WORKER_IP" "IP: $ip"
-        return 1
-    fi
-
-    if ! validate_input "$port" "port"; then
-        audit_log "INVALID_WORKER_PORT" "Port: $port"
-        return 1
-    fi
-
-    if ! validate_input "$user" "hostname"; then
-        audit_log "INVALID_WORKER_USER" "User: $user"
-        return 1
-    fi
-
-    audit_log "WORKER_CONNECTION_TEST_START" "Worker: $name, IP: $ip, User: $user, Port: $port"
-
-    subsection "Testando Conexão com: $name ($user@$ip:$port)"
-
-    local all_ok=true
-
-    # 1. Teste de Ping
-    progress "1/3 - Verificando conectividade de rede (ping)..."
-    if ping -c 1 -W 3 "$ip" >/dev/null 2>&1; then
-        success "      └─ Ping para $ip bem-sucedido."
-        audit_log "WORKER_PING_SUCCESS" "Worker: $name, IP: $ip"
-    else
-        warn "      └─ Ping para $ip falhou. O host pode estar offline ou bloqueando pings (ICMP)."
-        audit_log "WORKER_PING_FAILED" "Worker: $name, IP: $ip"
-        # Não consideramos falha de ping como crítica, pois pode ser bloqueado por firewall
-    fi
-    sleep 1
-
-    # 2. Teste de Porta
-    progress "2/3 - Verificando se a porta SSH ($port) está aberta..."
-    if timeout 5 bash -c "echo >/dev/tcp/$ip/$port" 2>/dev/null; then
-        success "      └─ Porta $port está aberta e acessível."
-        audit_log "WORKER_PORT_OPEN" "Worker: $name, IP: $ip, Port: $port"
-    else
-        error "      └─ Porta $port está fechada ou bloqueada por firewall."
-        warn "         Verifique se o serviço SSH está rodando no worker."
-        audit_log "WORKER_PORT_CLOSED" "Worker: $name, IP: $ip, Port: $port"
-        all_ok=false
-    fi
-    sleep 1
-
-    # 3. Teste de Autenticação SSH
-    if [[ "$all_ok" == true ]]; then
-        progress "3/3 - Tentando autenticação SSH..."
-        # Adiciona a chave do host ao known_hosts para evitar prompts
-        ssh-keyscan -p "$port" -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null
-
-        local ssh_output
-        ssh_output=$(ssh -o BatchMode=yes -o ConnectTimeout=10 -p "$port" "$user@$ip" "echo 'Conexão bem-sucedida'" 2>&1)
-        local ssh_exit_code=$?
-
-        if [ $ssh_exit_code -eq 0 ]; then
-            success "      └─ Autenticação SSH bem-sucedida!"
-            info "         Resposta do worker: $ssh_output"
-            audit_log "WORKER_SSH_SUCCESS" "Worker: $name, IP: $ip, User: $user, Port: $port"
-        else
-            error "      └─ Falha na autenticação SSH (código: $ssh_exit_code)."
-            warn "         Verifique se a chave SSH foi copiada corretamente ou se o usuário/senha está correto."
-            info "         Saída do erro: $ssh_output"
-            audit_log "WORKER_SSH_FAILED" "Worker: $name, IP: $ip, User: $user, Port: $port, ExitCode: $ssh_exit_code"
-            all_ok=false
-        fi
-    else
-        warn "Pulando teste de autenticação SSH devido a falha na verificação da porta."
-    fi
-
-    # Atualiza o status no arquivo de configuração
-    if [[ "$all_ok" == true ]]; then
-        sed -i "s/^\($name $ip $user $port\).*/\1 active/" "$config_file"
-        success "\n✅ Worker '$name' está ATIVO e pronto para uso."
-        audit_log "WORKER_TEST_SUCCESS" "Worker: $name"
-    else
-        sed -i "s/^\($name $ip $user $port\).*/\1 inactive/" "$config_file"
-        error "\n❌ Worker '$name' está INATIVO. Verifique os erros acima."
-        audit_log "WORKER_TEST_FAILED" "Worker: $name"
-    fi
-}
+# Função test_worker_connection_interactive() removida - usar test_worker_connectivity() do módulo workers.sh
 # =============================================================================
-# FUNÇÃO PARA GERENCIAR WORKERS REMOTOS (SSH)
+# FUNÇÃO PARA GERENCIAR WORKERS REMOTOS (AGORA VIA MÓDULOS CORE)
 # =============================================================================
-
-manage_remote_workers() {
-    section "Gerenciamento de Workers Remotos (SSH)"
-
-    local config_file="$HOME/.cluster_config/nodes_list.conf"
-
-    # Criar arquivo de configuração se não existir
-    if [ ! -f "$config_file" ]; then
-        mkdir -p "$HOME/.cluster_config"
-
-cat > "$config_file" <<EOF
-# =============================================================================
-# Configuração de Workers Remotos para Cluster AI
-# Formato: hostname alias IP user port status
-# Exemplo: android-worker android 192.168.1.100 u0_a249 8022 active
-
-# Adicione seus workers remotos aqui:
-EOF
-        success "Arquivo de configuração criado: $config_file"
-    fi
-
-    while true; do
-        echo
-        echo "Workers Remotos - Menu:"
-        echo "1) Listar Workers Configurados"
-        echo "2) Adicionar Novo Worker"
-        echo "3) Testar Conexão com Worker"
-        echo "4) Remover Worker"
-        echo "5) Atualizar Status dos Workers"
-        echo "6) Descobrir Workers na Rede"
-        echo "7) Conectar por Hostname"
-        echo "8) Sincronizar Workers"
-        echo "0) Voltar"
-        echo
-
-        read -p "Digite sua opção: " option
-
-        case $option in
-            1)
-                # Listar workers
-                section "Workers Configurados"
-                if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
-                    echo "Workers encontrados:"
-                    echo
-                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " (" $2 ") - " $3 ":" $5 " (" $4 ") - " ($6 ? $6 : "unknown")}' "$config_file"
-                else
-                    warn "Nenhum worker configurado ainda."
-                    info "Use a opção 2 para adicionar um worker."
-                fi
-                ;;
-            2)
-                # Adicionar worker
-                section "Adicionando Novo Worker"
-                echo "Digite as informações do worker:"
-                read -p "Nome do worker (ex: android-worker): " worker_name
-                ! validate_input "$worker_name" "hostname" && continue
-
-                read -p "Apelido (alias) para facilitar reconhecimento: " worker_alias
-                ! validate_input "$worker_alias" "hostname" && continue
-
-                read -p "IP do worker: " worker_ip
-                ! validate_input "$worker_ip" "ip" && continue
-
-                read -p "Usuário SSH: " worker_user
-                ! validate_input "$worker_user" "hostname" && continue
-
-                local default_port=22
-                if [[ "$worker_name" == "android-worker" ]]; then
-                    default_port=8022
-                    info "Detectado worker Android, porta padrão sugerida: 8022"
-                fi
-                read -p "Porta SSH (padrão $default_port): " worker_port
-                worker_port=${worker_port:-$default_port}
-                ! validate_input "$worker_port" "port" && continue
-
-                # Valores padrão
-                worker_port=${worker_port:-$default_port}
-                worker_user=${worker_user:-$USER}
-
-                # Opção para configurar chave SSH
-                echo
-                if command_exists ssh-copy-id && confirm_operation "Deseja copiar sua chave SSH pública para o worker para acesso sem senha?"; then
-                    info "Tentando copiar a chave SSH para $worker_user@$worker_ip na porta $worker_port..."
-                    info "Você precisará digitar a senha de '$worker_user' uma única vez."
-                    if ssh-copy-id -p "$worker_port" "$worker_user@$worker_ip"; then
-                        success "Chave SSH copiada com sucesso!"
-                    else
-                        error "Falha ao copiar a chave SSH."
-                        warn "Você precisará configurar a autenticação manualmente ou tentar novamente."
-                    fi
-                fi
-
-                # Adicionar ao arquivo
-                echo "$worker_name $worker_alias $worker_ip $worker_user $worker_port active" >> "$config_file"
-                success "Worker '$worker_name' com alias '$worker_alias' adicionado à configuração."
-
-                # Sincronizar com cluster.conf
-                bash "${PROJECT_ROOT}/scripts/utils/sync_config.sh"
-
-                # Testa a conexão imediatamente para dar feedback ao usuário
-                test_worker_connection_interactive "$worker_name" "$worker_ip" "$worker_user" "$worker_port" "$config_file"
-                ;;
-            3)
-                # Testar conexão
-                section "Testando Conexão"
-                if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
-                    echo "Workers disponíveis:"
-                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " (" $2 ") - " $3 ":" $5 " (" $4 ")"}' "$config_file"
-                    echo
-                    read -p "Digite o número do worker para testar: " worker_num
-
-                    local worker_info=$(awk "NR==$((worker_num+1)) && !/^#/ {print \$1,\$3,\$4,\$5}" "$config_file")
-                    if [ -n "$worker_info" ]; then
-                        local name ip user port
-                        read -r name ip user port <<< "$worker_info"
-                        test_worker_connection_interactive "$name" "$ip" "$user" "$port" "$config_file"
-                    else
-                        error "Worker não encontrado"
-                    fi
-                else
-                    warn "Nenhum worker configurado."
-                fi
-                ;;
-            4)
-                # Remover worker
-                section "Removendo Worker"
-                if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
-                    echo "Workers disponíveis:"
-                    awk 'NR>1 && !/^#/ {print NR-1 ") " $1 " (" $2 ") - " $3 ":" $5 " (" $4 ")"}' "$config_file"
-                    echo
-                    read -p "Digite o número do worker para remover: " worker_num
-
-                    local line_num=$((worker_num+1))
-                    if [ $line_num -gt 1 ] && sed -n "${line_num}p" "$config_file" | grep -q .; then
-                        local worker_name=$(sed -n "${line_num}p" "$config_file" | awk '{print $1}')
-                        sed -i "${line_num}d" "$config_file"
-                        # Sincronizar com cluster.conf
-                        bash "${PROJECT_ROOT}/scripts/utils/sync_config.sh"
-                        success "Worker '$worker_name' removido"
-                    else
-                        error "Worker não encontrado"
-                    fi
-                else
-                    warn "Nenhum worker configurado."
-                fi
-                ;;
-            5)
-                # Atualizar status
-                section "Atualizando Status dos Workers"
-                if [ -s "$config_file" ] && grep -v '^#' "$config_file" | grep -q .; then
-                    log "Verificando status de todos os workers..."
-                    local updated=0
-
-                    while IFS= read -r line; do
-                        if [[ $line =~ ^# ]] || [ -z "$line" ]; then
-                            continue
-                        fi
-
-                        local name ip user port status
-                        read name ip user port status <<< "$line"
-
-                        # Adiciona a chave do host ao known_hosts para segurança
-                        ssh-keyscan -p "$port" -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null
-                        if ssh -o StrictHostKeyChecking=no \
-                               -o UserKnownHostsFile=/dev/null \
-                               -o ConnectTimeout=10 \
-                               -o BatchMode=yes \
-                               -p "$port" \
-                               "$user@$ip" \
-                               "echo 'OK'" >/dev/null 2>&1; then
-                            sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active/" "$config_file"
-                            ((updated++))
-                        else
-                            sed -i "s/^$name $ip $user $port .*/$name $ip $user $port inactive/" "$config_file"
-                        fi
-                    done < "$config_file"
-
-                    success "Status atualizado para $updated workers"
-                    # Sincronizar com cluster.conf
-                    bash "${PROJECT_ROOT}/scripts/utils/sync_config.sh"
-
-                else
-                    warn "Nenhum worker configurado."
-                fi
-                ;;
-            6)
-                # Descobrir workers na rede
-                section "Descobrindo Workers na Rede"
-                if [ -f "scripts/utils/network_discovery.sh" ]; then
-                    bash scripts/utils/network_discovery.sh discover
-                else
-                    error "Script de descoberta de rede não encontrado"
-                    info "Verifique se o arquivo scripts/utils/network_discovery.sh existe"
-                fi
-                ;;
-            7)
-                # Conectar por hostname
-                section "Conectando por Hostname"
-                echo "Digite o hostname, alias ou IP do worker:"
-                read -p "Worker: " worker_spec
-
-                if [ -n "$worker_spec" ]; then
-                    if [ -f "scripts/utils/network_discovery.sh" ]; then
-                        local resolved_info
-                        resolved_info=$(bash scripts/utils/network_discovery.sh resolve "$worker_spec")
-
-                        if [ -n "$resolved_info" ]; then
-                            local hostname ip user port status
-                            IFS=':' read -r hostname ip user port status <<< "$resolved_info"
-
-                            echo -e "${GREEN}✅ Worker resolvido:${NC}"
-                            echo "  Hostname: $hostname"
-                            echo "  IP: $ip"
-                            echo "  Usuário: $user"
-                            echo "  Porta: $port"
-                            echo "  Status: $status"
-                            echo
-
-                            if confirm_operation "Deseja testar a conexão SSH?"; then
-                                if [ -f "scripts/utils/network_discovery.sh" ]; then
-                                    bash scripts/utils/network_discovery.sh test "$ip" --user "$user" --port "$port"
-                                fi
-                            fi
-
-                            if confirm_operation "Deseja adicionar este worker à configuração?"; then
-                                local alias=$(echo "$hostname" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
-                                echo "$hostname $alias $ip $user $port inactive" >> "$config_file"
-                                success "Worker '$hostname' ($alias) adicionado à configuração"
-                            fi
-                        else
-                            error "Não foi possível resolver o worker '$worker_spec'"
-                            info "Verifique se o hostname está correto ou se o dispositivo está na rede"
-                        fi
-                    else
-                        error "Script de descoberta de rede não encontrado"
-                    fi
-                else
-                    warn "Nenhum worker especificado"
-                fi
-                ;;
-            8)
-                # Sincronizar workers
-                section "Sincronização de Workers - Menu"
-                echo "1) Sincronizar Todos os Workers"
-                echo "2) Verificar Status de Sincronização"
-                echo "3) Criar Pacote de Atualização"
-                echo "4) Limpar Atualizações Antigas"
-                echo "0) Voltar"
-
-                read -p "Digite sua opção: " sync_option
-
-                case $sync_option in
-                    1)
-                        subsection "Sincronizando todos os workers"
-                        if [ -f "scripts/utils/worker_sync.sh" ]; then
-                            bash scripts/utils/worker_sync.sh sync
-                        else
-                            error "Script de sincronização não encontrado"
-                        fi
-                        ;;
-                    2)
-                        subsection "Verificando status de sincronização"
-                        if [ -f "scripts/utils/worker_sync.sh" ]; then
-                            bash scripts/utils/worker_sync.sh status
-                        else
-                            error "Script de sincronização não encontrado"
-                        fi
-                        ;;
-                    3)
-                        subsection "Criando pacote de atualização"
-                        read -p "Nome do pacote (ou Enter para automático): " package_name
-                        if [ -z "$package_name" ]; then
-                            package_name="update-$(date +%Y%m%d_%H%M%S)"
-                        fi
-
-                        if [ -f "scripts/utils/worker_sync.sh" ]; then
-                            bash scripts/utils/worker_sync.sh create "$package_name"
-                        else
-                            error "Script de sincronização não encontrado"
-                        fi
-                        ;;
-                    4)
-                        subsection "Limpando atualizações antigas"
-                        read -p "Dias de idade (padrão: 30): " days_old
-                        if [ -z "$days_old" ]; then
-                            days_old=30
-                        fi
-
-                        if [ -f "scripts/utils/worker_sync.sh" ]; then
-                            bash scripts/utils/worker_sync.sh clean "$days_old"
-                        else
-                            error "Script de sincronização não encontrado"
-                        fi
-                        ;;
-                    0)
-                        ;;
-                    *)
-                        error "Opção inválida"
-                        ;;
-                esac
-                ;;
-            0)
-                return
-                ;;
-            *)
-                error "Opção inválida"
-                ;;
-        esac
-
-        echo
-        read -p "Pressione Enter para continuar..."
-    done
-}
+# Função manage_remote_workers() removida - usar função equivalente do módulo workers.sh
 
 # =============================================================================
 # FUNÇÃO PARA INSTRUÇÕES DO WORKER ANDROID
@@ -2420,296 +1507,10 @@ show_android_setup_instructions() {
 # FUNÇÃO PARA GERENCIAR WORKERS REGISTRADOS AUTOMATICAMENTE
 # =============================================================================
 
-manage_auto_registered_workers() {
-    section "Gerenciamento de Workers Registrados Automaticamente"
-
-    local config_dir="$HOME/.cluster_config"
-    local workers_config="$config_dir/workers.conf"
-    local authorized_keys_dir="$config_dir/authorized_keys"
-
-    # Criar diretórios se não existirem
-    mkdir -p "$config_dir" "$authorized_keys_dir"
-
-    # Criar arquivo de configuração se não existir
-    if [ ! -f "$workers_config" ]; then
-        cat > "$workers_config" <<EOF
-# Workers registrados automaticamente
-# Formato: worker_name worker_ip worker_user worker_port status timestamp
-# Status: active, inactive, pending
-EOF
-        success "Arquivo de configuração criado: $workers_config"
-    fi
-
-    while true; do
-        echo
-        echo "Workers Registrados - Menu:"
-        echo "1) Listar Workers Registrados"
-        echo "2) Verificar Status dos Workers"
-        echo "3) Conectar a Worker Específico"
-        echo "4) Remover Worker Registrado"
-        echo "5) Limpar Workers Inativos"
-        echo "6) Exportar Configuração"
-        echo "0) Voltar"
-        echo
-
-        read -p "Digite sua opção: " option
-
-        case $option in
-            1)
-                # Listar workers registrados
-                section "Workers Registrados Automaticamente"
-                if [ -s "$workers_config" ] && grep -v '^#' "$workers_config" | grep -q .; then
-                    echo "Workers registrados:"
-                    echo
-                    local count=1
-                    while IFS= read -r line; do
-                        if [[ $line =~ ^# ]] || [ -z "$line" ]; then
-                            continue
-                        fi
-                        local name ip user port status timestamp
-                        read -r name ip user port status timestamp <<< "$line"
-
-                        case $status in
-                            active)
-                                echo -e "$count) $name ($ip:$port) - ${GREEN}ATIVO${NC} - Usuário: $user"
-                                ;;
-                            inactive)
-                                echo -e "$count) $name ($ip:$port) - ${RED}INATIVO${NC} - Usuário: $user"
-                                ;;
-                            pending)
-                                echo -e "$count) $name ($ip:$port) - ${YELLOW}PENDENTE${NC} - Usuário: $user"
-                                ;;
-                            *)
-                                echo -e "$count) $name ($ip:$port) - ${BLUE}DESCONHECIDO${NC} - Usuário: $user"
-                                ;;
-                        esac
-
-                        if [ -n "$timestamp" ]; then
-                            echo "   Registrado em: $(date -d "@$timestamp" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$timestamp")"
-                        fi
-
-                        # Verificar se chave existe
-                        if [ -f "$authorized_keys_dir/${name}.pub" ]; then
-                            echo -e "   ${GREEN}✓${NC} Chave SSH armazenada"
-                        else
-                            echo -e "   ${RED}✗${NC} Chave SSH não encontrada"
-                        fi
-                        echo
-                        ((count++))
-                    done < "$workers_config"
-                else
-                    warn "Nenhum worker registrado automaticamente."
-                    info "Os workers serão registrados automaticamente quando se conectarem."
-                fi
-                ;;
-            2)
-                # Verificar status dos workers
-                section "Verificando Status dos Workers"
-                if [ -s "$workers_config" ] && grep -v '^#' "$workers_config" | grep -q .; then
-                    log "Verificando conectividade de todos os workers..."
-                    local checked=0
-                    local active=0
-                    local inactive=0
-
-                    while IFS= read -r line; do
-                        if [[ $line =~ ^# ]] || [ -z "$line" ]; then
-                            continue
-                        fi
-
-                        local name ip user port status timestamp
-                        read -r name ip user port status timestamp <<< "$line"
-
-                        subsection "Verificando: $name ($ip:$port)"
-
-                        # Testar conectividade
-                        if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p "$port" "$user@$ip" "echo 'OK'" >/dev/null 2>&1; then
-                            success "  ✅ Worker ativo"
-                            sed -i "s/^$name $ip $user $port .*/$name $ip $user $port active $(date +%s)/" "$workers_config"
-                            ((active++))
-                        else
-                            warn "  ❌ Worker inativo"
-                            sed -i "s/^$name $ip $user $port .*/$name $ip $user $port inactive $(date +%s)/" "$workers_config"
-                            ((inactive++))
-                        fi
-
-                        ((checked++))
-                        echo
-                    done < "$workers_config"
-
-                    section "Resumo da Verificação"
-                    success "Workers verificados: $checked"
-                    success "Workers ativos: $active"
-                    if [ $inactive -gt 0 ]; then
-                        warn "Workers inativos: $inactive"
-                    fi
-                else
-                    warn "Nenhum worker registrado para verificar."
-                fi
-                ;;
-            3)
-                # Conectar a worker específico
-                section "Conectar a Worker Específico"
-                if [ -s "$workers_config" ] && grep -v '^#' "$workers_config" | grep -q .; then
-                    echo "Workers disponíveis:"
-                    local count=1
-                    while IFS= read -r line; do
-                        if [[ $line =~ ^# ]] || [ -z "$line" ]; then
-                            continue
-                        fi
-                        local name ip user port status
-                        read -r name ip user port status <<< "$line"
-                        echo "$count) $name ($ip:$port) - Status: $status"
-                        ((count++))
-                    done < "$workers_config"
-                    echo
-
-                    read -p "Digite o número do worker para conectar: " worker_num
-
-                    local line_num=$((worker_num))
-                    local worker_info=$(sed -n "${line_num}p" "$workers_config" | grep -v '^#')
-                    if [ -n "$worker_info" ]; then
-                        local name ip user port status
-                        read -r name ip user port status <<< "$worker_info"
-
-                        info "Conectando ao worker: $name ($user@$ip:$port)"
-                        info "Pressione Ctrl+D para sair da sessão SSH"
-                        echo
-
-                        ssh -o StrictHostKeyChecking=no -p "$port" "$user@$ip"
-                    else
-                        error "Worker não encontrado"
-                    fi
-                else
-                    warn "Nenhum worker registrado."
-                fi
-                ;;
-            4)
-                # Remover worker registrado
-                section "Remover Worker Registrado"
-                if [ -s "$workers_config" ] && grep -v '^#' "$workers_config" | grep -q .; then
-                    echo "Workers registrados:"
-                    local count=1
-                    while IFS= read -r line; do
-                        if [[ $line =~ ^# ]] || [ -z "$line" ]; then
-                            continue
-                        fi
-                        local name ip user port status
-                        read -r name ip user port status <<< "$line"
-                        echo "$count) $name ($ip:$port)"
-                        ((count++))
-                    done < "$workers_config"
-                    echo
-
-                    read -p "Digite o número do worker para remover: " worker_num
-
-                    local line_num=$((worker_num))
-                    local worker_info=$(sed -n "${line_num}p" "$workers_config" | grep -v '^#')
-                    if [ -n "$worker_info" ]; then
-                        local name ip user port status
-                        read -r name ip user port status <<< "$worker_info"
-
-                        if confirm_operation "Remover worker '$name' ($ip:$port)?"; then
-                            # Remover linha do arquivo
-                            sed -i "${line_num}d" "$workers_config"
-
-                            # Remover chave SSH se existir
-                            if [ -f "$authorized_keys_dir/${name}.pub" ]; then
-                                rm "$authorized_keys_dir/${name}.pub"
-                                info "Chave SSH removida"
-                            fi
-
-                            # Remover do authorized_keys do usuário
-                            if [ -f "$HOME/.ssh/authorized_keys" ] && grep -q "$name" "$HOME/.ssh/authorized_keys"; then
-                                sed -i "/$name/d" "$HOME/.ssh/authorized_keys"
-                                info "Worker removido do authorized_keys"
-                            fi
-
-                            success "Worker '$name' removido com sucesso"
-                        fi
-                    else
-                        error "Worker não encontrado"
-                    fi
-                else
-                    warn "Nenhum worker registrado."
-                fi
-                ;;
-            5)
-                # Limpar workers inativos
-                section "Limpar Workers Inativos"
-                if [ -s "$workers_config" ] && grep -v '^#' "$workers_config" | grep -q .; then
-                    local inactive_count=0
-                    local to_remove=()
-
-                    while IFS= read -r line; do
-                        if [[ $line =~ ^# ]] || [ -z "$line" ]; then
-                            continue
-                        fi
-
-                        local name ip user port status
-                        read -r name ip user port status <<< "$line"
-
-                        if [ "$status" = "inactive" ]; then
-                            to_remove+=("$name $ip $user $port")
-                            ((inactive_count++))
-                        fi
-                    done < "$workers_config"
-
-                    if [ $inactive_count -gt 0 ]; then
-                        info "Encontrados $inactive_count workers inativos"
-                        if confirm_operation "Remover todos os workers inativos?"; then
-                            for worker_info in "${to_remove[@]}"; do
-                                local name ip user port
-                                read -r name ip user port <<< "$worker_info"
-
-                                # Remover linha
-                                sed -i "/^$name $ip $user $port/d" "$workers_config"
-
-                                # Remover chave SSH
-                                if [ -f "$authorized_keys_dir/${name}.pub" ]; then
-                                    rm "$authorized_keys_dir/${name}.pub"
-                                fi
-
-                                info "Removido: $name ($ip:$port)"
-                            done
-
-                            success "Workers inativos removidos: $inactive_count"
-                        fi
-                    else
-                        success "Nenhum worker inativo encontrado"
-                    fi
-                else
-                    warn "Nenhum worker registrado."
-                fi
-                ;;
-            6)
-                # Exportar configuração
-                section "Exportar Configuração"
-                local export_file="$HOME/cluster_workers_export_$(date +%Y%m%d_%H%M%S).tar.gz"
-
-                if [ -d "$config_dir" ]; then
-                    info "Exportando configuração para: $export_file"
-                    if tar -czf "$export_file" -C "$HOME" ".cluster_config"; then
-                        success "Configuração exportada com sucesso"
-                        info "Arquivo: $export_file"
-                    else
-                        error "Falha ao exportar configuração"
-                    fi
-                else
-                    warn "Nenhuma configuração para exportar"
-                fi
-                ;;
-            0)
-                return
-                ;;
-            *)
-                error "Opção inválida"
-                ;;
-        esac
-
-        echo
-        read -p "Pressione Enter para continuar..."
-    done
-}
+# =============================================================================
+# FUNÇÃO PARA GERENCIAR WORKERS REGISTRADOS AUTOMATICAMENTE (AGORA VIA MÓDULOS CORE)
+# =============================================================================
+# Função manage_auto_registered_workers() removida - usar função equivalente do módulo workers.sh
 
 # EXECUÇÃO
 # =============================================================================

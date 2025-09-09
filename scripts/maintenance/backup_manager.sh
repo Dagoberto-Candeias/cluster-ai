@@ -178,8 +178,8 @@ do_backup() {
 
     # Comandos para o pipeline de backup
     local tar_command="tar -c -C \"$staging_dir\" ."
+    local compressor="gzip"
     local pv_command=""
-    local gzip_command="gzip"
     local encrypt_command=""
     local final_command=""
 
@@ -202,6 +202,13 @@ do_backup() {
         encrypt_command="openssl enc -aes-256-cbc -pbkdf2 -pass pass:'$password'"
     fi
 
+    # Melhoria: Usar zstd se disponível, pois é mais rápido e eficiente
+    if command_exists zstd; then
+        log "Usando 'zstd' para compressão (mais eficiente)."
+        compressor="zstd"
+        backup_file="${backup_file_base}.tar.zst" # Altera a extensão do arquivo
+    fi
+
     local success_flag=false
     if command_exists pv; then
         log "Usando 'pv' para exibir barra de progresso..."
@@ -214,14 +221,24 @@ do_backup() {
     fi
 
     # Constrói o pipeline de comandos
-    final_command="$tar_command | $gzip_command"
-    [ -n "$pv_command" ] && final_command="$tar_command | $pv_command | $gzip_command"
+    final_command="$tar_command"
+    [ -n "$pv_command" ] && final_command+=" | $pv_command"
+    final_command+=" | $compressor"
     [ -n "$encrypt_command" ] && final_command+=" | $encrypt_command"
 
     if eval "$final_command" > "$backup_file"; then
         success "Backup '$backup_type' concluído com sucesso!"
         log "Arquivo salvo em: $backup_file"
         log "Tamanho: $(du -h "$backup_file" | cut -f1)"
+
+        # Melhoria: Gerar checksum para verificação de integridade
+        log "Gerando checksum SHA256 para verificação de integridade..."
+        if sha256sum "$backup_file" > "${backup_file}.sha256"; then
+            success "Checksum salvo em: ${backup_file}.sha256"
+        else
+            warn "Não foi possível gerar o checksum para o backup."
+        fi
+
         audit_log "BACKUP_SUCCESS" "File: $(basename "$backup_file")"
     else
         error "Falha ao criar o arquivo de backup. Verifique as permissões e o espaço em disco."
@@ -234,11 +251,11 @@ do_backup() {
 # Função para listar backups
 list_backups() {
     section "Backups Existentes em $BACKUP_BASE_DIR"
-    if [ ! -d "$BACKUP_BASE_DIR" ] || [ -z "$(ls -A "$BACKUP_BASE_DIR"/*.tar.gz* 2>/dev/null)" ]; then
+    if [ ! -d "$BACKUP_BASE_DIR" ] || [ -z "$(ls -A "$BACKUP_BASE_DIR"/*.tar.* 2>/dev/null)" ]; then
         warn "Nenhum backup encontrado."
         return 1
     fi
-    ls -lh "$BACKUP_BASE_DIR" | grep ".tar.gz" | awk '{print "  - " $9 " (" $5 ") - " $6 " " $7 " " $8}'
+    ls -lh "$BACKUP_BASE_DIR" | grep ".tar." | awk '{print "  - " $9 " (" $5 ") - " $6 " " $7 " " $8}'
 }
 
 # Função para limpar backups antigos
@@ -251,16 +268,16 @@ cleanup_backups() {
     fi
 
     log "Procurando por backups com mais de $RETENTION_DAYS dias..."
-    local old_backups; mapfile -t old_backups < <(find "$BACKUP_BASE_DIR" -name "*.tar.gz*" -mtime +"$RETENTION_DAYS")
+    local old_backups; mapfile -t old_backups < <(find "$BACKUP_BASE_DIR" -name "*.tar.*" -mtime +"$RETENTION_DAYS")
 
     if [ ${#old_backups[@]} -eq 0 ]; then
         log "Nenhum backup antigo para remover."
         return
     fi
 
-    echo "Os seguintes arquivos serão removidos:"; printf "  - %s\n" "${old_backups[@]}"
+    echo "Os seguintes arquivos (e seus checksums) serão removidos:"; printf "  - %s\n" "${old_backups[@]}"
     if confirm_operation "Deseja continuar com a remoção?"; then
-        find "$BACKUP_BASE_DIR" -name "*.tar.gz*" -mtime +"$RETENTION_DAYS" -print0 | xargs -0 -r rm -f
+        find "$BACKUP_BASE_DIR" -name "*.tar.*" -mtime +"$RETENTION_DAYS" -print0 | xargs -0 -r rm -f
         audit_log "CLEANUP_SUCCESS" "Removed ${#old_backups[@]} files"
         success "Backups antigos removidos."
     else
