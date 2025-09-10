@@ -6,7 +6,10 @@ Módulo para monitoramento de recursos dos workers
 import time
 import psutil
 from typing import Dict, Any, Optional
-from scripts.management.remote_command import execute_remote_command
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'management'))
+from remote_command import execute_remote_command
 
 
 def get_local_resources() -> Dict[str, Any]:

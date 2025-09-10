@@ -18,7 +18,7 @@ check_memory_usage() {
     echo "$mem_usage"
 }
 
-# Parallel apt install with memory monitoring
+# Parallel apt install with memory monitoring and recovery
 parallel_apt_install() {
     local packages=("$@")
     local max_parallel=4
@@ -52,7 +52,20 @@ parallel_apt_install() {
             local chunk_packages=("${packages[@]:start:end-start}")
             cat > "${temp_dir}/install_${i}.sh" << EOF
 #!/bin/bash
-sudo apt install -y ${chunk_packages[*]}
+# Enhanced monitoring and recovery for apt install chunk
+(
+    sudo apt install -y ${chunk_packages[*]}
+) &
+pid=\$!
+# Monitor with recovery
+while kill -0 \$pid 2>/dev/null; do
+    mem_usage=\$(free | awk 'NR==2{printf "%.0f", \$3*100/\$2}')
+    if (( mem_usage > 90 )); then
+        echo "⚠️ Memória alta durante instalação apt, aguardando..."
+    fi
+    sleep 5
+done
+wait \$pid
 EOF
             chmod +x "${temp_dir}/install_${i}.sh"
         fi
@@ -262,6 +275,80 @@ fi
 # === [5/6] Instalar e configurar Docker ===
 echo "[5/6] Instalando Docker com cache de layers..."
 
+# Build cache for common operations
+setup_build_cache() {
+    local build_cache_dir="$HOME/.cache/build"
+    mkdir -p "$build_cache_dir"
+
+    # Create cache directories for different build types
+    mkdir -p "$build_cache_dir/apt"
+    mkdir -p "$build_cache_dir/pip"
+    mkdir -p "$build_cache_dir/docker"
+    mkdir -p "$build_cache_dir/ccache"
+    mkdir -p "$build_cache_dir/npm"
+
+    echo "✅ Build cache directories created at $build_cache_dir"
+
+    # Configure ccache for C/C++ builds
+    if ! command -v ccache >/dev/null 2>&1; then
+        echo "📦 Installing ccache for C/C++ build caching..."
+        sudo apt install -y ccache
+    fi
+
+    export CCACHE_DIR="$build_cache_dir/ccache"
+    export CCACHE_MAXSIZE="2G"
+    export CC="ccache gcc"
+    export CXX="ccache g++"
+
+    # Configure npm cache
+    export npm_config_cache="$build_cache_dir/npm"
+
+    echo "✅ Build cache configured (ccache, npm)"
+}
+
+# Build with cache function
+build_with_cache() {
+    local build_type="$1"
+    local target="$2"
+    local build_cache_dir="$HOME/.cache/build"
+
+    case "$build_type" in
+        "docker")
+            echo "🐳 Building Docker image with cache: $target"
+            export DOCKER_BUILDKIT=1
+            docker build \
+                --tag "$target" \
+                --cache-from "$target:latest" \
+                --build-arg BUILDKIT_INLINE_CACHE=1 \
+                --progress=plain \
+                .
+            ;;
+        "make")
+            echo "🔨 Building with make and ccache: $target"
+            export CCACHE_DIR="$build_cache_dir/ccache"
+            make -j$(nproc) "$target"
+            ;;
+        "cmake")
+            echo "🔨 Building with cmake and ccache: $target"
+            export CCACHE_DIR="$build_cache_dir/ccache"
+            mkdir -p build && cd build
+            cmake .. -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            make -j$(nproc) "$target"
+            ;;
+        "pip")
+            echo "🐍 Installing Python package with cache: $target"
+            export PIP_CACHE_DIR="$build_cache_dir/pip"
+            pip install --cache-dir "$build_cache_dir/pip" "$target"
+            ;;
+        *)
+            echo "❌ Unsupported build type: $build_type"
+            return 1
+            ;;
+    esac
+
+    echo "✅ Build completed with cache: $build_type $target"
+}
+
 # Docker layer caching function
 setup_docker_cache() {
     local docker_cache_dir="$HOME/.cache/docker"
@@ -302,6 +389,9 @@ EOF
 
     echo "✅ Cache Docker configurado"
 }
+
+# Setup build cache for common operations
+setup_build_cache
 
 # Install Docker if not present
 if ! command -v docker >/dev/null 2>&1; then

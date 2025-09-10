@@ -20,6 +20,13 @@ MONITOR_INTERVAL=10
 MEMORY_LIMIT_MB=2048  # 2GB memory limit for long-running processes
 PERFORMANCE_LOG="${PROJECT_ROOT}/logs/deploy_performance_$(date +%Y%m%d_%H%M%S).log"
 
+# Performance recovery configuration
+RECOVERY_ENABLED=true
+RECOVERY_COOLDOWN=300  # 5 minutes between recovery attempts
+LAST_RECOVERY_TIME=0
+MAX_RECOVERY_ATTEMPTS=3
+RECOVERY_ATTEMPTS=0
+
 # Caching configuration
 RSYNC_CACHE_DIR="${PROJECT_ROOT}/.cache/rsync"
 DEPLOY_CACHE_FILE="${RSYNC_CACHE_DIR}/deploy_cache_$(date +%Y%m%d).tar.gz"
@@ -100,6 +107,341 @@ monitor_operation() {
     (
         while kill -0 "$pid" 2>/dev/null; do
             log_performance_metrics
+            sleep "$MONITOR_INTERVAL"
+        done
+    ) &
+    local monitor_pid=$!
+
+    # Enforce memory limit on the monitored process
+    (
+        while kill -0 "$pid" 2>/dev/null; do
+            mem_usage_kb=$(pmap "$pid" 2>/dev/null | tail -n 1 | awk '/[0-9]K/{print $2}' | sed 's/K//')
+            mem_usage_mb=$((mem_usage_kb / 1024))
+            if [ "$mem_usage_mb" -gt "$MEMORY_LIMIT_MB" ]; then
+                warning "Process $pid exceeded memory limit (${mem_usage_mb}MB > ${MEMORY_LIMIT_MB}MB). Killing process."
+                kill -9 "$pid"
+                break
+            fi
+            sleep 5
+        done
+    ) &
+
+    # Wait for operation to complete
+    wait "$pid" 2>/dev/null
+    local exit_code=$?
+
+    # Stop monitoring
+    kill "$monitor_pid" 2>/dev/null || true
+    wait "$monitor_pid" 2>/dev/null || true
+
+    # Final metrics
+    log_performance_metrics
+    echo "Exit code: $exit_code" >> "$PERFORMANCE_LOG"
+    echo "---" >> "$PERFORMANCE_LOG"
+
+    return $exit_code
+}
+
+# Performance recovery automation functions
+trigger_performance_recovery() {
+    local issue_type="$1"
+    local severity="$2"
+
+    if [ "$RECOVERY_ENABLED" != true ]; then
+        log "Performance recovery disabled, skipping recovery for $issue_type"
+        return 0
+    fi
+
+    # Check cooldown period
+    local current_time=$(date +%s)
+    local time_since_last_recovery=$((current_time - LAST_RECOVERY_TIME))
+
+    if [ $time_since_last_recovery -lt $RECOVERY_COOLDOWN ]; then
+        log "Recovery cooldown active (${time_since_last_recovery}s < ${RECOVERY_COOLDOWN}s), skipping recovery"
+        return 0
+    fi
+
+    # Check max attempts
+    if [ $RECOVERY_ATTEMPTS -ge $MAX_RECOVERY_ATTEMPTS ]; then
+        warning "Maximum recovery attempts ($MAX_RECOVERY_ATTEMPTS) reached, manual intervention required"
+        return 1
+    fi
+
+    log "Triggering performance recovery for: $issue_type (severity: $severity)"
+    ((RECOVERY_ATTEMPTS++))
+    LAST_RECOVERY_TIME=$current_time
+
+    case "$issue_type" in
+        "high_memory")
+            recover_high_memory "$severity"
+            ;;
+        "high_cpu")
+            recover_high_cpu "$severity"
+            ;;
+        "disk_io_high")
+            recover_disk_io "$severity"
+            ;;
+        "network_latency")
+            recover_network_latency "$severity"
+            ;;
+        *)
+            warning "Unknown issue type for recovery: $issue_type"
+            ;;
+    esac
+}
+
+recover_high_memory() {
+    local severity="$1"
+    log "Executing memory recovery (severity: $severity)"
+
+    case "$severity" in
+        "critical")
+            # Aggressive memory recovery
+            log "Critical memory recovery: dropping caches and killing high-memory processes"
+
+            # Drop system caches
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+            # Kill processes consuming >500MB (excluding system processes)
+            ps aux --no-headers -o pid,rss,cmd | awk '$2 > 524288 {print $1}' | \
+                grep -v -E "(systemd|init|bash|sshd)" | head -5 | \
+                xargs -r kill -9 2>/dev/null || true
+
+            # Restart memory-intensive services
+            systemctl restart ollama 2>/dev/null || true
+            systemctl restart docker 2>/dev/null || true
+            ;;
+        "high")
+            # Moderate memory recovery
+            log "High memory recovery: dropping caches and optimizing memory"
+
+            # Drop page cache only
+            echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+            # Clear temporary files
+            find /tmp -name "*.tmp" -type f -mtime +1 -delete 2>/dev/null || true
+            find /var/tmp -name "*.tmp" -type f -mtime +1 -delete 2>/dev/null || true
+            ;;
+        "medium")
+            # Light memory recovery
+            log "Medium memory recovery: basic cache cleanup"
+
+            # Clear apt cache
+            apt-get clean >/dev/null 2>&1 || true
+
+            # Clear Python cache
+            find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+            ;;
+    esac
+
+    success "Memory recovery completed"
+}
+
+recover_high_cpu() {
+    local severity="$1"
+    log "Executing CPU recovery (severity: $severity)"
+
+    case "$severity" in
+        "critical")
+            # Aggressive CPU recovery
+            log "Critical CPU recovery: killing high-CPU processes and adjusting priorities"
+
+            # Find and kill processes with CPU >90%
+            ps aux --no-headers -o pid,%cpu,cmd | awk '$2 > 90 {print $1}' | \
+                grep -v -E "(systemd|init|bash|sshd)" | head -3 | \
+                xargs -r kill -9 2>/dev/null || true
+
+            # Renice remaining high-CPU processes
+            ps aux --no-headers -o pid,%cpu | awk '$2 > 50 {print $1}' | \
+                xargs -r renice 10 2>/dev/null || true
+            ;;
+        "high")
+            # Moderate CPU recovery
+            log "High CPU recovery: adjusting process priorities"
+
+            # Renice high-CPU processes
+            ps aux --no-headers -o pid,%cpu | awk '$2 > 30 {print $1}' | \
+                xargs -r renice 5 2>/dev/null || true
+
+            # Stop non-essential services temporarily
+            systemctl stop bluetooth 2>/dev/null || true
+            systemctl stop cups 2>/dev/null || true
+            ;;
+        "medium")
+            # Light CPU recovery
+            log "Medium CPU recovery: basic process optimization"
+
+            # Adjust I/O priority for background processes
+            ionice -c 3 -p $(pgrep -f "rsync\|tar\|gzip") 2>/dev/null || true
+            ;;
+    esac
+
+    success "CPU recovery completed"
+}
+
+recover_disk_io() {
+    local severity="$1"
+    log "Executing disk I/O recovery (severity: $severity)"
+
+    case "$severity" in
+        "critical")
+            # Aggressive I/O recovery
+            log "Critical I/O recovery: stopping I/O intensive processes"
+
+            # Kill processes with high I/O
+            iotop -b -n 1 -o | awk 'NR>7 && $10 > 50 {print $1}' | \
+                grep -v -E "(systemd|init|bash|sshd)" | head -3 | \
+                xargs -r kill -9 2>/dev/null || true
+
+            # Sync filesystem to clear pending writes
+            sync
+            ;;
+        "high")
+            # Moderate I/O recovery
+            log "High I/O recovery: optimizing I/O operations"
+
+            # Adjust I/O scheduler to deadline
+            echo deadline > /sys/block/sda/queue/scheduler 2>/dev/null || true
+
+            # Increase read-ahead
+            echo 1024 > /sys/block/sda/queue/read_ahead_kb 2>/dev/null || true
+
+            # Stop non-essential I/O services
+            systemctl stop syslog 2>/dev/null || true
+            ;;
+        "medium")
+            # Light I/O recovery
+            log "Medium I/O recovery: basic I/O optimization"
+
+            # Clear page cache to reduce I/O pressure
+            echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true
+
+            # Optimize log rotation
+            logrotate -f /etc/logrotate.conf >/dev/null 2>&1 || true
+            ;;
+    esac
+
+    success "Disk I/O recovery completed"
+}
+
+recover_network_latency() {
+    local severity="$1"
+    log "Executing network recovery (severity: $severity)"
+
+    case "$severity" in
+        "critical")
+            # Aggressive network recovery
+            log "Critical network recovery: restarting network services"
+
+            # Restart network manager
+            systemctl restart NetworkManager 2>/dev/null || true
+            systemctl restart networking 2>/dev/null || true
+
+            # Clear DNS cache
+            systemctl restart systemd-resolved 2>/dev/null || true
+            ;;
+        "high")
+            # Moderate network recovery
+            log "High network recovery: optimizing network settings"
+
+            # Adjust TCP settings for better performance
+            echo 1 > /proc/sys/net/ipv4/tcp_low_latency 2>/dev/null || true
+            echo 0 > /proc/sys/net/ipv4/tcp_timestamps 2>/dev/null || true
+
+            # Restart Docker network
+            docker network prune -f >/dev/null 2>&1 || true
+            ;;
+        "medium")
+            # Light network recovery
+            log "Medium network recovery: basic network optimization"
+
+            # Clear ARP cache
+            ip neigh flush all >/dev/null 2>&1 || true
+
+            # Restart SSH service if needed
+            systemctl reload ssh >/dev/null 2>&1 || true
+            ;;
+    esac
+
+    success "Network recovery completed"
+}
+
+# Enhanced performance monitoring with recovery
+enhanced_performance_monitor() {
+    local operation="$1"
+    local pid="$2"
+    local recovery_enabled="${3:-true}"
+
+    start_performance_monitoring "$operation"
+
+    # Monitor in background with recovery
+    (
+        local consecutive_high_memory=0
+        local consecutive_high_cpu=0
+        local consecutive_high_disk=0
+
+        while kill -0 "$pid" 2>/dev/null; do
+            log_performance_metrics
+
+            if [ "$recovery_enabled" = true ]; then
+                # Check for performance issues and trigger recovery
+                local mem_usage cpu_usage disk_usage
+                mem_usage=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
+                cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+                disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+
+                # Memory monitoring with recovery
+                if (( $(echo "$mem_usage > 90" | bc -l) )); then
+                    ((consecutive_high_memory++))
+                    if [ $consecutive_high_memory -ge 3 ]; then
+                        trigger_performance_recovery "high_memory" "critical"
+                        consecutive_high_memory=0
+                    fi
+                elif (( $(echo "$mem_usage > 80" | bc -l) )); then
+                    ((consecutive_high_memory++))
+                    if [ $consecutive_high_memory -ge 5 ]; then
+                        trigger_performance_recovery "high_memory" "high"
+                        consecutive_high_memory=0
+                    fi
+                else
+                    consecutive_high_memory=0
+                fi
+
+                # CPU monitoring with recovery
+                if (( $(echo "$cpu_usage > 95" | bc -l) )); then
+                    ((consecutive_high_cpu++))
+                    if [ $consecutive_high_cpu -ge 3 ]; then
+                        trigger_performance_recovery "high_cpu" "critical"
+                        consecutive_high_cpu=0
+                    fi
+                elif (( $(echo "$cpu_usage > 85" | bc -l) )); then
+                    ((consecutive_high_cpu++))
+                    if [ $consecutive_high_cpu -ge 5 ]; then
+                        trigger_performance_recovery "high_cpu" "high"
+                        consecutive_high_cpu=0
+                    fi
+                else
+                    consecutive_high_cpu=0
+                fi
+
+                # Disk I/O monitoring with recovery (simplified)
+                if [ "$disk_usage" -gt 95 ]; then
+                    ((consecutive_high_disk++))
+                    if [ $consecutive_high_disk -ge 3 ]; then
+                        trigger_performance_recovery "disk_io_high" "critical"
+                        consecutive_high_disk=0
+                    fi
+                elif [ "$disk_usage" -gt 85 ]; then
+                    ((consecutive_high_disk++))
+                    if [ $consecutive_high_disk -ge 5 ]; then
+                        trigger_performance_recovery "disk_io_high" "high"
+                        consecutive_high_disk=0
+                    fi
+                else
+                    consecutive_high_disk=0
+                fi
+            fi
+
             sleep "$MONITOR_INTERVAL"
         done
     ) &
@@ -414,11 +756,11 @@ deploy_rolling() {
         warning "System resources are high, but proceeding with deploy..."
     fi
 
-    # Criar backup with monitoring
+    # Criar backup with enhanced monitoring and recovery
     log "Criando backup da versão atual..."
     ssh "${user}@${host}" "cd '${path}' && tar -czf backup_$(date +%Y%m%d_%H%M%S).tar.gz ." &
     local backup_pid=$!
-    monitor_operation "backup_creation" "$backup_pid"
+    enhanced_performance_monitor "backup_creation" "$backup_pid" true
 
     # Sincronizar arquivos with parallel optimization and monitoring
     log "Sincronizando arquivos com paralelização otimizada..."
@@ -546,24 +888,24 @@ EOF
             "$source_dir/" "$dest/"
     }
 
-    # Execute parallel rsync with monitoring
+    # Execute parallel rsync with enhanced monitoring and recovery
     parallel_rsync_deploy "${DEPLOY_TMP_DIR}" "${user}@${host}:${path}" &
     local rsync_pid=$!
-    monitor_operation "parallel_file_sync" "$rsync_pid"
+    enhanced_performance_monitor "parallel_file_sync" "$rsync_pid" true
 
-    # Executar migrações se necessário with monitoring
+    # Executar migrações se necessário with enhanced monitoring and recovery
     if ssh "${user}@${host}" "[ -f '${path}/scripts/migration.sh' ]"; then
         log "Executando migrações..."
         ssh "${user}@${host}" "cd '${path}' && bash scripts/migration.sh" &
         local migration_pid=$!
-        monitor_operation "migration" "$migration_pid"
+        enhanced_performance_monitor "migration" "$migration_pid" true
     fi
 
-    # Reiniciar serviços with monitoring
+    # Reiniciar serviços with enhanced monitoring and recovery
     log "Reiniciando serviços..."
     ssh "${user}@${host}" "cd '${path}' && bash scripts/restart_services.sh" &
     local restart_pid=$!
-    monitor_operation "service_restart" "$restart_pid"
+    enhanced_performance_monitor "service_restart" "$restart_pid" true
 
     success "Deploy rolling concluído"
     info "Performance log saved to: $PERFORMANCE_LOG"

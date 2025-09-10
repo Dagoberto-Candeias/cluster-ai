@@ -213,6 +213,14 @@ collect_cluster_metrics() {
     local dask_tasks_completed=0
     local dask_tasks_failed=0
     local dask_memory_used=0
+    local dask_tasks_pending=0
+    local dask_tasks_processing=0
+    local dask_scheduler_cpu=0
+    local dask_scheduler_memory=0
+    local dask_total_workers=0
+    local dask_active_workers=0
+    local dask_task_throughput=0
+    local dask_avg_task_time=0
 
     # Verificar processos principais
     if pgrep -f "ollama" >/dev/null 2>&1; then
@@ -226,29 +234,97 @@ collect_cluster_metrics() {
         # Coletar métricas avançadas do Dask (se disponível)
         if command_exists python3 && [ -f "${PROJECT_ROOT}/.venv/bin/activate" ]; then
             source "${PROJECT_ROOT}/.venv/bin/activate"
-            # Tentar coletar métricas via Dask client
+            # Tentar coletar métricas detalhadas via Dask client
             python3 -c "
 import dask
 from dask.distributed import Client
 import time
+import statistics
 try:
     client = Client('tls://192.168.0.2:8786', timeout='2s')
     info = client.scheduler_info()
-    print(f'tasks_completed:{len([t for t in info.get(\"tasks\", {}).values() if t.get(\"state\") == \"memory\"])}')
-    print(f'tasks_failed:{len([t for t in info.get(\"tasks\", {}).values() if t.get(\"state\") == \"erred\"])}')
+
+    # Métricas básicas de tarefas
+    tasks = info.get('tasks', {})
+    tasks_completed = len([t for t in tasks.values() if t.get('state') == 'memory'])
+    tasks_failed = len([t for t in tasks.values() if t.get('state') == 'erred'])
+    tasks_pending = len([t for t in tasks.values() if t.get('state') == 'no-worker'])
+    tasks_processing = len([t for t in tasks.values() if t.get('state') == 'processing'])
+
+    # Métricas de workers
     workers = info.get('workers', {})
+    total_workers = len(workers)
+    active_workers = len([w for w in workers.values() if w.get('metrics', {}).get('cpu', 0) > 0])
+
+    # Memória total usada pelos workers
     total_memory = sum(w.get('metrics', {}).get('memory', 0) for w in workers.values())
+
+    # CPU e memória do scheduler
+    scheduler_metrics = info.get('scheduler', {}).get('metrics', {})
+    scheduler_cpu = scheduler_metrics.get('cpu', 0)
+    scheduler_memory = scheduler_metrics.get('memory', 0)
+
+    # Throughput e tempo médio de tarefas (últimas 100 tarefas)
+    completed_tasks = [t for t in tasks.values() if t.get('state') == 'memory']
+    if len(completed_tasks) > 0:
+        # Calcular throughput (tarefas por segundo)
+        if len(completed_tasks) >= 100:
+            recent_tasks = completed_tasks[-100:]
+            start_times = [t.get('started', time.time()) for t in recent_tasks if t.get('started')]
+            end_times = [t.get('finished', time.time()) for t in recent_tasks if t.get('finished')]
+
+            if start_times and end_times:
+                total_time = max(end_times) - min(start_times)
+                if total_time > 0:
+                    throughput = len(recent_tasks) / total_time
+                    print(f'task_throughput:{throughput}')
+
+                # Tempo médio de execução
+                task_times = []
+                for task in recent_tasks:
+                    if task.get('started') and task.get('finished'):
+                        task_times.append(task['finished'] - task['started'])
+
+                if task_times:
+                    avg_time = statistics.mean(task_times)
+                    print(f'avg_task_time:{avg_time}')
+
+    print(f'tasks_completed:{tasks_completed}')
+    print(f'tasks_failed:{tasks_failed}')
+    print(f'tasks_pending:{tasks_pending}')
+    print(f'tasks_processing:{tasks_processing}')
+    print(f'total_workers:{total_workers}')
+    print(f'active_workers:{active_workers}')
     print(f'memory_used:{total_memory}')
+    print(f'scheduler_cpu:{scheduler_cpu}')
+    print(f'scheduler_memory:{scheduler_memory}')
+
     client.close()
 except Exception as e:
     print('tasks_completed:0')
     print('tasks_failed:0')
+    print('tasks_pending:0')
+    print('tasks_processing:0')
+    print('total_workers:0')
+    print('active_workers:0')
     print('memory_used:0')
+    print('scheduler_cpu:0')
+    print('scheduler_memory:0')
+    print('task_throughput:0')
+    print('avg_task_time:0')
 " 2>/dev/null | while IFS=: read -r key value; do
                 case $key in
                     tasks_completed) dask_tasks_completed=$value ;;
                     tasks_failed) dask_tasks_failed=$value ;;
+                    tasks_pending) dask_tasks_pending=$value ;;
+                    tasks_processing) dask_tasks_processing=$value ;;
+                    total_workers) dask_total_workers=$value ;;
+                    active_workers) dask_active_workers=$value ;;
                     memory_used) dask_memory_used=$value ;;
+                    scheduler_cpu) dask_scheduler_cpu=$value ;;
+                    scheduler_memory) dask_scheduler_memory=$value ;;
+                    task_throughput) dask_task_throughput=$value ;;
+                    avg_task_time) dask_avg_task_time=$value ;;
                 esac
             done
         fi
@@ -264,7 +340,15 @@ except Exception as e:
     CLUSTER_METRICS["worker_count"]=$worker_count
     CLUSTER_METRICS["dask_tasks_completed"]=$dask_tasks_completed
     CLUSTER_METRICS["dask_tasks_failed"]=$dask_tasks_failed
+    CLUSTER_METRICS["dask_tasks_pending"]=$dask_tasks_pending
+    CLUSTER_METRICS["dask_tasks_processing"]=$dask_tasks_processing
+    CLUSTER_METRICS["dask_total_workers"]=$dask_total_workers
+    CLUSTER_METRICS["dask_active_workers"]=$dask_active_workers
     CLUSTER_METRICS["dask_memory_used"]=$dask_memory_used
+    CLUSTER_METRICS["dask_scheduler_cpu"]=$dask_scheduler_cpu
+    CLUSTER_METRICS["dask_scheduler_memory"]=$dask_scheduler_memory
+    CLUSTER_METRICS["dask_task_throughput"]=$dask_task_throughput
+    CLUSTER_METRICS["dask_avg_task_time"]=$dask_avg_task_time
     CLUSTER_METRICS["timestamp"]=$(date +%s)
 }
 
@@ -367,7 +451,7 @@ analyze_performance_trends() {
     fi
 }
 
-# Detectar anomalias de performance
+# Detectar anomalias de performance extendidas
 detect_performance_anomalies() {
     # Detectar spikes de CPU
     if [ ${#CPU_HISTORY[@]} -gt 3 ]; then
@@ -425,6 +509,171 @@ detect_performance_anomalies() {
 
         if [ $consecutive_increases -ge 4 ]; then
             create_alert "WARNING" "MEMORY_LEAK" "Potential memory leak detected: $consecutive_increases consecutive increases"
+        fi
+    fi
+
+    # Detectar anomalias de I/O de disco
+    detect_disk_io_anomalies
+
+    # Detectar anomalias de rede
+    detect_network_anomalies
+
+    # Detectar anomalias de cluster
+    detect_cluster_anomalies
+
+    # Detectar padrões sazonais
+    detect_seasonal_patterns
+}
+
+# Detectar anomalias de I/O de disco
+detect_disk_io_anomalies() {
+    # Verificar I/O bursts
+    local read_rate=${DISK_IO_METRICS["read_rate_kbps"]:-0}
+    local write_rate=${DISK_IO_METRICS["write_rate_kbps"]:-0}
+
+    # Thresholds dinâmicos baseados no histórico
+    if [ ${#DISK_IO_HISTORY[@]} -gt 5 ]; then
+        local avg_read=0 avg_write=0 count=0
+
+        for entry in "${DISK_IO_HISTORY[@]: -10}"; do
+            local read_val=$(echo "$entry" | cut -d',' -f1)
+            local write_val=$(echo "$entry" | cut -d',' -f2)
+            avg_read=$(echo "scale=2; $avg_read + $read_val" | bc 2>/dev/null || echo "$avg_read")
+            avg_write=$(echo "scale=2; $avg_write + $write_val" | bc 2>/dev/null || echo "$avg_write")
+            ((count++))
+        done
+
+        if [ $count -gt 0 ]; then
+            avg_read=$(echo "scale=2; $avg_read / $count" | bc 2>/dev/null || echo "0")
+            avg_write=$(echo "scale=2; $avg_write / $count" | bc 2>/dev/null || echo "0")
+
+            # Detectar burst se > 3x da média
+            local read_burst_threshold=$(echo "scale=2; $avg_read * 3" | bc 2>/dev/null || echo "100000")
+            local write_burst_threshold=$(echo "scale=2; $avg_write * 3" | bc 2>/dev/null || echo "60000")
+
+            if (( $(echo "$read_rate > $read_burst_threshold" | bc -l 2>/dev/null || echo "0") )); then
+                create_alert "WARNING" "DISK_IO_ANOMALY" "Disk read burst detected: ${read_rate} KB/s (3x normal: ${read_burst_threshold} KB/s)"
+            fi
+
+            if (( $(echo "$write_rate > $write_burst_threshold" | bc -l 2>/dev/null || echo "0") )); then
+                create_alert "WARNING" "DISK_IO_ANOMALY" "Disk write burst detected: ${write_rate} KB/s (3x normal: ${write_burst_threshold} KB/s)"
+            fi
+        fi
+    fi
+
+    # Adicionar ao histórico
+    DISK_IO_HISTORY+=("$read_rate,$write_rate")
+    if [ ${#DISK_IO_HISTORY[@]} -gt 50 ]; then
+        DISK_IO_HISTORY=("${DISK_IO_HISTORY[@]:1}")
+    fi
+}
+
+# Detectar anomalias de rede
+detect_network_anomalies() {
+    local rx_mb=${NETWORK_METRICS["rx_mb"]:-0}
+    local tx_mb=${NETWORK_METRICS["tx_mb"]:-0}
+
+    # Detectar spikes de tráfego
+    if [ ${#NETWORK_HISTORY[@]} -gt 5 ]; then
+        local avg_rx=0 avg_tx=0 count=0
+
+        for entry in "${NETWORK_HISTORY[@]: -10}"; do
+            local rx_val=$(echo "$entry" | cut -d',' -f1)
+            local tx_val=$(echo "$entry" | cut -d',' -f2)
+            avg_rx=$(echo "scale=2; $avg_rx + $rx_val" | bc 2>/dev/null || echo "$avg_rx")
+            avg_tx=$(echo "scale=2; $avg_tx + $tx_val" | bc 2>/dev/null || echo "$avg_tx")
+            ((count++))
+        done
+
+        if [ $count -gt 0 ]; then
+            avg_rx=$(echo "scale=2; $avg_rx / $count" | bc 2>/dev/null || echo "0")
+            avg_tx=$(echo "scale=2; $avg_tx / $count" | bc 2>/dev/null || echo "0")
+
+            # Detectar anomalia se > 5x da média
+            local rx_anomaly_threshold=$(echo "scale=2; $avg_rx * 5" | bc 2>/dev/null || echo "1000")
+            local tx_anomaly_threshold=$(echo "scale=2; $avg_tx * 5" | bc 2>/dev/null || echo "500")
+
+            if (( $(echo "$rx_mb > $rx_anomaly_threshold" | bc -l 2>/dev/null || echo "0") )); then
+                create_alert "WARNING" "NETWORK_ANOMALY" "Network RX spike detected: ${rx_mb}MB (5x normal: ${rx_anomaly_threshold}MB)"
+            fi
+
+            if (( $(echo "$tx_mb > $tx_anomaly_threshold" | bc -l 2>/dev/null || echo "0") )); then
+                create_alert "WARNING" "NETWORK_ANOMALY" "Network TX spike detected: ${tx_mb}MB (5x normal: ${tx_anomaly_threshold}MB)"
+            fi
+        fi
+    fi
+
+    # Adicionar ao histórico
+    NETWORK_HISTORY+=("$rx_mb,$tx_mb")
+    if [ ${#NETWORK_HISTORY[@]} -gt 50 ]; then
+        NETWORK_HISTORY=("${NETWORK_HISTORY[@]:1}")
+    fi
+}
+
+# Detectar anomalias de cluster
+detect_cluster_anomalies() {
+    local worker_count=${CLUSTER_METRICS["worker_count"]:-0}
+    local tasks_failed=${CLUSTER_METRICS["dask_tasks_failed"]:-0}
+    local tasks_completed=${CLUSTER_METRICS["dask_tasks_completed"]:-0}
+
+    # Detectar perda de workers
+    if [ ${#WORKER_HISTORY[@]} -gt 3 ]; then
+        local prev_workers=${WORKER_HISTORY[-2]:-0}
+        local worker_drop=$((prev_workers - worker_count))
+
+        if [ $worker_drop -gt 2 ]; then
+            create_alert "CRITICAL" "CLUSTER_ANOMALY" "Worker drop detected: lost ${worker_drop} workers (current: ${worker_count})"
+        elif [ $worker_drop -gt 0 ]; then
+            create_alert "WARNING" "CLUSTER_ANOMALY" "Worker drop detected: lost ${worker_drop} workers (current: ${worker_count})"
+        fi
+    fi
+
+    # Detectar taxa alta de falhas
+    if [ $tasks_completed -gt 0 ]; then
+        local failure_rate=$((tasks_failed * 100 / (tasks_completed + tasks_failed)))
+        if [ $failure_rate -gt 20 ]; then
+            create_alert "CRITICAL" "CLUSTER_ANOMALY" "High task failure rate: ${failure_rate}% (${tasks_failed}/${tasks_completed + tasks_failed})"
+        elif [ $failure_rate -gt 10 ]; then
+            create_alert "WARNING" "CLUSTER_ANOMALY" "Elevated task failure rate: ${failure_rate}% (${tasks_failed}/${tasks_completed + tasks_failed})"
+        fi
+    fi
+
+    # Adicionar ao histórico
+    WORKER_HISTORY+=("$worker_count")
+    if [ ${#WORKER_HISTORY[@]} -gt 20 ]; then
+        WORKER_HISTORY=("${WORKER_HISTORY[@]:1}")
+    fi
+}
+
+# Detectar padrões sazonais
+detect_seasonal_patterns() {
+    # Detectar padrões horários/diários
+    local current_hour=$(date +%H)
+    local current_day=$(date +%u)  # 1=Monday, 7=Sunday
+
+    # Padrões de carga horários
+    case "$current_hour" in
+        "09"|"10"|"11"|"14"|"15"|"16")
+            # Horários de pico de trabalho
+            local cpu_usage=${CPU_METRICS["usage"]:-0}
+            if (( $(echo "$cpu_usage > 70" | bc -l 2>/dev/null || echo "0") )); then
+                create_alert "INFO" "SEASONAL_PATTERN" "High CPU usage during business hours: ${cpu_usage}% at ${current_hour}:00"
+            fi
+            ;;
+        "02"|"03"|"04"|"05")
+            # Horários de manutenção/noturnos
+            local cpu_usage=${CPU_METRICS["usage"]:-0}
+            if (( $(echo "$cpu_usage > 30" | bc -l 2>/dev/null || echo "0") )); then
+                create_alert "WARNING" "SEASONAL_PATTERN" "Unexpected high CPU during maintenance hours: ${cpu_usage}% at ${current_hour}:00"
+            fi
+            ;;
+    esac
+
+    # Padrões de fim de semana
+    if [ "$current_day" -gt 5 ]; then
+        local mem_usage=${MEMORY_METRICS["usage_percent"]:-0}
+        if (( $(echo "$mem_usage > 80" | bc -l 2>/dev/null || echo "0") )); then
+            create_alert "INFO" "SEASONAL_PATTERN" "High memory usage on weekend: ${mem_usage}%"
         fi
     fi
 }
@@ -513,6 +762,71 @@ check_disk_io_alerts() {
     return 0
 }
 
+# Verifica alertas específicos do Dask
+check_dask_alerts() {
+    # Só verifica se Dask estiver rodando
+    if [ "${CLUSTER_METRICS["dask_running"]}" != "1" ]; then
+        return 0
+    fi
+
+    local tasks_failed=${CLUSTER_METRICS["dask_tasks_failed"]:-0}
+    local tasks_completed=${CLUSTER_METRICS["dask_tasks_completed"]:-0}
+    local tasks_pending=${CLUSTER_METRICS["dask_tasks_pending"]:-0}
+    local active_workers=${CLUSTER_METRICS["dask_active_workers"]:-0}
+    local total_workers=${CLUSTER_METRICS["dask_total_workers"]:-0}
+    local scheduler_cpu=${CLUSTER_METRICS["dask_scheduler_cpu"]:-0}
+    local scheduler_memory=${CLUSTER_METRICS["dask_scheduler_memory"]:-0}
+    local task_throughput=${CLUSTER_METRICS["dask_task_throughput"]:-0}
+
+    # Alerta para alta taxa de falha de tarefas
+    if [ $tasks_completed -gt 0 ]; then
+        local failure_rate=$((tasks_failed * 100 / (tasks_completed + tasks_failed)))
+        if [ $failure_rate -gt 20 ]; then
+            create_alert "CRITICAL" "DASK" "Taxa alta de falha de tarefas: ${failure_rate}% (${tasks_failed}/${tasks_completed + tasks_failed})"
+            return 1
+        elif [ $failure_rate -gt 10 ]; then
+            create_alert "WARNING" "DASK" "Taxa elevada de falha de tarefas: ${failure_rate}% (${tasks_failed}/${tasks_completed + tasks_failed})"
+        fi
+    fi
+
+    # Alerta para workers inativos
+    if [ $total_workers -gt 0 ] && [ $active_workers -eq 0 ]; then
+        create_alert "CRITICAL" "DASK" "Nenhum worker ativo no cluster Dask (${total_workers} workers totais)"
+        return 1
+    fi
+
+    # Alerta para perda de workers
+    if [ $total_workers -gt 0 ]; then
+        local inactive_workers=$((total_workers - active_workers))
+        local inactive_percent=$((inactive_workers * 100 / total_workers))
+        if [ $inactive_percent -gt 50 ]; then
+            create_alert "WARNING" "DASK" "Mais de 50% dos workers estão inativos: ${inactive_workers}/${total_workers}"
+        fi
+    fi
+
+    # Alerta para tarefas pendentes acumuladas
+    if [ $tasks_pending -gt 100 ]; then
+        create_alert "WARNING" "DASK" "Muitas tarefas pendentes: ${tasks_pending} tarefas aguardando workers"
+    fi
+
+    # Alerta para CPU alta do scheduler
+    if (( $(echo "$scheduler_cpu > 80" | bc -l 2>/dev/null || echo "0") )); then
+        create_alert "WARNING" "DASK" "CPU do scheduler alta: ${scheduler_cpu}%"
+    fi
+
+    # Alerta para memória alta do scheduler
+    if (( $(echo "$scheduler_memory > 500" | bc -l 2>/dev/null || echo "0") )); then
+        create_alert "WARNING" "DASK" "Memória do scheduler alta: ${scheduler_memory}MB"
+    fi
+
+    # Alerta para baixo throughput
+    if (( $(echo "$task_throughput < 0.1 && $task_throughput > 0" | bc -l 2>/dev/null || echo "0") )); then
+        create_alert "INFO" "DASK" "Throughput baixo: ${task_throughput} tarefas/segundo"
+    fi
+
+    return 0
+}
+
 # Cria alerta
 create_alert() {
     local severity="$1"
@@ -582,11 +896,24 @@ show_dashboard() {
     echo "   Ollama: $([ "${CLUSTER_METRICS["ollama_running"]}" = "1" ] && echo "✅ Rodando" || echo "❌ Parado")"
     echo "   Dask: $([ "${CLUSTER_METRICS["dask_running"]}" = "1" ] && echo "✅ Rodando" || echo "❌ Parado")"
     echo "   WebUI: $([ "${CLUSTER_METRICS["webui_running"]}" = "1" ] && echo "✅ Rodando" || echo "❌ Parado")"
-    echo "   Workers: ${CLUSTER_METRICS["worker_count"]}"
-    echo "   Tarefas Concluídas: ${CLUSTER_METRICS["dask_tasks_completed"]}"
-    echo "   Tarefas Falhadas: ${CLUSTER_METRICS["dask_tasks_failed"]}"
-    echo "   Memória Dask: ${CLUSTER_METRICS["dask_memory_used"]} bytes"
     echo ""
+
+    # Dask Metrics (se Dask estiver rodando)
+    if [ "${CLUSTER_METRICS["dask_running"]}" = "1" ]; then
+        echo "🔄 DASK CLUSTER"
+        echo "   Workers Totais: ${CLUSTER_METRICS["dask_total_workers"]}"
+        echo "   Workers Ativos: ${CLUSTER_METRICS["dask_active_workers"]}"
+        echo "   Tarefas Concluídas: ${CLUSTER_METRICS["dask_tasks_completed"]}"
+        echo "   Tarefas Processando: ${CLUSTER_METRICS["dask_tasks_processing"]}"
+        echo "   Tarefas Pendentes: ${CLUSTER_METRICS["dask_tasks_pending"]}"
+        echo "   Tarefas Falhadas: ${CLUSTER_METRICS["dask_tasks_failed"]}"
+        echo "   Throughput: $(printf "%.2f" ${CLUSTER_METRICS["dask_task_throughput"]:-0}) tasks/s"
+        echo "   Tempo Médio: $(printf "%.3f" ${CLUSTER_METRICS["dask_avg_task_time"]:-0})s"
+        echo "   CPU Scheduler: $(printf "%.1f" ${CLUSTER_METRICS["dask_scheduler_cpu"]:-0})%"
+        echo "   Memória Scheduler: $(printf "%.1f" ${CLUSTER_METRICS["dask_scheduler_memory"]:-0})MB"
+        echo "   Memória Workers: $(printf "%.1f" $(echo "scale=2; ${CLUSTER_METRICS["dask_memory_used"]:-0} / 1024 / 1024" | bc 2>/dev/null || echo "0"))MB"
+        echo ""
+    fi
 
     # Android Workers
     echo "🤖 ANDROID WORKERS"
@@ -647,7 +974,20 @@ generate_metrics_report() {
     "ollama_running": "${CLUSTER_METRICS["ollama_running"]}",
     "dask_running": "${CLUSTER_METRICS["dask_running"]}",
     "webui_running": "${CLUSTER_METRICS["webui_running"]}",
-    "worker_count": "${CLUSTER_METRICS["worker_count"]}"
+    "worker_count": "${CLUSTER_METRICS["worker_count"]}",
+    "dask_metrics": {
+      "tasks_completed": "${CLUSTER_METRICS["dask_tasks_completed"]}",
+      "tasks_failed": "${CLUSTER_METRICS["dask_tasks_failed"]}",
+      "tasks_pending": "${CLUSTER_METRICS["dask_tasks_pending"]}",
+      "tasks_processing": "${CLUSTER_METRICS["dask_tasks_processing"]}",
+      "total_workers": "${CLUSTER_METRICS["dask_total_workers"]}",
+      "active_workers": "${CLUSTER_METRICS["dask_active_workers"]}",
+      "memory_used": "${CLUSTER_METRICS["dask_memory_used"]}",
+      "scheduler_cpu": "${CLUSTER_METRICS["dask_scheduler_cpu"]}",
+      "scheduler_memory": "${CLUSTER_METRICS["dask_scheduler_memory"]}",
+      "task_throughput": "${CLUSTER_METRICS["dask_task_throughput"]}",
+      "avg_task_time": "${CLUSTER_METRICS["dask_avg_task_time"]}"
+    }
   },
   "android_metrics": {
     "active_workers": "${ANDROID_METRICS["active_workers"]}",
@@ -766,7 +1106,21 @@ cache_metrics() {
   "memory": ${MEMORY_METRICS["usage_percent"]:-0},
   "disk": ${DISK_METRICS["usage_percent"]:-0},
   "network_rx": ${NETWORK_METRICS["rx_mb"]:-0},
-  "network_tx": ${NETWORK_METRICS["tx_mb"]:-0}
+  "network_tx": ${NETWORK_METRICS["tx_mb"]:-0},
+  "dask": {
+    "running": ${CLUSTER_METRICS["dask_running"]:-0},
+    "tasks_completed": ${CLUSTER_METRICS["dask_tasks_completed"]:-0},
+    "tasks_failed": ${CLUSTER_METRICS["dask_tasks_failed"]:-0},
+    "tasks_pending": ${CLUSTER_METRICS["dask_tasks_pending"]:-0},
+    "tasks_processing": ${CLUSTER_METRICS["dask_tasks_processing"]:-0},
+    "total_workers": ${CLUSTER_METRICS["dask_total_workers"]:-0},
+    "active_workers": ${CLUSTER_METRICS["dask_active_workers"]:-0},
+    "memory_used": ${CLUSTER_METRICS["dask_memory_used"]:-0},
+    "scheduler_cpu": ${CLUSTER_METRICS["dask_scheduler_cpu"]:-0},
+    "scheduler_memory": ${CLUSTER_METRICS["dask_scheduler_memory"]:-0},
+    "task_throughput": ${CLUSTER_METRICS["dask_task_throughput"]:-0},
+    "avg_task_time": ${CLUSTER_METRICS["dask_avg_task_time"]:-0}
+  }
 }
 EOF
 }
@@ -812,6 +1166,7 @@ main() {
                 check_disk_alerts
                 check_disk_io_alerts
                 check_battery_alerts
+                check_dask_alerts
 
                 # Salvar métricas
                 generate_metrics_report

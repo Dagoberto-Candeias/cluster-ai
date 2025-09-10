@@ -3,7 +3,7 @@ set -e
 
 echo "=== Instalador Universal Cluster AI com IDEs ==="
 echo "Suporte para: Ubuntu, Debian, Manjaro, CentOS"
-echo "IDEs incluídas: Spyder, VSCode, PyCharm"
+echo "IDEs incluídas: Spyder, VSCode, PyCharm, RStudio, Jamovi"
 
 # Detectar distribuição
 if [ -f /etc/os-release ]; then
@@ -35,23 +35,26 @@ install_dependencies() {
     case $OS in
         ubuntu|debian)
             sudo apt update && sudo apt upgrade -y
-            sudo apt install -y curl git docker.io docker-compose-plugin \
+            sudo apt install -y curl git docker.io \
                 python3-venv python3-pip python3-full \
                 msmtp msmtp-mta mailutils openmpi-bin libopenmpi-dev \
                 ca-certificates gnupg lsof openssh-server \
-                software-properties-common apt-transport-https
+                apt-transport-https \
+                r-base
             ;;
         manjaro)
             sudo pacman -Syu --noconfirm
             sudo pacman -S --noconfirm curl git docker python python-pip python-virtualenv \
                 msmtp mailutils openmpi lsof openssh wget \
-                base-devel libx11 libxext libxrender libxtst freetype2
+                base-devel libx11 libxext libxrender libxtst freetype2 \
+                r
             ;;
         centos|rhel|fedora)
             sudo yum update -y
             sudo yum install -y curl git docker python3 python3-pip python3-virtualenv \
                 msmtp mailutils openmpi-devel lsof openssh-server \
-                libX11-devel libXext-devel libXrender-devel libXtst-devel freetype-devel
+                libX11-devel libXext-devel libXrender-devel libXtst-devel freetype-devel \
+                R
             ;;
         *)
             echo "Sistema não suportado: $OS"
@@ -99,6 +102,18 @@ install_ides() {
     wget -O /tmp/pycharm.tar.gz $PYCHARM_URL
     sudo tar -xzf /tmp/pycharm.tar.gz -C /opt/
     sudo mv /opt/pycharm-* /opt/pycharm
+
+    # RStudio
+    RSTUDIO_URL="https://download1.rstudio.org/desktop/bionic/amd64/rstudio-2023.06.1-524-amd64.deb"
+    if [[ "$OS" == "ubuntu" || "$OS" == "debian" ]]; then
+        wget -O /tmp/rstudio.deb $RSTUDIO_URL
+        sudo dpkg -i /tmp/rstudio.deb || sudo apt-get install -f -y
+    else
+        echo "Instalação do RStudio não suportada automaticamente para $OS. Instale manualmente."
+    fi
+
+    # Jamovi
+    flatpak install flathub org.jamovi.jamovi -y
     
     # Criar atalhos para as IDEs
     mkdir -p ~/.local/share/applications
@@ -117,6 +132,18 @@ Terminal=false
 EOL
     
     # Atalho para PyCharm
+    cat > ~/.local/share/applications/pycharm.desktop << EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PyCharm
+Exec=/opt/pycharm/bin/pycharm.sh
+Icon=/opt/pycharm/bin/pycharm.png
+Comment=PyCharm IDE
+Categories=Development;IDE;
+Terminal=false
+EOL
+
     cat > ~/.local/share/applications/pycharm-cluster.desktop << EOL
 [Desktop Entry]
 Version=1.0
@@ -128,8 +155,46 @@ Comment=PyCharm IDE for Cluster AI development
 Categories=Development;IDE;
 Terminal=false
 EOL
-    
-    echo "IDEs instaladas: Spyder, VSCode e PyCharm"
+
+    # Atalho para RStudio
+    cat > ~/.local/share/applications/rstudio-cluster.desktop << EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=RStudio (Cluster AI)
+Exec=rstudio
+Icon=rstudio
+Comment=RStudio IDE for Cluster AI
+Categories=Development;IDE;
+Terminal=false
+EOL
+
+    # Atalho para Jamovi
+    cat > ~/.local/share/applications/jamovi.desktop << EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Jamovi
+Exec=flatpak run org.jamovi.jamovi
+Icon=/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps/org.jamovi.jamovi.svg
+Comment=Jamovi statistical software
+Categories=Development;IDE;Education;Science;Statistics;
+Terminal=false
+EOL
+
+    cat > ~/.local/share/applications/jamovi-cluster.desktop << EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Jamovi (Cluster AI)
+Exec=flatpak run org.jamovi.jamovi
+Icon=/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps/org.jamovi.jamovi.svg
+Comment=Jamovi statistical software for Cluster AI
+Categories=Development;IDE;Education;Science;Statistics;
+Terminal=false
+EOL
+
+    echo "IDEs instaladas: Spyder, VSCode, PyCharm, RStudio e Jamovi"
 }
 
 setup_development_environment() {
@@ -221,6 +286,46 @@ EOL
 chmod +x ~/cluster_scripts/*.sh
 
 echo "=== Instalação concluída! ==="
-echo "IDEs disponíveis: Spyder, VSCode e PyCharm"
+echo "IDEs disponíveis: Spyder, VSCode, PyCharm, RStudio e Jamovi"
 echo "Ambiente virtual em: ~/cluster_env"
 echo "Scripts de gerenciamento em: ~/cluster_scripts"
+
+# Perguntar qual IDE usar para conectar ao cluster
+echo "Qual IDE deseja usar para conectar ao cluster?"
+select ide_choice in "Spyder" "VSCode" "PyCharm" "RStudio" "Jamovi" "Nenhuma"; do
+    case $ide_choice in
+        Spyder)
+            echo "Iniciando Spyder com ambiente Cluster AI..."
+            source ~/cluster_env/bin/activate
+            spyder
+            break
+            ;;
+        VSCode)
+            echo "Iniciando VSCode..."
+            code
+            break
+            ;;
+        PyCharm)
+            echo "Iniciando PyCharm..."
+            /opt/pycharm/bin/pycharm.sh
+            break
+            ;;
+        RStudio)
+            echo "Iniciando RStudio..."
+            rstudio
+            break
+            ;;
+        Jamovi)
+            echo "Iniciando Jamovi..."
+            flatpak run org.jamovi.jamovi
+            break
+            ;;
+        Nenhuma)
+            echo "Nenhuma IDE selecionada. Finalizando."
+            break
+            ;;
+        *)
+            echo "Opção inválida. Tente novamente."
+            ;;
+    esac
+done
