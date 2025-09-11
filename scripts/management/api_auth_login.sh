@@ -4,8 +4,8 @@
 set -euo pipefail
 
 API_URL="http://localhost:3000"
-EMAIL="betoallnet@gmail.com"
-PASSWORD="020540Bene@"
+EMAIL="${OPENWEBUI_EMAIL:-betoallnet@gmail.com}"
+PASSWORD="${OPENWEBUI_PASSWORD:-your_password_here}"
 
 # Função para realizar login e obter token
 login_and_get_token() {

@@ -34,27 +34,34 @@ class TestAutoDiscoverWorkers:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
             )
             # Script pode falhar se kubectl não estiver disponível (é esperado)
             # O importante é que o script executou e produziu saída
             assert "Descobrindo workers automaticamente" in result.stdout
             # Return code 1 é aceitável se kubectl não estiver configurado
-            assert result.returncode in [0, 1], f"Script falhou inesperadamente: {result.stderr}"
+            assert result.returncode in [
+                0,
+                1,
+            ], f"Script falhou inesperadamente: {result.stderr}"
         except subprocess.TimeoutExpired:
-            pytest.skip("Script demorou muito para executar (possivelmente sem kubectl)")
+            pytest.skip(
+                "Script demorou muito para executar (possivelmente sem kubectl)"
+            )
         except FileNotFoundError:
             pytest.skip("kubectl não encontrado no sistema")
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_auto_discover_workers_with_mock_kubectl(self, mock_run):
         """Testa descoberta com kubectl mockado"""
         # Mock do kubectl get pods
         mock_process = MagicMock()
         mock_process.returncode = 0
-        mock_process.stdout = "NAME                    READY   STATUS    RESTARTS   AGE   IP\n" \
-                             "dask-worker-1           1/1     Running   0          5m    10.0.1.10\n" \
-                             "dask-worker-2           1/1     Running   0          5m    10.0.1.11\n"
+        mock_process.stdout = (
+            "NAME                    READY   STATUS    RESTARTS   AGE   IP\n"
+            "dask-worker-1           1/1     Running   0          5m    10.0.1.10\n"
+            "dask-worker-2           1/1     Running   0          5m    10.0.1.11\n"
+        )
         mock_process.stderr = ""
         mock_run.return_value = mock_process
 
@@ -62,12 +69,9 @@ class TestAutoDiscoverWorkers:
 
         # Como estamos mockando subprocess.run, precisamos simular a execução do script
         # O script em si executa kubectl, então verificamos se o mock foi chamado corretamente
-        with patch('subprocess.run', mock_run):
+        with patch("subprocess.run", mock_run):
             result = subprocess.run(
-                [str(script_path)],
-                capture_output=True,
-                text=True,
-                cwd=Path.cwd()
+                [str(script_path)], capture_output=True, text=True, cwd=Path.cwd()
             )
 
         # Verificar se kubectl seria chamado (através do mock)
@@ -91,18 +95,21 @@ class TestWebUIInstaller:
         """Valida conteúdo do script instalador"""
         script_path = Path("scripts/deployment/webui-installer.sh")
 
-        with open(script_path, 'r') as f:
+        with open(script_path, "r") as f:
             content = f.read()
 
         # Verificações básicas de conteúdo
         assert "sudo apt update" in content, "Instalação de dependências não encontrada"
-        assert "python3 -m venv" in content, "Criação de ambiente virtual não encontrada"
-        assert "pip install dask" in content, "Instalação do Dask não encontrada"
+        assert (
+            "python3 -m venv" in content
+        ), "Criação de ambiente virtual não encontrada"
+        assert "dask[complete]" in content, "Instalação do Dask não encontrada"
+        assert "parallel_pip_install" in content, "Instalação paralela de pacotes Python não encontrada"
         assert "docker run" in content, "Execução do container OpenWebUI não encontrada"
         assert "send_alert.py" in content, "Sistema de alertas não encontrado"
 
-    @patch('subprocess.run')
-    @patch('builtins.input')
+    @patch("subprocess.run")
+    @patch("builtins.input")
     def test_webui_installer_dry_run(self, mock_input, mock_run):
         """Testa execução do instalador em modo dry-run"""
         # Mock das entradas do usuário
@@ -120,7 +127,7 @@ class TestWebUIInstaller:
     def test_webui_installer_creates_alert_script(self):
         """Verifica se o script cria o arquivo de alertas"""
         # Simula a criação do script de alertas
-        alert_script_content = '''
+        alert_script_content = """
 import smtplib
 from email.mime.text import MIMEText
 
@@ -144,10 +151,10 @@ def send_alert(subject, message):
 
 if __name__ == "__main__":
     send_alert("Teste", "Mensagem de teste")
-'''
+"""
 
         # Verifica se o conteúdo do script é válido Python
-        compile(alert_script_content, '<string>', 'exec')
+        compile(alert_script_content, "<string>", "exec")
 
 
 class TestDeploymentIntegration:
@@ -158,7 +165,7 @@ class TestDeploymentIntegration:
         scripts_to_check = [
             "scripts/deployment/auto_discover_workers.sh",
             "scripts/deployment/webui-installer.sh",
-            "scripts/deployment/auto_discover_workers.py"
+            "scripts/deployment/auto_discover_workers.py",
         ]
 
         for script_path in scripts_to_check:
@@ -174,14 +181,15 @@ class TestDeploymentIntegration:
         assert deployment_dir.is_dir(), "scripts/deployment não é um diretório"
 
         # Verifica se tem arquivos de script
-        script_files = list(deployment_dir.glob("*.sh")) + list(deployment_dir.glob("*.py"))
+        script_files = list(deployment_dir.glob("*.sh")) + list(
+            deployment_dir.glob("*.py")
+        )
         assert len(script_files) > 0, "Nenhum script encontrado no diretório deployment"
 
-    @pytest.mark.parametrize("script_name", [
-        "auto_discover_workers.sh",
-        "webui-installer.sh",
-        "auto_discover_workers.py"
-    ])
+    @pytest.mark.parametrize(
+        "script_name",
+        ["auto_discover_workers.sh", "webui-installer.sh", "auto_discover_workers.py"],
+    )
     def test_deployment_script_basic_validation(self, script_name):
         """Valida basicamente cada script de deployment"""
         script_path = Path(f"scripts/deployment/{script_name}")
@@ -191,15 +199,17 @@ class TestDeploymentIntegration:
             assert script_path.stat().st_size > 0, f"Script {script_name} está vazio"
 
             # Verifica que não tem caracteres nulos
-            with open(script_path, 'rb') as f:
+            with open(script_path, "rb") as f:
                 content = f.read()
-                assert b'\x00' not in content, f"Script {script_name} contém caracteres nulos"
+                assert (
+                    b"\x00" not in content
+                ), f"Script {script_name} contém caracteres nulos"
 
 
 class TestDeploymentErrorHandling:
     """Testes de tratamento de erros nos scripts de deployment"""
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_auto_discover_workers_kubectl_not_found(self, mock_run):
         """Testa comportamento quando kubectl não é encontrado"""
         # Simula erro de comando não encontrado
@@ -214,7 +224,7 @@ class TestDeploymentErrorHandling:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
             )
             # Se chegou aqui, o script tratou o erro
             assert True
@@ -229,7 +239,7 @@ class TestDeploymentErrorHandling:
         """Verifica se o instalador checa dependências adequadamente"""
         script_path = Path("scripts/deployment/webui-installer.sh")
 
-        with open(script_path, 'r') as f:
+        with open(script_path, "r") as f:
             content = f.read()
 
         # Verifica se há verificações de erro adequadas
@@ -258,12 +268,14 @@ class TestDeploymentPerformance:
                 capture_output=True,
                 text=True,
                 timeout=60,  # Máximo 1 minuto
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
             )
             execution_time = time.time() - start_time
 
             # Tempo de execução deve ser razoável
-            assert execution_time < 30, f"Script demorou {execution_time:.2f}s para executar"
+            assert (
+                execution_time < 30
+            ), f"Script demorou {execution_time:.2f}s para executar"
 
         except subprocess.TimeoutExpired:
             pytest.skip("Script excedeu timeout - pode estar esperando kubectl")

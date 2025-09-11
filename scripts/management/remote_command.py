@@ -8,8 +8,13 @@ import shlex
 from typing import Tuple, Optional
 
 
-def execute_remote_command(host: str, command: str, user: str = "termux",
-                          key_file: Optional[str] = None, timeout: int = 30) -> Tuple[bool, str, str]:
+def execute_remote_command(
+    host: str,
+    command: str,
+    user: str = "termux",
+    key_file: Optional[str] = None,
+    timeout: int = 30,
+) -> Tuple[bool, str, str]:
     """
     Executa um comando remoto via SSH
 
@@ -25,8 +30,13 @@ def execute_remote_command(host: str, command: str, user: str = "termux",
     """
     try:
         # Construir comando SSH
-        ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no",
-                  "-o", "UserKnownHostsFile=/dev/null"]
+        ssh_cmd = [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+        ]
 
         if key_file:
             ssh_cmd.extend(["-i", key_file])
@@ -35,10 +45,7 @@ def execute_remote_command(host: str, command: str, user: str = "termux",
 
         # Executar comando
         result = subprocess.run(
-            ssh_cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
+            ssh_cmd, capture_output=True, text=True, timeout=timeout
         )
 
         success = result.returncode == 0
@@ -50,8 +57,9 @@ def execute_remote_command(host: str, command: str, user: str = "termux",
         return False, "", f"Erro ao executar comando remoto: {str(e)}"
 
 
-def test_ssh_connection(host: str, user: str = "termux",
-                       key_file: Optional[str] = None, timeout: int = 10) -> Tuple[bool, str]:
+def test_ssh_connection(
+    host: str, user: str = "termux", key_file: Optional[str] = None, timeout: int = 10
+) -> Tuple[bool, str]:
     """
     Testa conexão SSH com um host
 
@@ -65,8 +73,7 @@ def test_ssh_connection(host: str, user: str = "termux",
         Tupla (sucesso, mensagem)
     """
     success, stdout, stderr = execute_remote_command(
-        host, "echo 'SSH connection test'",
-        user, key_file, timeout
+        host, "echo 'SSH connection test'", user, key_file, timeout
     )
 
     if success:
@@ -75,8 +82,13 @@ def test_ssh_connection(host: str, user: str = "termux",
         return False, f"Falha na conexão SSH: {stderr}"
 
 
-def execute_remote_script(host: str, script_content: str, user: str = "termux",
-                         key_file: Optional[str] = None, timeout: int = 30) -> Tuple[bool, str, str]:
+def execute_remote_script(
+    host: str,
+    script_content: str,
+    user: str = "termux",
+    key_file: Optional[str] = None,
+    timeout: int = 30,
+) -> Tuple[bool, str, str]:
     """
     Executa um script remoto via SSH
 

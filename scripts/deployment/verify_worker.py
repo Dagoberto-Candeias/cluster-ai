@@ -48,50 +48,59 @@ def verify_worker_services(worker_data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dicionário com status dos serviços
     """
-    ip = worker_data.get('ip')
+    ip = worker_data.get("ip")
     if not ip:
-        return {'error': 'IP não fornecida'}
+        return {"error": "IP não fornecida"}
 
-    port = worker_data.get('port', 22)
-    worker_type = worker_data.get('type', 'unknown')
+    port = worker_data.get("port", 22)
+    worker_type = worker_data.get("type", "unknown")
 
-    results = {
-        'ip': ip,
-        'port': port,
-        'type': worker_type,
-        'services': {}
-    }
+    results = {"ip": ip, "port": port, "type": worker_type, "services": {}}
 
     # Verificar conectividade básica
     success, message = verify_worker(ip, port)
-    results['services']['connectivity'] = {
-        'status': 'ok' if success else 'error',
-        'message': message
+    results["services"]["connectivity"] = {
+        "status": "ok" if success else "error",
+        "message": message,
     }
 
     # Verificações específicas por tipo
-    if worker_type == 'android':
+    if worker_type == "android":
         # Verificar se é Termux (porta 8022 típica)
         if port == 8022:
-            results['services']['termux'] = {'status': 'ok', 'message': 'Porta Termux padrão'}
+            results["services"]["termux"] = {
+                "status": "ok",
+                "message": "Porta Termux padrão",
+            }
         else:
-            results['services']['termux'] = {'status': 'warning', 'message': 'Porta não padrão para Termux'}
+            results["services"]["termux"] = {
+                "status": "warning",
+                "message": "Porta não padrão para Termux",
+            }
 
-    elif worker_type == 'linux':
+    elif worker_type == "linux":
         # Verificar SSH
         if port == 22:
-            results['services']['ssh'] = {'status': 'ok', 'message': 'SSH na porta padrão'}
+            results["services"]["ssh"] = {
+                "status": "ok",
+                "message": "SSH na porta padrão",
+            }
         else:
-            results['services']['ssh'] = {'status': 'ok', 'message': f'SSH na porta {port}'}
+            results["services"]["ssh"] = {
+                "status": "ok",
+                "message": f"SSH na porta {port}",
+            }
 
     # Calcular status geral
-    all_ok = all(service['status'] == 'ok' for service in results['services'].values())
-    results['overall_status'] = 'ok' if all_ok else 'warning'
+    all_ok = all(service["status"] == "ok" for service in results["services"].values())
+    results["overall_status"] = "ok" if all_ok else "warning"
 
     return results
 
 
-def test_ssh_connection(host: str, port: int = 22, timeout: int = 5) -> Tuple[bool, str]:
+def test_ssh_connection(
+    host: str, port: int = 22, timeout: int = 5
+) -> Tuple[bool, str]:
     """
     Testa conexão SSH com um host
 
@@ -113,15 +122,11 @@ def test_ssh_connection(host: str, port: int = 22, timeout: int = 5) -> Tuple[bo
 
 if __name__ == "__main__":
     # Teste do módulo
-    test_worker = {
-        "ip": "192.168.1.100",
-        "port": 8022,
-        "type": "android"
-    }
+    test_worker = {"ip": "192.168.1.100", "port": 8022, "type": "android"}
 
     result = verify_worker_services(test_worker)
     print(f"Verificação do worker {test_worker['ip']}:")
     print(f"Status geral: {result['overall_status']}")
 
-    for service, info in result['services'].items():
+    for service, info in result["services"].items():
         print(f"  {service}: {info['status']} - {info['message']}")

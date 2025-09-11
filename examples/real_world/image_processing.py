@@ -36,10 +36,12 @@ class DistributedImageProcessor:
         self.processed_count = 0
         self.errors_count = 0
 
-    def find_images(self, input_dir: str, extensions: Optional[List[str]] = None) -> List[str]:
+    def find_images(
+        self, input_dir: str, extensions: Optional[List[str]] = None
+    ) -> List[str]:
         """Encontra todas as imagens no diretório especificado."""
         if extensions is None:
-            extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
+            extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"]
 
         image_paths = []
         input_path = Path(input_dir)
@@ -48,8 +50,8 @@ class DistributedImageProcessor:
             raise FileNotFoundError(f"Diretorio nao encontrado: {input_dir}")
 
         for ext in extensions:
-            image_paths.extend(input_path.rglob(f'*{ext}'))
-            image_paths.extend(input_path.rglob(f'*{ext.upper()}'))
+            image_paths.extend(input_path.rglob(f"*{ext}"))
+            image_paths.extend(input_path.rglob(f"*{ext.upper()}"))
 
         print(f"📁 Encontradas {len(image_paths)} imagens em {input_dir}")
         return [str(path) for path in image_paths]
@@ -59,8 +61,8 @@ class DistributedImageProcessor:
         try:
             with Image.open(image_path) as img:
                 # Converter para RGB se necessario
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
 
                 # Converter para array numpy
                 img_array = np.array(img)
@@ -71,7 +73,9 @@ class DistributedImageProcessor:
             print(f"❌ Erro ao carregar {image_path}: {e}")
             return image_path, None
 
-    def apply_filters(self, image_data: Tuple[str, Optional[np.ndarray]]) -> Tuple[str, Dict[str, Any]]:
+    def apply_filters(
+        self, image_data: Tuple[str, Optional[np.ndarray]]
+    ) -> Tuple[str, Dict[str, Any]]:
         """Aplica varios filtros e processamentos a imagem."""
         image_path, img_array = image_data
 
@@ -85,11 +89,13 @@ class DistributedImageProcessor:
             results = {
                 "original_size": img.size,
                 "original_mode": img.mode,
-                "filters": {}
+                "filters": {},
             }
 
             # 1. Filtro de nitidez
-            sharpened = img.filter(ImageFilter.UnsharpMask(radius=1, percent=150, threshold=3))
+            sharpened = img.filter(
+                ImageFilter.UnsharpMask(radius=1, percent=150, threshold=3)
+            )
             results["filters"]["sharpened"] = np.array(sharpened)
 
             # 2. Correcao de brilho
@@ -111,7 +117,7 @@ class DistributedImageProcessor:
             results["filters"]["edges"] = np.array(edges)
 
             # 6. Estatisticas da imagem
-            img_gray = img.convert('L')
+            img_gray = img.convert("L")
             img_array_gray = np.array(img_gray)
 
             results["statistics"] = {
@@ -119,7 +125,7 @@ class DistributedImageProcessor:
                 "std_intensity": float(img_array_gray.std()),
                 "min_intensity": int(img_array_gray.min()),
                 "max_intensity": int(img_array_gray.max()),
-                "median_intensity": int(np.median(img_array_gray))
+                "median_intensity": int(np.median(img_array_gray)),
             }
 
             # 7. Redimensionamento
@@ -135,7 +141,9 @@ class DistributedImageProcessor:
             print(f"❌ Erro ao processar {image_path}: {e}")
             return image_path, {"error": str(e)}
 
-    def save_processed_image(self, result: Tuple[str, Dict[str, Any]], output_dir: str) -> str:
+    def save_processed_image(
+        self, result: Tuple[str, Dict[str, Any]], output_dir: str
+    ) -> str:
         """Salva as imagens processadas."""
         image_path, processed_data = result
 
@@ -164,7 +172,9 @@ class DistributedImageProcessor:
 
             # Salvar versoes redimensionadas
             for size_name, img_array in processed_data.items():
-                if size_name.startswith("resized_") and isinstance(img_array, np.ndarray):
+                if size_name.startswith("resized_") and isinstance(
+                    img_array, np.ndarray
+                ):
                     img = Image.fromarray(img_array)
                     size = size_name.split("_")[1]
                     output_file = output_path / f"{base_name}_{size}x{size}{ext}"
@@ -179,7 +189,9 @@ class DistributedImageProcessor:
             self.errors_count += 1
             return f"Erro ao salvar {image_path}: {e}"
 
-    def create_summary_report(self, results: List[str], output_dir: str) -> Dict[str, Any]:
+    def create_summary_report(
+        self, results: List[str], output_dir: str
+    ) -> Dict[str, Any]:
         """Cria um relatorio resumido do processamento."""
         successful = len([r for r in results if r.startswith("Processada:")])
         errors = len([r for r in results if r.startswith("Erro")])
@@ -190,34 +202,37 @@ class DistributedImageProcessor:
             "errors": errors,
             "success_rate": successful / len(results) * 100 if results else 0,
             "output_directory": output_dir,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         # Salvar relatorio
         report_path = Path(output_dir) / "processing_report.json"
-        with open(report_path, 'w', encoding='utf-8') as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             import json
+
             json.dump(report, f, indent=2, ensure_ascii=False, default=str)
 
         return report
 
 
-def process_images_distributed(input_dir: str, output_dir: str, batch_size: int = 50) -> Dict[str, Any]:
+def process_images_distributed(
+    input_dir: str, output_dir: str, batch_size: int = 50
+) -> Dict[str, Any]:
     """Processa imagens de forma distribuida usando Dask."""
     print("🚀 Iniciando processamento distribuido de imagens")
     print("=" * 60)
 
     # Conectar ao cluster
     try:
-        client = Client('tcp://localhost:8786')
+        client = Client("tcp://localhost:8786")
         print("🔗 Conectado ao cluster Dask existente")
     except:
         print("🏠 Iniciando cluster local...")
         cluster = LocalCluster(
             n_workers=4,
             threads_per_worker=2,
-            memory_limit='2GB',
-            dashboard_address=':8788'
+            memory_limit="2GB",
+            dashboard_address=":8788",
         )
         client = Client(cluster)
 
@@ -243,8 +258,10 @@ def process_images_distributed(input_dir: str, output_dir: str, batch_size: int 
         start_time = time.time()
 
         for i in range(0, len(image_paths), batch_size):
-            batch = image_paths[i:i + batch_size]
-            print(f"\n🔄 Processando lote {i//batch_size + 1}/{(len(image_paths) + batch_size - 1)//batch_size}")
+            batch = image_paths[i : i + batch_size]
+            print(
+                f"\n🔄 Processando lote {i//batch_size + 1}/{(len(image_paths) + batch_size - 1)//batch_size}"
+            )
             print(f"   Imagens: {len(batch)}")
 
             # Criar bag do Dask para processamento distribuido
@@ -252,8 +269,7 @@ def process_images_distributed(input_dir: str, output_dir: str, batch_size: int 
 
             # Pipeline de processamento
             results = (
-                image_bag
-                .map(processor.load_image)
+                image_bag.map(processor.load_image)
                 .map(processor.apply_filters)
                 .map(lambda x: processor.save_processed_image(x, output_dir))
                 .compute()
@@ -277,18 +293,20 @@ def process_images_distributed(input_dir: str, output_dir: str, batch_size: int 
         print("\n🎉 Processamento concluido!")
         print("=" * 60)
         print(f"⏱️  Tempo total: {total_time:.2f} segundos")
-        print(f"📁 Imagens processadas: {summary['successful']}/{summary['total_images']}")
+        print(
+            f"📁 Imagens processadas: {summary['successful']}/{summary['total_images']}"
+        )
         print(f"📊 Taxa de sucesso: {summary['success_rate']:.1f}%")
         print(f"💾 Resultados salvos em: {output_dir}")
         print(f"🌐 Dashboard: http://localhost:8787")
 
         return {
             "success": True,
-            "total_images": summary['total_images'],
-            "successful": summary['successful'],
-            "errors": summary['errors'],
+            "total_images": summary["total_images"],
+            "successful": summary["successful"],
+            "errors": summary["errors"],
             "processing_time": total_time,
-            "output_directory": output_dir
+            "output_directory": output_dir,
         }
 
     except Exception as e:
@@ -315,12 +333,18 @@ def create_demo_images(output_dir: str, num_images: int = 10):
         # Circulos
         center_x, center_y = width // 2, height // 2
         y, x = np.ogrid[:height, :width]
-        mask = (x - center_x)**2 + (y - center_y)**2 <= (min(width, height) // 4)**2
+        mask = (x - center_x) ** 2 + (y - center_y) ** 2 <= (
+            min(width, height) // 4
+        ) ** 2
         img_array[mask] = [255, 0, 0]  # Vermelho
 
         # Retangulos
         img_array[50:150, 50:150] = [0, 255, 0]  # Verde
-        img_array[height-150:height-50, width-150:width-50] = [0, 0, 255]  # Azul
+        img_array[height - 150 : height - 50, width - 150 : width - 50] = [
+            0,
+            0,
+            255,
+        ]  # Azul
 
         # Salvar imagem
         img = Image.fromarray(img_array)
@@ -330,15 +354,36 @@ def create_demo_images(output_dir: str, num_images: int = 10):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Processamento Distribuido de Imagens com Cluster AI')
-    parser.add_argument('--input', '-i', default='./imagens_entrada',
-                       help='Diretorio com imagens de entrada')
-    parser.add_argument('--output', '-o', default='./imagens_processadas',
-                       help='Diretorio para salvar imagens processadas')
-    parser.add_argument('--batch-size', '-b', type=int, default=50,
-                       help='Tamanho do lote para processamento')
-    parser.add_argument('--create-demo', '-d', type=int, nargs='?', const=10,
-                       help='Criar imagens de demonstracao (opcional: numero de imagens)')
+    parser = argparse.ArgumentParser(
+        description="Processamento Distribuido de Imagens com Cluster AI"
+    )
+    parser.add_argument(
+        "--input",
+        "-i",
+        default="./imagens_entrada",
+        help="Diretorio com imagens de entrada",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="./imagens_processadas",
+        help="Diretorio para salvar imagens processadas",
+    )
+    parser.add_argument(
+        "--batch-size",
+        "-b",
+        type=int,
+        default=50,
+        help="Tamanho do lote para processamento",
+    )
+    parser.add_argument(
+        "--create-demo",
+        "-d",
+        type=int,
+        nargs="?",
+        const=10,
+        help="Criar imagens de demonstracao (opcional: numero de imagens)",
+    )
 
     args = parser.parse_args()
 
@@ -363,7 +408,9 @@ def main():
         print(f"❌ Falha no processamento: {result['error']}")
     else:
         print("\n✅ Processamento finalizado com sucesso!")
-        print(f"📊 Resumo: {result['successful']}/{result['total_images']} imagens processadas")
+        print(
+            f"📊 Resumo: {result['successful']}/{result['total_images']} imagens processadas"
+        )
 
 
 if __name__ == "__main__":

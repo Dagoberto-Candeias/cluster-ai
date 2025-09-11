@@ -96,6 +96,7 @@ discover_workers_parallel() {
 # Main discovery function
 main() {
     log "🚀 Starting optimized worker discovery..."
+    log "Descobrindo workers automaticamente..."
 
     # Check memory before starting
     if ! check_memory; then

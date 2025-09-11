@@ -26,7 +26,7 @@ class TestDeploymentPerformance:
                     capture_output=True,
                     text=True,
                     timeout=30,
-                    cwd=Path.cwd()
+                    cwd=Path.cwd(),
                 )
                 return result.returncode
             except subprocess.TimeoutExpired:
@@ -42,6 +42,7 @@ class TestDeploymentPerformance:
 
     def test_webui_installer_simulation_performance(self, benchmark):
         """Benchmark da simulação do instalador web"""
+
         def simulate_installer_steps():
             """Simula os passos principais do instalador"""
             steps = [
@@ -50,7 +51,7 @@ class TestDeploymentPerformance:
                 "source ~/cluster_env/bin/activate",
                 "pip install dask[complete] distributed",
                 "docker --version",
-                "mkdir -p ~/open-webui"
+                "mkdir -p ~/open-webui",
             ]
 
             total_time = 0
@@ -83,7 +84,7 @@ class TestDeploymentPerformance:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
             )
 
             # Obter uso de memória depois
@@ -113,7 +114,7 @@ class TestDeploymentPerformance:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
             )
             execution_time = time.time() - start_time
 
@@ -131,10 +132,9 @@ class TestDeploymentPerformance:
         except FileNotFoundError:
             pytest.skip("kubectl não encontrado")
 
-    @pytest.mark.parametrize("script_name", [
-        "auto_discover_workers.sh",
-        "webui-installer.sh"
-    ])
+    @pytest.mark.parametrize(
+        "script_name", ["auto_discover_workers.sh", "webui-installer.sh"]
+    )
     def test_script_execution_time(self, script_name):
         """Testa tempo de execução de diferentes scripts"""
         script_path = Path(f"scripts/deployment/{script_name}")
@@ -150,13 +150,15 @@ class TestDeploymentPerformance:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                cwd=Path.cwd()
+                cwd=Path.cwd(),
             )
 
             execution_time = time.time() - start_time
 
             # Scripts devem executar em tempo razoável
-            assert execution_time < 20, f"Script {script_name} demorou {execution_time:.2f}s"
+            assert (
+                execution_time < 20
+            ), f"Script {script_name} demorou {execution_time:.2f}s"
 
         except subprocess.TimeoutExpired:
             pytest.skip(f"Script {script_name} excedeu timeout")
@@ -165,6 +167,7 @@ class TestDeploymentPerformance:
 
     def test_parallel_installation_performance(self, benchmark):
         """Benchmark de instalações paralelas simuladas"""
+
         def simulate_parallel_install(packages_count, parallel_jobs):
             """Simula instalação paralela de pacotes"""
             import threading
@@ -199,15 +202,17 @@ class TestDeploymentPerformance:
 
         # Testar diferentes configurações
         test_cases = [
-            (5, 1),   # 5 pacotes sequencial
-            (5, 2),   # 5 pacotes com 2 jobs paralelos
+            (5, 1),  # 5 pacotes sequencial
+            (5, 2),  # 5 pacotes com 2 jobs paralelos
             (10, 4),  # 10 pacotes com 4 jobs paralelos
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         packages_count, parallel_jobs = (5, 2)
         result = benchmark(simulate_parallel_install, packages_count, parallel_jobs)
-        assert result, f"Falha na instalação paralela: {packages_count} pacotes, {parallel_jobs} jobs"
+        assert (
+            result
+        ), f"Falha na instalação paralela: {packages_count} pacotes, {parallel_jobs} jobs"
 
     def test_caching_effectiveness_simulation(self, benchmark):
         """Simula efetividade do cache em operações repetidas"""
@@ -229,7 +234,14 @@ class TestDeploymentPerformance:
             return "computed_result"
 
         # Testar cache hits vs misses
-        operations = ["op1", "op2", "op1", "op3", "op2", "op1"]  # op1 e op2 serão cache hits
+        operations = [
+            "op1",
+            "op2",
+            "op1",
+            "op3",
+            "op2",
+            "op1",
+        ]  # op1 e op2 serão cache hits
 
         def run_cached_operations():
             results = []
@@ -246,6 +258,7 @@ class TestDeploymentPerformance:
 
     def test_memory_monitoring_overhead(self, benchmark):
         """Testa overhead do monitoramento de memória"""
+
         def memory_intensive_operation():
             """Operação que consome memória"""
             data = []
@@ -281,12 +294,12 @@ class TestDeploymentPerformance:
                 data = b"X" * (block_size_kb * 1024)
                 blocks = (file_size_mb * 1024 * 1024) // (block_size_kb * 1024)
 
-                with open(temp_file, 'wb') as f:
+                with open(temp_file, "wb") as f:
                     for _ in range(int(blocks)):
                         f.write(data)
 
                 # Ler dados
-                with open(temp_file, 'rb') as f:
+                with open(temp_file, "rb") as f:
                     while f.read(block_size_kb * 1024):
                         pass
 
@@ -296,7 +309,7 @@ class TestDeploymentPerformance:
 
         # Testar diferentes configurações de I/O
         test_cases = [
-            (10, 4),   # 10MB com blocos de 4KB
+            (10, 4),  # 10MB com blocos de 4KB
             (10, 64),  # 10MB com blocos de 64KB
             (50, 64),  # 50MB com blocos de 64KB
         ]
@@ -312,6 +325,7 @@ class TestDeploymentScalability:
 
     def test_multiple_worker_discovery_simulation(self):
         """Simula descoberta de múltiplos workers"""
+
         def simulate_worker_discovery(num_workers):
             """Simula descoberta de N workers"""
             total_time = 0
@@ -332,8 +346,9 @@ class TestDeploymentScalability:
 
             # Tempo deve escalar linearmente (máximo 2ms por worker com margem)
             max_expected = num_workers * 0.002  # 2ms por worker (margem)
-            assert total_time < max_expected, \
-                f"Escalabilidade ruim: {num_workers} workers em {total_time:.3f}s (esperado < {max_expected:.3f}s)"
+            assert (
+                total_time < max_expected
+            ), f"Escalabilidade ruim: {num_workers} workers em {total_time:.3f}s (esperado < {max_expected:.3f}s)"
 
     def test_concurrent_deployment_simulation(self):
         """Simula deployments concorrentes"""
@@ -367,6 +382,7 @@ class TestDeploymentScalability:
 
     def test_memory_scaling_simulation(self):
         """Simula escalabilidade de memória"""
+
         def simulate_memory_usage(num_workers):
             """Simula uso de memória com N workers"""
             base_memory = 100  # MB base
@@ -386,8 +402,9 @@ class TestDeploymentScalability:
 
             # Memória deve escalar linearmente
             expected_max = 100 + (num_workers * 60)  # 60MB por worker (margem)
-            assert memory_used <= expected_max, \
-                f"Uso de memória não escalável: {num_workers} workers = {memory_used}MB"
+            assert (
+                memory_used <= expected_max
+            ), f"Uso de memória não escalável: {num_workers} workers = {memory_used}MB"
 
 
 class TestDeploymentReliability:
@@ -405,12 +422,15 @@ class TestDeploymentReliability:
                     capture_output=True,
                     text=True,
                     timeout=5,
-                    cwd=Path.cwd()
+                    cwd=Path.cwd(),
                 )
 
                 # Se chegou aqui, script executou
-                assert result.returncode in [0, 1, 2], \
-                    f"Return code inesperado: {result.returncode}"
+                assert result.returncode in [
+                    0,
+                    1,
+                    2,
+                ], f"Return code inesperado: {result.returncode}"
 
             except subprocess.TimeoutExpired:
                 if attempt < 2:  # Tentar mais vezes
@@ -431,7 +451,7 @@ class TestDeploymentReliability:
         config_files = [
             Path("~/.cluster_role"),
             Path("~/.cluster_optimization/config"),
-            Path("~/cluster_env/bin/activate")
+            Path("~/cluster_env/bin/activate"),
         ]
 
         # Verificar estado antes
@@ -456,8 +476,9 @@ class TestDeploymentReliability:
             if expanded_path.exists():
                 mtime_after = expanded_path.stat().st_mtime
                 # Arquivo não deve ter sido modificado inesperadamente
-                assert abs(mtime_after - mtime_before) < 1, \
-                    f"Arquivo {config_file} foi modificado inesperadamente"
+                assert (
+                    abs(mtime_after - mtime_before) < 1
+                ), f"Arquivo {config_file} foi modificado inesperadamente"
 
     @pytest.mark.slow
     def test_long_running_deployment_stability(self):
@@ -473,7 +494,6 @@ class TestDeploymentReliability:
         # Verificar que o "deployment" completou
         assert elapsed >= 1.0, "Deployment não executou pelo tempo esperado"
         assert elapsed < 2.0, "Deployment demorou mais que o esperado"
-
 
     def test_disk_caching_effectiveness(self, benchmark):
         """Testa efetividade do cache de disco"""
@@ -491,13 +511,13 @@ class TestDeploymentReliability:
 
                 if os.path.exists(cache_file):
                     # Cache hit - ler do cache
-                    with open(cache_file, 'r') as f:
+                    with open(cache_file, "r") as f:
                         _ = f.read()
                     cache_hits += 1
                 else:
                     # Cache miss - computar e salvar
                     result = f"Result for {cache_key}"
-                    with open(cache_file, 'w') as f:
+                    with open(cache_file, "w") as f:
                         f.write(result)
                     cache_misses += 1
 
@@ -514,7 +534,9 @@ class TestDeploymentReliability:
 
             # Verificar que houve hits de cache (devido às operações repetidas)
             assert hits > 0, f"Nenhum hit de cache para {num_ops} operações"
-            assert hits + misses == num_ops, f"Contagem incorreta: {hits} hits + {misses} misses != {num_ops}"
+            assert (
+                hits + misses == num_ops
+            ), f"Contagem incorreta: {hits} hits + {misses} misses != {num_ops}"
 
             # Efetividade deve ser razoável (> 50% hits para operações repetidas)
             effectiveness = hits / num_ops
@@ -522,6 +544,7 @@ class TestDeploymentReliability:
 
     def test_memory_limit_enforcement(self, benchmark):
         """Testa aplicação de limites de memória"""
+
         def simulate_memory_limited_process(memory_limit_mb):
             """Simula processo com limite de memória"""
             data = []
@@ -538,7 +561,9 @@ class TestDeploymentReliability:
 
                     if memory_usage_mb > memory_limit_mb:
                         # Simular kill do processo
-                        raise MemoryError(f"Memory limit exceeded: {memory_usage_mb:.1f}MB > {memory_limit_mb}MB")
+                        raise MemoryError(
+                            f"Memory limit exceeded: {memory_usage_mb:.1f}MB > {memory_limit_mb}MB"
+                        )
 
                     time.sleep(0.001)  # Pequena pausa
 
@@ -556,6 +581,7 @@ class TestDeploymentReliability:
 
     def test_performance_recovery_automation(self):
         """Testa automação de recuperação de performance"""
+
         def simulate_performance_recovery(scenarios):
             """Simula cenários de recuperação de performance"""
             recovery_actions = []
@@ -588,15 +614,16 @@ class TestDeploymentReliability:
             ["high_cpu"],
             ["memory_leak", "disk_io_high"],
             ["high_cpu", "memory_leak", "network_latency"],
-            ["disk_io_high", "network_latency"] * 3  # Cenário mais complexo
+            ["disk_io_high", "network_latency"] * 3,  # Cenário mais complexo
         ]
 
         for scenarios in test_scenarios:
             actions = simulate_performance_recovery(scenarios)
 
             # Verificar que ações foram tomadas para cada cenário
-            assert len(actions) == len(scenarios), \
-                f"Ações insuficientes: {len(actions)} ações para {len(scenarios)} cenários"
+            assert len(actions) == len(
+                scenarios
+            ), f"Ações insuficientes: {len(actions)} ações para {len(scenarios)} cenários"
 
             # Verificar que ações são apropriadas
             for scenario in scenarios:
@@ -630,7 +657,7 @@ class TestDeploymentReliability:
                         data = b"X" * (64 * 1024)  # 64KB blocks
                         blocks = (file_size_mb * 1024 * 1024) // (64 * 1024)
 
-                        with open(temp_file, 'wb') as f:
+                        with open(temp_file, "wb") as f:
                             for _ in range(int(blocks)):
                                 f.write(data)
 
@@ -639,12 +666,12 @@ class TestDeploymentReliability:
                         data = b"X" * (64 * 1024)
                         blocks = (file_size_mb * 1024 * 1024) // (64 * 1024)
 
-                        with open(temp_file, 'wb') as f:
+                        with open(temp_file, "wb") as f:
                             for _ in range(int(blocks)):
                                 f.write(data)
 
                         # Depois ler
-                        with open(temp_file, 'rb') as f:
+                        with open(temp_file, "rb") as f:
                             while f.read(64 * 1024):
                                 pass
 
@@ -652,12 +679,12 @@ class TestDeploymentReliability:
                         # Operações mistas (leitura/escrita alternada)
                         data = b"X" * (32 * 1024)  # 32KB blocks
 
-                        with open(temp_file, 'wb') as f:
+                        with open(temp_file, "wb") as f:
                             for i in range(100):
                                 f.write(data)
                                 f.flush()
 
-                        with open(temp_file, 'rb') as f:
+                        with open(temp_file, "rb") as f:
                             for i in range(100):
                                 chunk = f.read(32 * 1024)
                                 if not chunk:
@@ -685,23 +712,27 @@ class TestDeploymentReliability:
 
         # Testar diferentes configurações de I/O paralelo
         test_configs = [
-            (1, 10, "write"),    # 1 thread, 10MB, escrita
-            (2, 10, "read"),     # 2 threads, 10MB, leitura
-            (4, 5, "mixed"),     # 4 threads, 5MB, misto
-            (1, 50, "write"),    # 1 thread, 50MB, escrita
+            (1, 10, "write"),  # 1 thread, 10MB, escrita
+            (2, 10, "read"),  # 2 threads, 10MB, leitura
+            (4, 5, "mixed"),  # 4 threads, 5MB, misto
+            (1, 50, "write"),  # 1 thread, 50MB, escrita
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         num_threads, file_size_mb, operation = (2, 10, "write")
-        completed, errors = benchmark(parallel_disk_io_test, num_threads, file_size_mb, operation)
+        completed, errors = benchmark(
+            parallel_disk_io_test, num_threads, file_size_mb, operation
+        )
 
         # Verificar que todas as threads completaram
-        assert completed == num_threads, \
-            f"Apenas {completed}/{num_threads} threads completaram para {operation}"
+        assert (
+            completed == num_threads
+        ), f"Apenas {completed}/{num_threads} threads completaram para {operation}"
         assert errors == 0, f"{errors} erros encontrados em teste {operation}"
 
     def test_cache_performance_under_load(self, benchmark):
         """Testa performance do cache sob carga"""
+
         def simulate_cache_under_load(cache_size, num_operations, load_factor):
             """Simula cache sob diferentes níveis de carga"""
             cache = {}
@@ -736,14 +767,16 @@ class TestDeploymentReliability:
 
         # Testar cache sob diferentes condições
         test_conditions = [
-            (100, 1000, 0.1),   # Cache pequeno, muitas operações, baixa repetição
+            (100, 1000, 0.1),  # Cache pequeno, muitas operações, baixa repetição
             (1000, 1000, 0.5),  # Cache grande, repetição média
-            (500, 2000, 0.8),   # Cache médio, alta repetição
+            (500, 2000, 0.8),  # Cache médio, alta repetição
         ]
 
         # Testar apenas uma condição para evitar problemas com benchmark fixture
         cache_size, num_ops, load_factor = (500, 1000, 0.5)
-        hits, misses, evictions = benchmark(simulate_cache_under_load, cache_size, num_ops, load_factor)
+        hits, misses, evictions = benchmark(
+            simulate_cache_under_load, cache_size, num_ops, load_factor
+        )
 
         # Verificações básicas
         assert hits + misses == num_ops
@@ -752,8 +785,9 @@ class TestDeploymentReliability:
         # Taxa de hit deve ser consistente com load_factor
         hit_rate = hits / num_ops
         expected_min_hit_rate = load_factor * 0.5  # Pelo menos metade do load_factor
-        assert hit_rate >= expected_min_hit_rate, \
-            f"Taxa de hit baixa: {hit_rate:.2%} (esperado >= {expected_min_hit_rate:.2%})"
+        assert (
+            hit_rate >= expected_min_hit_rate
+        ), f"Taxa de hit baixa: {hit_rate:.2%} (esperado >= {expected_min_hit_rate:.2%})"
 
 
 class TestDaskPerformance:
@@ -772,7 +806,9 @@ class TestDaskPerformance:
                 return x * x
 
             # Criar cluster local para teste
-            with LocalCluster(n_workers=2, threads_per_worker=1, processes=False) as cluster:
+            with LocalCluster(
+                n_workers=2, threads_per_worker=1, processes=False
+            ) as cluster:
                 with Client(cluster) as client:
                     # Testar execução sequencial vs paralela
                     data = list(range(100))
@@ -787,6 +823,7 @@ class TestDaskPerformance:
     @pytest.mark.performance
     def test_dask_scalability_simulation(self, benchmark):
         """Simula escalabilidade do Dask com diferentes números de workers"""
+
         def simulate_dask_scalability(num_workers, num_tasks):
             """Simula processamento com diferentes configurações"""
             import time
@@ -800,7 +837,9 @@ class TestDaskPerformance:
                     # Simular tempo de processamento
                     base_time = 0.01
                     # Workers adicionais reduzem tempo (paralelização)
-                    processing_time = base_time / min(num_workers, 4)  # Máximo speedup de 4x
+                    processing_time = base_time / min(
+                        num_workers, 4
+                    )  # Máximo speedup de 4x
                     time.sleep(processing_time)
                     results.append(f"Task {task_id} completed")
                 except Exception as e:
@@ -821,22 +860,25 @@ class TestDaskPerformance:
 
         # Testar diferentes configurações de escalabilidade
         test_configs = [
-            (1, 10),   # 1 worker, 10 tarefas
-            (2, 10),   # 2 workers, 10 tarefas
-            (4, 10),   # 4 workers, 10 tarefas
-            (2, 50),   # 2 workers, 50 tarefas
+            (1, 10),  # 1 worker, 10 tarefas
+            (2, 10),  # 2 workers, 10 tarefas
+            (4, 10),  # 4 workers, 10 tarefas
+            (2, 50),  # 2 workers, 50 tarefas
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         num_workers, num_tasks = (2, 10)
         completed, errors = benchmark(simulate_dask_scalability, num_workers, num_tasks)
 
-        assert completed == num_tasks, f"Apenas {completed}/{num_tasks} tarefas concluídas"
+        assert (
+            completed == num_tasks
+        ), f"Apenas {completed}/{num_tasks} tarefas concluídas"
         assert errors == 0, f"{errors} erros encontrados"
 
     @pytest.mark.performance
     def test_dask_memory_efficiency_simulation(self, benchmark):
         """Simula eficiência de memória do Dask"""
+
         def simulate_memory_efficient_processing(data_size, chunk_size):
             """Simula processamento eficiente de memória"""
             import time
@@ -850,7 +892,9 @@ class TestDaskPerformance:
                 current_chunk_size = chunk_end - i
 
                 # Simular processamento do chunk
-                time.sleep(0.001 * current_chunk_size / 1000)  # Tempo proporcional ao tamanho
+                time.sleep(
+                    0.001 * current_chunk_size / 1000
+                )  # Tempo proporcional ao tamanho
 
                 # Memory usage cresce com chunk size, mas é liberada após processamento
                 current_memory = current_chunk_size * 10  # KB
@@ -862,23 +906,30 @@ class TestDaskPerformance:
 
         # Testar diferentes configurações de chunking
         test_configs = [
-            (10000, 1000),   # 10K dados, chunks de 1K
-            (10000, 5000),   # 10K dados, chunks de 5K
-            (50000, 5000),   # 50K dados, chunks de 5K
+            (10000, 1000),  # 10K dados, chunks de 1K
+            (10000, 5000),  # 10K dados, chunks de 5K
+            (50000, 5000),  # 50K dados, chunks de 5K
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         data_size, chunk_size = (10000, 1000)
-        processed, max_memory = benchmark(simulate_memory_efficient_processing, data_size, chunk_size)
+        processed, max_memory = benchmark(
+            simulate_memory_efficient_processing, data_size, chunk_size
+        )
 
-        assert processed == data_size, f"Apenas {processed}/{data_size} dados processados"
+        assert (
+            processed == data_size
+        ), f"Apenas {processed}/{data_size} dados processados"
         # Verificar que uso de memória é razoável
         expected_max_memory = chunk_size * 10  # KB
-        assert max_memory <= expected_max_memory * 1.1, f"Uso de memória alto: {max_memory}KB (esperado <= {expected_max_memory}KB)"
+        assert (
+            max_memory <= expected_max_memory * 1.1
+        ), f"Uso de memória alto: {max_memory}KB (esperado <= {expected_max_memory}KB)"
 
     @pytest.mark.performance
     def test_dask_task_scheduling_efficiency(self, benchmark):
         """Testa eficiência de agendamento de tarefas do Dask"""
+
         def simulate_task_scheduling(num_tasks, scheduling_delay):
             """Simula overhead de agendamento"""
             import time
@@ -909,9 +960,15 @@ class TestDaskPerformance:
 
             # Calcular métricas de eficiência
             if completion_times:
-                avg_completion_time = sum(completion_times) / len(completion_times) - start_time
-                scheduling_overhead = avg_completion_time - 0.001  # Subtrair tempo de execução base
-                efficiency = 0.001 / avg_completion_time if avg_completion_time > 0 else 1.0
+                avg_completion_time = (
+                    sum(completion_times) / len(completion_times) - start_time
+                )
+                scheduling_overhead = (
+                    avg_completion_time - 0.001
+                )  # Subtrair tempo de execução base
+                efficiency = (
+                    0.001 / avg_completion_time if avg_completion_time > 0 else 1.0
+                )
             else:
                 scheduling_overhead = 0
                 efficiency = 1.0
@@ -920,14 +977,16 @@ class TestDaskPerformance:
 
         # Testar diferentes cenários de agendamento
         test_configs = [
-            (10, 0.001),   # 10 tarefas, delay baixo
-            (10, 0.01),    # 10 tarefas, delay médio
-            (50, 0.001),   # 50 tarefas, delay baixo
+            (10, 0.001),  # 10 tarefas, delay baixo
+            (10, 0.01),  # 10 tarefas, delay médio
+            (50, 0.001),  # 50 tarefas, delay baixo
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         num_tasks, delay = (10, 0.001)
-        total_time, overhead, efficiency = benchmark(simulate_task_scheduling, num_tasks, delay)
+        total_time, overhead, efficiency = benchmark(
+            simulate_task_scheduling, num_tasks, delay
+        )
 
         # Verificações básicas
         assert total_time > 0, "Tempo total deve ser positivo"
@@ -937,6 +996,7 @@ class TestDaskPerformance:
     @pytest.mark.performance
     def test_dask_fault_tolerance_simulation(self, benchmark):
         """Simula tolerância a falhas do Dask"""
+
         def simulate_fault_tolerance(num_tasks, failure_rate, retries):
             """Simula processamento com tolerância a falhas"""
             import time
@@ -954,7 +1014,9 @@ class TestDaskPerformance:
                     try:
                         # Simular chance de falha
                         if random.random() < failure_rate:
-                            raise Exception(f"Task {task_id} falhou na tentativa {attempt + 1}")
+                            raise Exception(
+                                f"Task {task_id} falhou na tentativa {attempt + 1}"
+                            )
 
                         # Simular processamento bem-sucedido
                         time.sleep(0.001)
@@ -984,22 +1046,29 @@ class TestDaskPerformance:
 
         # Testar diferentes cenários de tolerância a falhas
         test_configs = [
-            (100, 0.1, 1),   # 100 tarefas, 10% falha, 1 retry
-            (100, 0.2, 2),   # 100 tarefas, 20% falha, 2 retries
-            (50, 0.05, 3),   # 50 tarefas, 5% falha, 3 retries
+            (100, 0.1, 1),  # 100 tarefas, 10% falha, 1 retry
+            (100, 0.2, 2),  # 100 tarefas, 20% falha, 2 retries
+            (50, 0.05, 3),  # 50 tarefas, 5% falha, 3 retries
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         num_tasks, failure_rate, retries = (100, 0.1, 1)
-        successful, failed, retries_used, success_rate = benchmark(simulate_fault_tolerance, num_tasks, failure_rate, retries)
+        successful, failed, retries_used, success_rate = benchmark(
+            simulate_fault_tolerance, num_tasks, failure_rate, retries
+        )
 
         # Verificações
-        assert successful + failed == num_tasks, f"Contagem incorreta: {successful} + {failed} != {num_tasks}"
-        assert success_rate > 0.8, f"Taxa de sucesso baixa: {success_rate:.2%} (esperado > 80%)"
+        assert (
+            successful + failed == num_tasks
+        ), f"Contagem incorreta: {successful} + {failed} != {num_tasks}"
+        assert (
+            success_rate > 0.8
+        ), f"Taxa de sucesso baixa: {success_rate:.2%} (esperado > 80%)"
 
     @pytest.mark.performance
     def test_dask_data_transfer_simulation(self, benchmark):
         """Simula transferência de dados entre workers"""
+
         def simulate_data_transfer(data_sizes, network_latency):
             """Simula transferência de dados com latência de rede"""
             import time
@@ -1021,18 +1090,22 @@ class TestDaskPerformance:
 
         # Testar diferentes padrões de transferência
         test_configs = [
-            ([10, 20, 30], 0.01),    # Dados pequenos, baixa latência
-            ([50, 100], 0.05),       # Dados médios, média latência
-            ([5, 5, 5, 5, 5], 0.1), # Muitos dados pequenos, alta latência
+            ([10, 20, 30], 0.01),  # Dados pequenos, baixa latência
+            ([50, 100], 0.05),  # Dados médios, média latência
+            ([5, 5, 5, 5, 5], 0.1),  # Muitos dados pequenos, alta latência
         ]
 
         # Testar apenas uma configuração para evitar problemas com benchmark fixture
         data_sizes, latency = ([10, 20, 30], 0.01)
-        transfer_time, data_transferred = benchmark(simulate_data_transfer, data_sizes, latency)
+        transfer_time, data_transferred = benchmark(
+            simulate_data_transfer, data_sizes, latency
+        )
 
         # Verificações
         assert transfer_time > 0, "Tempo de transferência deve ser positivo"
-        assert data_transferred == sum(data_sizes), f"Dados transferidos incorretos: {data_transferred} != {sum(data_sizes)}"
+        assert data_transferred == sum(
+            data_sizes
+        ), f"Dados transferidos incorretos: {data_transferred} != {sum(data_sizes)}"
 
 
 if __name__ == "__main__":

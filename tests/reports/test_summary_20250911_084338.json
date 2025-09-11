@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-09-11T08:43:38.419340",
+  "total_suites": 8,
+  "passed_suites": 1,
+  "failed_suites": 7,
+  "total_time": 488.74889063835144,
+  "results": [
+    {
+      "type": "unit",
+      "success": false,
+      "duration": 14.56242823600769
+    },
+    {
+      "type": "integration",
+      "success": false,
+      "duration": 88.32727026939392
+    },
+    {
+      "type": "e2e",
+      "success": false,
+      "duration": 1.337679386138916
+    },
+    {
+      "type": "performance",
+      "success": true,
+      "duration": 76.26126313209534
+    },
+    {
+      "type": "security",
+      "success": false,
+      "duration": 3.99238657951355
+    },
+    {
+      "type": "smoke",
+      "success": false,
+      "duration": 3.6933016777038574
+    },
+    {
+      "type": "bash",
+      "success": false,
+      "duration": 300
+    },
+    {
+      "type": "coverage",
+      "success": false,
+      "duration": 0.45448899269104004
+    }
+  ]
+}

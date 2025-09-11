@@ -36,7 +36,9 @@ def find_available_port(start_port: int, max_attempts: int = 100) -> int:
         port_to_check = start_port + i
         if not is_port_in_use(port_to_check):
             return port_to_check
-    raise RuntimeError(f"Não foi possível encontrar uma porta livre após {max_attempts} tentativas")
+    raise RuntimeError(
+        f"Não foi possível encontrar uma porta livre após {max_attempts} tentativas"
+    )
 
 
 def setup_external_ssd():
@@ -143,6 +145,8 @@ def main(project_root: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inicia cluster Dask com SSD externo")
-    parser.add_argument("project_root", type=str, help="Caminho raiz do projeto cluster-ai")
+    parser.add_argument(
+        "project_root", type=str, help="Caminho raiz do projeto cluster-ai"
+    )
     args = parser.parse_args()
     main(str(Path(args.project_root).resolve()))

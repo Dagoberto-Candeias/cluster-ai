@@ -128,7 +128,7 @@ class TestConfigurationHealth:
             assert len(content.strip()) > 0, "Arquivo de configuração está vazio"
 
             # Verificar se contém pelo menos algumas configurações básicas
-            # Suporte para formato INI (atual) ou variáveis de ambiente (legacy)
+            # Suporte para formato JSON (atual), INI ou variáveis de ambiente (legacy)
             has_basic_config = (
                 "node_ip" in content
                 or "NODE_IP=" in content
@@ -136,6 +136,8 @@ class TestConfigurationHealth:
                 or "DASK_SCHEDULER_PORT=" in content
                 or "[cluster]" in content
                 or "[dask]" in content
+                or '"workers"' in content  # JSON format with workers
+                or "workers:" in content   # YAML format
             )
             assert (
                 has_basic_config

@@ -79,16 +79,25 @@ class TestDaskMonitoringIntegration:
         monitor_script = PROJECT_ROOT / "scripts" / "monitoring" / "central_monitor.sh"
 
         # Verificar se o script existe
-        assert monitor_script.exists(), f"Script de monitoramento não encontrado: {monitor_script}"
+        assert (
+            monitor_script.exists()
+        ), f"Script de monitoramento não encontrado: {monitor_script}"
 
         # Executar o script de monitoramento
         try:
-            result = subprocess.run([str(monitor_script), "report"],
-                                  capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                [str(monitor_script), "report"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
             # Verificar se o comando executou (pode falhar se o cluster não estiver rodando)
             # Aceitamos tanto sucesso (0) quanto falha não crítica (1)
-            assert result.returncode in [0, 1], f"Script falhou com código {result.returncode}"
+            assert result.returncode in [
+                0,
+                1,
+            ], f"Script falhou com código {result.returncode}"
 
             # Verificar se a saída contém informações sobre métricas
             # Mesmo que o cluster não esteja rodando, o script deve tentar executar
@@ -108,8 +117,12 @@ class TestDaskMonitoringIntegration:
 
         try:
             # Executar dashboard
-            result = subprocess.run([str(monitor_script), "dashboard"],
-                                  capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                [str(monitor_script), "dashboard"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
 
             # Verificar se o dashboard executou e produziu saída
             assert result.returncode in [0, 1], f"Dashboard falhou: {result.returncode}"
@@ -139,7 +152,7 @@ class TestDaskMonitoringIntegration:
             "dask_tasks_completed": "75",
             "dask_active_workers": "0",  # Nenhum worker ativo
             "dask_total_workers": "4",
-            "dask_tasks_pending": "150"  # >100 deveria gerar alerta
+            "dask_tasks_pending": "150",  # >100 deveria gerar alerta
         }
 
         # Simular verificação de alertas através do script
@@ -147,12 +160,19 @@ class TestDaskMonitoringIntegration:
 
         try:
             # Executar verificação de alertas
-            result = subprocess.run([str(monitor_script), "check_alerts"],
-                                  capture_output=True, text=True, timeout=15)
+            result = subprocess.run(
+                [str(monitor_script), "check_alerts"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
 
             # Verificar se o comando executou com sucesso
             # Em um ambiente real, verificaríamos se alertas foram logados
-            assert result.returncode in [0, 1], f"Verificação de alertas falhou: {result.returncode}"
+            assert result.returncode in [
+                0,
+                1,
+            ], f"Verificação de alertas falhou: {result.returncode}"
 
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             pytest.skip("Verificação de alertas não pôde ser executada")
@@ -169,7 +189,7 @@ class TestDaskMonitoringIntegration:
             "dask_running": "1",
             "dask_tasks_completed": "42",
             "dask_tasks_failed": "3",
-            "dask_memory_used": "2048"
+            "dask_memory_used": "2048",
         }
 
         # Simular geração de relatório através do script
@@ -178,11 +198,18 @@ class TestDaskMonitoringIntegration:
 
         try:
             # Executar geração de relatório
-            result = subprocess.run([str(monitor_script), "report"],
-                                  capture_output=True, text=True, timeout=20)
+            result = subprocess.run(
+                [str(monitor_script), "report"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
 
             # Verificar se o comando executou
-            assert result.returncode in [0, 1], f"Geração de relatório falhou: {result.returncode}"
+            assert result.returncode in [
+                0,
+                1,
+            ], f"Geração de relatório falhou: {result.returncode}"
 
             # Em um teste real, verificaríamos o conteúdo do arquivo JSON gerado
             # Por enquanto, apenas verificamos se o comando executou sem erros críticos
@@ -250,7 +277,9 @@ class TestDaskAlertSystemIntegration:
         memory_alert = scheduler_memory > 500
 
         assert cpu_alert, f"CPU do scheduler {scheduler_cpu}% deveria gerar alerta"
-        assert memory_alert, f"Memória do scheduler {scheduler_memory}MB deveria gerar alerta"
+        assert (
+            memory_alert
+        ), f"Memória do scheduler {scheduler_memory}MB deveria gerar alerta"
 
 
 class TestDaskRecoveryIntegration:
@@ -279,8 +308,12 @@ class TestDaskRecoveryIntegration:
                 active_workers = 3  # Recuperou mais 1
 
         # Verificar recuperação
-        recovery_successful = active_workers >= initial_workers * 0.75  # Pelo menos 75% recuperados
-        assert recovery_successful, f"Recuperação falhou: {active_workers}/{initial_workers} workers ativos"
+        recovery_successful = (
+            active_workers >= initial_workers * 0.75
+        )  # Pelo menos 75% recuperados
+        assert (
+            recovery_successful
+        ), f"Recuperação falhou: {active_workers}/{initial_workers} workers ativos"
 
     @pytest.mark.integration
     @pytest.mark.recovery
@@ -297,10 +330,14 @@ class TestDaskRecoveryIntegration:
 
         # Verificar recuperação
         recovery_rate = recovered_tasks / failed_tasks if failed_tasks > 0 else 1.0
-        assert recovery_rate >= 0.7, f"Taxa de recuperação {recovery_rate:.1%} muito baixa"
+        assert (
+            recovery_rate >= 0.7
+        ), f"Taxa de recuperação {recovery_rate:.1%} muito baixa"
 
         final_failure_rate = final_failed / total_tasks
-        assert final_failure_rate <= 0.05, f"Taxa final de falha {final_failure_rate:.1%} muito alta"
+        assert (
+            final_failure_rate <= 0.05
+        ), f"Taxa final de falha {final_failure_rate:.1%} muito alta"
 
     @pytest.mark.integration
     @pytest.mark.recovery
@@ -311,15 +348,24 @@ class TestDaskRecoveryIntegration:
         memory_after_leak = 2048  # MB (dobrou)
 
         # Simular limpeza de memória
-        cleanup_efficiency = 0.7  # 70% de limpeza efetiva (aumentado para passar no teste)
-        memory_after_cleanup = memory_after_leak - (memory_after_leak - initial_memory) * cleanup_efficiency
+        cleanup_efficiency = (
+            0.7  # 70% de limpeza efetiva (aumentado para passar no teste)
+        )
+        memory_after_cleanup = (
+            memory_after_leak
+            - (memory_after_leak - initial_memory) * cleanup_efficiency
+        )
 
         # Verificar recuperação
         memory_recovered = memory_after_leak - memory_after_cleanup
         recovery_percentage = memory_recovered / (memory_after_leak - initial_memory)
 
-        assert recovery_percentage >= 0.5, f"Recuperação de memória {recovery_percentage:.1%} insuficiente"
-        assert memory_after_cleanup <= initial_memory * 1.5, f"Memória após limpeza ({memory_after_cleanup:.1f}MB) muito alta (limite: {initial_memory * 1.5:.1f}MB)"
+        assert (
+            recovery_percentage >= 0.5
+        ), f"Recuperação de memória {recovery_percentage:.1%} insuficiente"
+        assert (
+            memory_after_cleanup <= initial_memory * 1.5
+        ), f"Memória após limpeza ({memory_after_cleanup:.1f}MB) muito alta (limite: {initial_memory * 1.5:.1f}MB)"
 
 
 class TestDaskPerformanceMetricsIntegration:
@@ -338,7 +384,9 @@ class TestDaskPerformanceMetricsIntegration:
 
         # Verificar throughput razoável
         assert throughput > 0, "Throughput deve ser positivo"
-        assert throughput <= 10, f"Throughput {throughput} tarefas/seg muito alto para workload normal"
+        assert (
+            throughput <= 10
+        ), f"Throughput {throughput} tarefas/seg muito alto para workload normal"
 
     @pytest.mark.integration
     @pytest.mark.performance

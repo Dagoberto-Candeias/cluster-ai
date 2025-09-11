@@ -65,15 +65,15 @@ class TestExtendedPerformance:
         for i in range(100):
             # Create nested data structure
             nested = {
-                'id': i,
-                'data': list(range(1000)),
-                'metadata': {'size': 1000, 'type': 'test'}
+                "id": i,
+                "data": list(range(1000)),
+                "metadata": {"size": 1000, "type": "test"},
             }
             data_structures.append(nested)
 
         assert len(data_structures) == 100
-        assert data_structures[0]['data'][0] == 0
-        assert data_structures[-1]['id'] == 99
+        assert data_structures[0]["data"][0] == 0
+        assert data_structures[-1]["id"] == 99
 
     def test_io_bound_operations_extended(self):
         """Extended I/O bound operations test"""
@@ -100,10 +100,11 @@ class TestExtendedPerformance:
 
     def test_cpu_bound_computation(self):
         """Test CPU-bound computational tasks"""
+
         def fibonacci(n):
             if n <= 1:
                 return n
-            return fibonacci(n-1) + fibonacci(n-2)
+            return fibonacci(n - 1) + fibonacci(n - 2)
 
         # Test with moderate fibonacci number
         start_time = time.time()
@@ -144,9 +145,9 @@ class TestExtendedPerformance:
         # Insert operations
         for i in range(1000):
             simulated_db[f"key_{i}"] = {
-                'id': i,
-                'value': f"data_{i}",
-                'timestamp': time.time()
+                "id": i,
+                "value": f"data_{i}",
+                "timestamp": time.time(),
             }
 
         # Query operations
@@ -154,7 +155,7 @@ class TestExtendedPerformance:
         for i in range(100):
             key = f"key_{i}"
             if key in simulated_db:
-                results.append(simulated_db[key]['value'])
+                results.append(simulated_db[key]["value"])
 
         assert len(simulated_db) == 1000
         assert len(results) == 100
@@ -217,22 +218,21 @@ class TestExtendedPerformance:
             end_time = time.time()
             processing_time = end_time - start_time
 
-            results.append({
-                'load_factor': load_factor,
-                'result': result,
-                'time': processing_time
-            })
+            results.append(
+                {"load_factor": load_factor, "result": result, "time": processing_time}
+            )
 
         # Verify results increase appropriately
-        assert results[1]['result'] > results[0]['result']
-        assert results[2]['result'] > results[1]['result']
+        assert results[1]["result"] > results[0]["result"]
+        assert results[2]["result"] > results[1]["result"]
 
         # Times should scale reasonably
-        assert results[2]['time'] < results[1]['time'] * 5  # Allow some scaling
+        assert results[2]["time"] < results[1]["time"] * 5  # Allow some scaling
 
     @pytest.mark.benchmark
     def test_benchmark_basic_operations(self, benchmark):
         """Benchmark basic operations"""
+
         def basic_ops():
             data = list(range(1000))
             return sum(data)
@@ -243,6 +243,7 @@ class TestExtendedPerformance:
     @pytest.mark.benchmark
     def test_benchmark_file_operations(self, benchmark):
         """Benchmark file operations"""
+
         def file_ops():
             test_file = PROJECT_ROOT / "benchmark_file.tmp"
             try:
@@ -257,6 +258,7 @@ class TestExtendedPerformance:
     @pytest.mark.benchmark
     def test_benchmark_memory_operations(self, benchmark):
         """Benchmark memory operations"""
+
         def memory_ops():
             data = [i for i in range(10000)]
             return len(data), sum(data)

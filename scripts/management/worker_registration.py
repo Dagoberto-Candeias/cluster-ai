@@ -19,9 +19,9 @@ class WorkerRegistration:
         """Carrega lista de workers do arquivo de configuração"""
         if os.path.exists(self.config_file):
             try:
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file, "r") as f:
                     config = json.load(f)
-                    return config.get('workers', {})
+                    return config.get("workers", {})
             except:
                 pass
         return {}
@@ -31,14 +31,14 @@ class WorkerRegistration:
         config = {}
         if os.path.exists(self.config_file):
             try:
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file, "r") as f:
                     config = json.load(f)
             except:
                 pass
 
-        config['workers'] = self.workers
+        config["workers"] = self.workers
 
-        with open(self.config_file, 'w') as f:
+        with open(self.config_file, "w") as f:
             json.dump(config, f, indent=2)
 
     def register_worker(self, worker_data: Dict[str, Any]) -> bool:
@@ -52,7 +52,7 @@ class WorkerRegistration:
             True se registrado com sucesso
         """
         try:
-            worker_id = worker_data.get('name', f"worker_{len(self.workers)}")
+            worker_id = worker_data.get("name", f"worker_{len(self.workers)}")
             self.workers[worker_id] = worker_data
             self._save_workers()
             return True
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         "name": "test-worker",
         "ip": "192.168.1.100",
         "port": 8022,
-        "type": "android"
+        "type": "android",
     }
 
     if registration.register_worker(test_worker):

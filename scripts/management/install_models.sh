@@ -7,8 +7,7 @@
 set -euo pipefail
 
 # --- Carregar Funções Comuns ---
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "${PROJECT_ROOT}/scripts/lib/common.sh"
+source "$(dirname "$0")/../lib/common.sh"
 
 # --- Variáveis de Cor Adicionais ---
 GRAY='\033[0;37m'
@@ -17,9 +16,14 @@ GRAY='\033[0;37m'
 # Modelos organizados por categoria com descrições detalhadas
 # Formato: "nome:tamanho" # (tamanho) Descrição detalhada + casos de uso
 
+# Categorias disponíveis
+CATEGORIAS_DISPONIVEIS=("Conversação" "Programação" "Análise" "Criativo" "Multilíngue" "Leve")
+
+
+
 # 🗣️ MODELOS DE CONVERSAÇÃO (Foco em diálogo natural)
 CONVERSATION_MODELS=(
-    "phi-2:2.7b"        # (1.7 GB) Modelo compacto da Microsoft, ideal para desenvolvimento rápido e testes de conceito
+    "phi-3:3.8b"        # (1.7 GB) Modelo compacto da Microsoft, ideal para desenvolvimento rápido e testes de conceito
     "gemma:2b"          # (1.7 GB) Modelo do Google, excelente para diálogo natural e compreensão contextual
     "llama3:8b"         # (4.7 GB) Meta Llama 3, versátil para conversação, análise e tarefas gerais
     "mistral:7b"        # (4.1 GB) Modelo francês eficiente, ótimo para conversação multilíngue
@@ -56,7 +60,6 @@ MULTILINGUAL_MODELS=(
 # 🧪 MODELOS LEVES (Foco em testes e prototipagem)
 LIGHT_MODELS=(
     "tinyllama:1.1b"    # (637 MB) Extremamente leve, ideal para testes e dispositivos limitados
-    "phi-2:2.7b"        # (1.7 GB) Modelo compacto da Microsoft, bom para desenvolvimento rápido
 )
 
 # Combinar todas as categorias em uma lista única
@@ -95,7 +98,6 @@ MODEL_CATEGORIES=(
     ["qwen:72b"]="🌍 Multilíngue"
     ["bloom:7b"]="🌍 Multilíngue"
     ["tinyllama:1.1b"]="🧪 Leve"
-    ["phi-2:2.7b"]="🧪 Leve"
 )
 
 # Descrições detalhadas dos modelos
@@ -118,7 +120,6 @@ MODEL_DESCRIPTIONS=(
     ["qwen:72b"]="Modelo massivo multilíngue que suporta mais de 20 idiomas, ideal para aplicações globais"
     ["bloom:7b"]="Modelo multilíngue da BigScience, forte em processamento de idiomas diversos e tradução"
     ["tinyllama:1.1b"]="Modelo extremamente leve, perfeito para testes, prototipagem e dispositivos com recursos limitados"
-    ["phi-2:2.7b"]="Modelo compacto da Microsoft, ideal para desenvolvimento rápido e testes de conceito"
 )
 
 # --- Funções do Menu Interativo ---
@@ -436,6 +437,33 @@ run_interactive_selection() {
     done
 }
 
+# Função para selecionar categoria
+select_category() {
+    echo "Selecionando categoria..."
+    # Implementação simples
+    echo "Categoria selecionada"
+}
+
+# Função para exibir modelos
+display_models() {
+    echo "Exibindo modelos..."
+    for model in "${AVAILABLE_MODELS[@]}"; do
+        echo "$model"
+    done
+}
+
+# Função para instalar modelos selecionados
+install_selected_models() {
+    echo "Instalando modelos selecionados..."
+    for model in "${AVAILABLE_MODELS[@]}"; do
+        if ollama list | awk 'NR>1 {print $1}' | grep -q "^${model}"; then
+            info "Modelo $model já instalado, pulando download."
+        else
+            ollama pull "$model" || error "Falha ao baixar o modelo '$model'."
+        fi
+    done
+}
+
 # --- Função Principal ---
 main() {
     section "🧠 Instalador de Modelos Ollama"
@@ -461,10 +489,17 @@ main() {
         exit 0
     fi
 
+    # Criar arquivo temporário para lista de modelos
+    local temp_file
+    temp_file=$(mktemp /tmp/models_list_XXXXXX.txt)
+
     local models_to_install=()
     for index in "${selected_indices[@]}"; do
         models_to_install+=("${AVAILABLE_MODELS[$index]}")
     done
+
+    # Salvar lista em arquivo temporário
+    printf '%s\n' "${models_to_install[@]}" > "$temp_file"
 
     section "🚀 Iniciando Instalação"
     info "Modelos a serem instalados: ${models_to_install[*]}"
@@ -485,6 +520,9 @@ main() {
     section "✅ Instalação Concluída"
     info "Lista de modelos atualmente instalados:"
     ollama list
+
+    # Limpar arquivo temporário
+    rm -f "$temp_file"
 }
 
 main "$@"

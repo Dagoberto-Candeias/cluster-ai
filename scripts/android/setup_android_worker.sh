@@ -11,6 +11,9 @@
 
 set -euo pipefail
 
+# Import common library
+source "$(dirname "$0")/../lib/common.sh"
+
 # --- Cores para o output ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -457,6 +460,30 @@ EOF
         echo "2. Escolha 'Configurar Cluster' > 'Gerenciar Workers Remotos'"
         echo "3. Adicione o worker com as informações acima"
     fi
+}
+
+# Function to optimize battery usage
+optimize_battery_usage() {
+    log "Otimizando uso de bateria para worker Android..."
+
+    # Disable unnecessary services
+    if command_exists termux-wake-lock; then
+        termux-wake-lock
+        success "Wake lock ativado para manter o dispositivo acordado"
+    fi
+
+    # Set CPU governor to powersave when idle
+    if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor" ]; then
+        echo "powersave" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
+        success "Governor de CPU configurado para economia de energia"
+    fi
+
+    # Disable animations and effects
+    settings put system animator_duration_scale 0.5 2>/dev/null || true
+    settings put system transition_animation_scale 0.5 2>/dev/null || true
+    settings put system window_animation_scale 0.5 2>/dev/null || true
+
+    success "Otimização de bateria aplicada"
 }
 
 main

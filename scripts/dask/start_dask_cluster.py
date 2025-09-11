@@ -96,7 +96,9 @@ def main(project_root: str):
     key_file = project_root_path / "certs" / "dask_key.pem"
 
     # Verificar se estamos em modo desenvolvimento (sem TLS)
-    dev_mode = os.getenv("DASK_DEV_MODE", "true").lower() == "true"  # Padrão: desenvolvimento
+    dev_mode = (
+        os.getenv("DASK_DEV_MODE", "true").lower() == "true"
+    )  # Padrão: desenvolvimento
 
     if dev_mode:
         print("Modo desenvolvimento: Iniciando sem TLS...")

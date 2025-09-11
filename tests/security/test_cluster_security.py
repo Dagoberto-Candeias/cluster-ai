@@ -28,16 +28,18 @@ class TestClusterSecurity:
                 stat_info = os.stat(full_path)
                 permissions = oct(stat_info.st_mode)[-3:]
                 # Should not be world-writable
-                assert permissions[-1] not in ['2', '3', '6', '7'], f"{file_path} should not be world-writable"
+                assert permissions[-1] not in [
+                    "2",
+                    "3",
+                    "6",
+                    "7",
+                ], f"{file_path} should not be world-writable"
 
     def test_secure_subprocess_usage(self):
         """Test that subprocess calls are secure"""
         # Test basic subprocess security
         result = subprocess.run(
-            ["echo", "test"],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["echo", "test"], capture_output=True, text=True, timeout=5
         )
         assert result.returncode == 0
         assert result.stdout.strip() == "test"
@@ -70,12 +72,14 @@ class TestClusterSecurity:
     def test_environment_safety(self):
         """Test environment variable handling"""
         # Test that we don't expose sensitive environment variables
-        sensitive_vars = ['PASSWORD', 'SECRET', 'PRIVATE_KEY']
+        sensitive_vars = ["PASSWORD", "SECRET", "PRIVATE_KEY"]
         for var in sensitive_vars:
             value = os.environ.get(var)
             if value:
                 # If sensitive vars exist, they should be reasonably sized
-                assert len(value) < 1000, f"Sensitive environment variable {var} is too long"
+                assert (
+                    len(value) < 1000
+                ), f"Sensitive environment variable {var} is too long"
 
     def test_hash_security(self):
         """Test cryptographic hash functions"""
@@ -100,22 +104,24 @@ class TestClusterSecurity:
                     content = script_file.read_text()
                     # Check for dangerous patterns
                     dangerous_patterns = [
-                        'rm -rf /',
-                        'chmod 777',
-                        'sudo su',
-                        'curl | bash',
-                        'wget | sh'
+                        "rm -rf /",
+                        "chmod 777",
+                        "sudo su",
+                        "curl | bash",
+                        "wget | sh",
                     ]
 
                     for pattern in dangerous_patterns:
-                        assert pattern not in content, f"Dangerous pattern '{pattern}' found in {script_file.name}"
+                        assert (
+                            pattern not in content
+                        ), f"Dangerous pattern '{pattern}' found in {script_file.name}"
 
                 except UnicodeDecodeError:
                     continue
 
     def test_directory_permissions(self):
         """Test directory permissions security"""
-        sensitive_dirs = ['.git', 'logs', 'backups']
+        sensitive_dirs = [".git", "logs", "backups"]
 
         for dir_name in sensitive_dirs:
             dir_path = PROJECT_ROOT / dir_name
@@ -123,7 +129,12 @@ class TestClusterSecurity:
                 stat_info = os.stat(dir_path)
                 permissions = oct(stat_info.st_mode)[-3:]
                 # Should not be world-writable
-                assert permissions[-1] not in ['2', '3', '6', '7'], f"Directory {dir_name} should not be world-writable"
+                assert permissions[-1] not in [
+                    "2",
+                    "3",
+                    "6",
+                    "7",
+                ], f"Directory {dir_name} should not be world-writable"
 
     def test_python_file_security(self):
         """Test Python files for basic security issues"""
@@ -135,14 +146,16 @@ class TestClusterSecurity:
                     content = py_file.read_text()
                     # Check for dangerous patterns in Python code
                     dangerous_patterns = [
-                        'exec(',
-                        'eval(',
+                        "exec(",
+                        "eval(",
                         '__import__("os").system(',
                         'subprocess.call("rm',
                     ]
 
                     for pattern in dangerous_patterns:
-                        assert pattern not in content, f"Dangerous pattern '{pattern}' found in {py_file.name}"
+                        assert (
+                            pattern not in content
+                        ), f"Dangerous pattern '{pattern}' found in {py_file.name}"
 
                 except UnicodeDecodeError:
                     continue

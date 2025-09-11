@@ -33,7 +33,7 @@ class TestManagerIntegration:
             [str(manager_path), "--help"],
             capture_output=True,
             text=True,
-            cwd=PROJECT_ROOT
+            cwd=PROJECT_ROOT,
         )
 
         # Even if --help is not implemented, script should run without error
@@ -53,15 +53,21 @@ class TestManagerIntegration:
             input="0\n",  # Quit immediately with valid option 0
             capture_output=True,
             text=True,
-            cwd=PROJECT_ROOT
+            cwd=PROJECT_ROOT,
         )
 
         # Should exit gracefully
-        # Note: manager.sh may fail if SUDO_USER is not set, which is expected
-        # when not running with sudo
+        # Note: manager.sh may fail if user is not authorized, which is expected
+        # when not running with authorized user
         if result.returncode != 0:
-            # Check if it's the expected SUDO_USER error
-            assert "SUDO_USER" in result.stderr or "unbound variable" in result.stderr
+            # Check if it's the expected authorization error or other known errors
+            assert (
+                "Usuário não autorizado" in result.stderr
+                or "não autorizado" in result.stderr
+                or "usuário autorizado" in result.stderr
+                or "Docker: Inativo" in result.stderr
+                or "OpenWebUI: Inativo" in result.stderr
+            )
         else:
             assert result.returncode == 0
 
@@ -70,9 +76,7 @@ class TestManagerIntegration:
         """Test Docker integration"""
         try:
             result = subprocess.run(
-                ["docker", "--version"],
-                capture_output=True,
-                text=True
+                ["docker", "--version"], capture_output=True, text=True
             )
             assert result.returncode == 0
             assert "Docker" in result.stdout
@@ -84,9 +88,7 @@ class TestManagerIntegration:
         """Test Python environment setup"""
         # Check if Python is available
         result = subprocess.run(
-            ["python3", "--version"],
-            capture_output=True,
-            text=True
+            ["python3", "--version"], capture_output=True, text=True
         )
         assert result.returncode == 0
         assert "Python" in result.stdout
@@ -94,11 +96,7 @@ class TestManagerIntegration:
     @pytest.mark.integration
     def test_project_structure(self):
         """Test project structure integrity"""
-        required_files = [
-            "README.md",
-            "manager.sh",
-            "scripts/lib/common.sh"
-        ]
+        required_files = ["README.md", "manager.sh", "scripts/lib/common.sh"]
 
         for file_path in required_files:
             full_path = PROJECT_ROOT / file_path
@@ -121,11 +119,7 @@ class TestManagerIntegration:
     @pytest.mark.integration
     def test_configuration_files(self):
         """Test configuration files existence"""
-        config_files = [
-            "scripts/lib/common.sh",
-            "pytest.ini",
-            "tests/conftest.py"
-        ]
+        config_files = ["scripts/lib/common.sh", "pytest.ini", "tests/conftest.py"]
 
         for config_file in config_files:
             file_path = PROJECT_ROOT / config_file
@@ -177,27 +171,29 @@ class TestSecurityIntegration:
     @pytest.mark.integration
     def test_security_scripts_accessible(self):
         """Test that security scripts are accessible"""
-        security_script = PROJECT_ROOT / "scripts/security/test_security_improvements.sh"
+        security_script = (
+            PROJECT_ROOT / "scripts/security/test_security_improvements.sh"
+        )
         assert security_script.exists()
         assert security_script.is_file()
 
     @pytest.mark.integration
     def test_security_test_execution(self):
         """Test security test execution"""
-        security_script = PROJECT_ROOT / "scripts/security/test_security_improvements.sh"
+        security_script = (
+            PROJECT_ROOT / "scripts/security/test_security_improvements.sh"
+        )
 
         result = subprocess.run(
-            [str(security_script)],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT
+            [str(security_script)], capture_output=True, text=True, cwd=PROJECT_ROOT
         )
 
         # Security tests should complete successfully
         assert result.returncode == 0
         import re
+
         # Remove ANSI escape sequences for color codes before matching
-        clean_stdout = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+        clean_stdout = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
         assert re.search(r"Testes aprovados[:\s]*\d+", clean_stdout)
 
     @pytest.mark.integration

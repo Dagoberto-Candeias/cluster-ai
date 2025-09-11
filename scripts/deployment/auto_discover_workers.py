@@ -29,14 +29,14 @@ def discover_workers(network_range: str = "192.168.1.0/24") -> List[Dict[str, An
                 "ip": "192.168.1.100",
                 "port": 8022,
                 "type": "android",
-                "name": "android-worker-1"
+                "name": "android-worker-1",
             },
             {
                 "ip": "192.168.1.101",
                 "port": 22,
                 "type": "linux",
-                "name": "linux-worker-1"
-            }
+                "name": "linux-worker-1",
+            },
         ]
 
         # Verificar conectividade básica

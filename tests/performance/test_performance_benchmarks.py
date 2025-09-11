@@ -36,7 +36,7 @@ class TestPerformanceBenchmarks:
 
     def test_disk_io_performance(self):
         """Test disk I/O performance"""
-        disk_usage = psutil.disk_usage('/')
+        disk_usage = psutil.disk_usage("/")
         assert disk_usage.total > 0
         assert disk_usage.used >= 0
         assert disk_usage.free >= 0
@@ -49,11 +49,11 @@ class TestPerformanceBenchmarks:
 
         def file_ops():
             # Write operation
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write(test_data)
 
             # Read operation
-            with open(test_file, 'r') as f:
+            with open(test_file, "r") as f:
                 data = f.read()
 
             # Cleanup
@@ -89,6 +89,7 @@ class TestPerformanceBenchmarks:
     @pytest.mark.performance
     def test_list_operations_performance(self, benchmark):
         """Benchmark list operations"""
+
         def list_ops():
             # List creation and population
             data = list(range(1000))
@@ -110,6 +111,7 @@ class TestPerformanceBenchmarks:
     @pytest.mark.performance
     def test_dict_operations_performance(self, benchmark):
         """Benchmark dictionary operations"""
+
         def dict_ops():
             # Dictionary creation
             data = {f"key_{i}": i * i for i in range(1000)}
@@ -132,6 +134,7 @@ class TestPerformanceBenchmarks:
     @pytest.mark.performance
     def test_math_operations_performance(self, benchmark):
         """Benchmark mathematical operations"""
+
         def math_ops():
             result = 0
             for i in range(10000):
@@ -147,7 +150,7 @@ class TestPerformanceBenchmarks:
         import re
 
         test_strings = ["test123", "hello456", "world789"] * 100
-        pattern = re.compile(r'\d+')
+        pattern = re.compile(r"\d+")
 
         def regex_ops():
             matches = []
@@ -183,6 +186,7 @@ class TestPerformanceBenchmarks:
     @pytest.mark.performance
     def test_system_call_performance(self, benchmark):
         """Benchmark system calls"""
+
         def system_ops():
             # Simple system calls
             result1 = os.getcwd()
@@ -217,6 +221,7 @@ class TestResourceMonitoring:
     @pytest.mark.performance
     def test_memory_allocation_performance(self, benchmark):
         """Benchmark memory allocation"""
+
         def memory_ops():
             # Allocate memory
             data = [0] * 10000
@@ -236,6 +241,7 @@ class TestResourceMonitoring:
     @pytest.mark.performance
     def test_context_switch_performance(self, benchmark):
         """Benchmark context switching"""
+
         def context_ops():
             results = []
             for i in range(1000):
@@ -257,6 +263,7 @@ class TestScalabilityBenchmarks:
     @pytest.mark.performance
     def test_linear_scalability(self, benchmark):
         """Test linear scalability with increasing data size"""
+
         def scalability_test():
             sizes = [100, 500, 1000, 2000]
             results = []
@@ -306,20 +313,21 @@ class TestScalabilityBenchmarks:
     @pytest.mark.performance
     def test_io_bound_operations(self, benchmark):
         """Test I/O bound operations performance"""
+
         def io_ops():
             temp_files = []
 
             # Create multiple files
             for i in range(10):
                 temp_file = PROJECT_ROOT / f"temp_test_{i}.txt"
-                with open(temp_file, 'w') as f:
+                with open(temp_file, "w") as f:
                     f.write(f"Test data {i}\n" * 100)
                 temp_files.append(temp_file)
 
             # Read all files
             total_content = ""
             for temp_file in temp_files:
-                with open(temp_file, 'r') as f:
+                with open(temp_file, "r") as f:
                     total_content += f.read()
 
             # Cleanup

@@ -139,7 +139,7 @@ class TestClusterEdgeCases:
         test_file = PROJECT_ROOT / "fd_test.tmp"
 
         try:
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test")
             assert test_file.exists()
         finally:
