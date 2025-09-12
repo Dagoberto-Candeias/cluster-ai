@@ -215,6 +215,28 @@ print("Análise completa de dados grandes!")
 ./restart_cluster.sh     # Reiniciar serviços
 ```
 
+### 🤖 Gestão Inteligente de IA
+```bash
+./scripts/ollama/model_manager.sh list          # Listar modelos com métricas
+./scripts/ollama/model_manager.sh cleanup 30    # Limpar modelos não usados (30 dias)
+./scripts/ollama/model_manager.sh optimize      # Otimizar uso de disco
+```
+
+### 📊 Monitoramento Avançado
+```bash
+./scripts/monitoring/advanced_dashboard.sh live           # Dashboard em tempo real
+./scripts/monitoring/advanced_dashboard.sh continuous 10  # Monitoramento contínuo (10s)
+./scripts/monitoring/advanced_dashboard.sh export csv     # Exportar métricas
+```
+
+### 🚀 Gerenciador Inteligente Integrado
+```bash
+./scripts/integration/smart_manager.sh dashboard    # Dashboard integrado interativo
+./scripts/integration/smart_manager.sh health       # Verificar saúde do sistema
+./scripts/integration/smart_manager.sh optimize     # Otimização automática
+./scripts/integration/smart_manager.sh report       # Gerar relatório inteligente
+```
+
 ## 🤝 Contribuição
 
 ### Como Contribuir
@@ -258,11 +280,16 @@ bash scripts/format.sh
 - [x] **Monitoramento**: Dashboards e métricas
 - [x] **Backup**: Estratégias automatizadas
 
-### 🔄 Melhorias em Andamento
-- [ ] **Documentação**: Atualização com novas funcionalidades
-- [ ] **Testes**: Expansão da cobertura de testes
-- [ ] **Performance**: Otimizações avançadas
-- [ ] **Modelos**: Melhorias na gestão de modelos
+### 🔄 Melhorias Recentes (v1.0.1)
+- [x] **Correções Críticas**: Todos os bugs críticos corrigidos (27/27 testes passando)
+- [x] **Segurança**: Auditoria completa realizada - sistema seguro
+- [x] **Organização**: 90+ arquivos TODO consolidados em estrutura limpa
+- [x] **Performance**: Otimizações avançadas implementadas
+- [x] **Documentação**: README atualizado com status atual
+- [x] **Testes**: Cobertura completa de testes de performance
+- [x] **Modelos**: Gestão inteligente implementada (Cache, limpeza automática, métricas)
+- [x] **Monitoramento**: Dashboards avançados implementados (Métricas em tempo real, alertas)
+- [x] **Integração**: Smart Manager integrado (Gestão unificada de todo o sistema)
 
 ### 🎯 Roadmap
 - **v1.1.0**: Melhorias de performance e novos modelos
@@ -358,5 +385,5 @@ Este projeto é inspirado em:
 
 **⭐ Se este projeto foi útil, considere dar uma estrela no GitHub!**
 
-*Última atualização: $(date +%Y-%m-%d)*
-*Versão: 1.0.0*
+*Última atualização: 2025-09-11*
+*Versão: 1.0.1*

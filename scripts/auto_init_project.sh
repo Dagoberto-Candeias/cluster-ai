@@ -143,7 +143,7 @@ start_dask_cluster() {
     for ((i=0; i<max_attempts; i++)); do
         if ! lsof -i :$port > /dev/null 2>&1; then
             log_info "Tentando iniciar Dask scheduler na porta $port..."
-            nohup dask-scheduler --port $port > logs/dask_scheduler.log 2>&1 &
+            nohup dask-scheduler --host [::] --port $port > logs/dask_scheduler.log 2>&1 &
             sleep 3
 
             if pgrep -f "dask-scheduler" > /dev/null; then

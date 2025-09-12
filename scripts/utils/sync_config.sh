@@ -40,7 +40,7 @@ main() {
     log "Sincronizando '$NODES_LIST_FILE' para '$CLUSTER_CONF_FILE' (YAML)..."
 
     # Cria um arquivo YAML temporário para construir a configuração
-    local temp_yaml_file; temp_yaml_file=$(mktemp)
+    local temp_yaml_file; temp_yaml_file=$(mktemp -p "$PROJECT_ROOT")
     echo "workers: {}" > "$temp_yaml_file"
 
     # Lê o arquivo de workers linha por linha

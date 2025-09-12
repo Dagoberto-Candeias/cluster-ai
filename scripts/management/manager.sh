@@ -115,7 +115,7 @@ start_dask() {
         [ -f "${PROJECT_ROOT}/.venv/bin/activate" ] && source "${PROJECT_ROOT}/.venv/bin/activate"
         
         # Inicia o scheduler em background e redireciona a saída para um log
-        nohup dask-scheduler --port 8786 --dashboard-address :8787 > "${PROJECT_ROOT}/logs/dask_scheduler.log" 2>&1 &
+        nohup dask-scheduler --host [::] --port 8786 --dashboard-address :8787 > "${PROJECT_ROOT}/logs/dask_scheduler.log" 2>&1 &
         
         # Aguarda um momento para o processo iniciar antes de verificar
         sleep 2 

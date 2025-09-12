@@ -30,6 +30,9 @@ SETUP_DOCKER="${SCRIPT_DIR}/scripts/installation/setup_docker.sh"
 SETUP_OLLAMA="${SCRIPT_DIR}/scripts/installation/setup_ollama.sh"
 SETUP_OPENWEBUI="${SCRIPT_DIR}/scripts/installation/setup_openwebui.sh"
 
+# Arquivo de configuração principal
+CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
+
 # Status dos componentes
 declare -A COMPONENT_STATUS
 

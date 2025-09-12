@@ -75,9 +75,15 @@ check_disk_space() {
 check_memory() {
     local required_gb="$1"
     local available_gb
-    
+
     available_gb=$(free -g | awk '/Mem:/ {print $7}')
-    
+
+    # Validar se available_gb é um número antes da comparação
+    if ! [[ "$available_gb" =~ ^[0-9]+$ ]] || [ -z "$available_gb" ]; then
+        warn "Não foi possível determinar a memória disponível do sistema"
+        return 1
+    fi
+
     if [ "$available_gb" -lt "$required_gb" ]; then
         warn "Memória RAM insuficiente. Disponível: ${available_gb}GB, Recomendado: ${required_gb}GB"
         return 1
