@@ -8,8 +8,11 @@
 set -euo pipefail
 
 # Carregar módulos dependentes
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/security.sh"
+if [[ -z "${PROJECT_ROOT:-}" ]]; then
+  PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+fi
+source "${PROJECT_ROOT}/scripts/core/common.sh"
+source "${PROJECT_ROOT}/scripts/core/security.sh"
 
 # =============================================================================
 # CONFIGURAÇÃO DE SERVIÇOS
@@ -565,6 +568,81 @@ check_services_health() {
         echo "Memória: $(free -h | awk 'NR==2{printf "%.1fGB usada de %.1fGB", $3/1024, $2/1024}')"
         echo "Disco: $(df -h . | awk 'NR==2{print $4 " disponível de " $2}')"
     fi
+}
+
+# =============================================================================
+# FUNÇÕES DE SETUP DE SERVIÇOS
+# =============================================================================
+
+# Cria o arquivo de serviço para o Dask Scheduler
+create_dask_scheduler_service() {
+    local service_file="/etc/systemd/system/dask-scheduler.service"
+    local user_exec="${SUDO_USER:-$(whoami)}"
+    local venv_path="${PROJECT_ROOT}/.venv/bin"
+
+    info "Criando arquivo de serviço em $service_file"
+    
+    local service_content="[Unit]
+Description=Dask Scheduler for Cluster AI
+After=network.target
+
+[Service]
+User=$user_exec
+Group=$(id -gn "$user_exec")
+WorkingDirectory=$PROJECT_ROOT
+ExecStart=${venv_path}/dask-scheduler --host 0.0.0.0 --port 8786 --dashboard-address :8787
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target"
+
+    echo "$service_content" | sudo tee "$service_file" > /dev/null
+    success "Arquivo de serviço do Dask Scheduler criado."
+}
+
+# Cria o arquivo de serviço para o Dask Worker
+create_dask_worker_service() {
+    local service_file="/etc/systemd/system/dask-worker.service"
+    local user_exec="${SUDO_USER:-$(whoami)}"
+    local venv_path="${PROJECT_ROOT}/.venv/bin"
+
+    info "Criando arquivo de serviço em $service_file"
+
+    local service_content="[Unit]
+Description=Dask Local Worker for Cluster AI
+After=dask-scheduler.service
+Requires=dask-scheduler.service
+
+[Service]
+User=$user_exec
+Group=$(id -gn "$user_exec")
+WorkingDirectory=$PROJECT_ROOT
+ExecStart=${venv_path}/dask-worker tcp://127.0.0.1:8786 --nthreads 2 --memory-limit 4GB
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target"
+
+    echo "$service_content" | sudo tee "$service_file" > /dev/null
+    success "Arquivo de serviço do Dask Worker criado."
+    warn "NOTA: O worker está configurado com 2 threads e 4GB de RAM. Edite $service_file para ajustar."
+}
+
+# Função principal para robustecer a instalação do Dask
+run_dask_service_setup() {
+    section "Robustecendo Instalação do Dask com systemd"
+    if ! confirm_critical_operation "Criar serviços systemd para Dask" "$RISK_MEDIUM" "Isso criará arquivos em /etc/systemd/system/"; then
+        return 1
+    fi
+
+    create_dask_scheduler_service
+    create_dask_worker_service
+    
+    progress "Recarregando daemon do systemd e habilitando serviços..."
+    sudo systemctl daemon-reload && sudo systemctl enable dask-scheduler.service && sudo systemctl enable dask-worker.service
+    success "Serviços Dask configurados! Use './manager.sh start' para iniciá-los."
 }
 
 # =============================================================================

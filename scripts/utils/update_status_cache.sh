@@ -20,12 +20,31 @@ set_cache() {
     echo "$1=$2" >> "$CACHE_FILE"
 }
 
+# --- Funções de Coleta de Métricas ---
+
+collect_system_metrics() {
+    # CPU Load Average (1, 5, 15 min)
+    local load_avg; load_avg=$(uptime | awk -F'load average:' '{ print $2 }' | sed 's/^[ \t]*//;s/,//g')
+    set_cache "system_load_avg" "$load_avg"
+
+    # Uso de Memória em %
+    local mem_usage; mem_usage=$(free | awk 'NR==2{printf "%.1f", $3*100/$2}')
+    set_cache "system_mem_usage" "$mem_usage"
+
+    # Uso de Disco em % (partição raiz)
+    local disk_usage; disk_usage=$(df -h / | awk 'NR==2{print $5}')
+    set_cache "system_disk_usage" "$disk_usage"
+}
+
 # --- Função Principal ---
 main() {
     # Garante que o diretório de execução exista
     mkdir -p "$(dirname "$CACHE_FILE")"
     # Limpa o cache antigo e começa um novo
     > "$CACHE_FILE"
+
+    # 1. Coletar Métricas do Sistema (CPU, RAM, Disco)
+    collect_system_metrics
 
     # 1. Verificar Serviços Locais
     local DASK_SCHEDULER_PORT; DASK_SCHEDULER_PORT=$(get_config_value "dask.scheduler_port" "$CONFIG_FILE" "8786")

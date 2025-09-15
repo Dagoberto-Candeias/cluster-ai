@@ -129,7 +129,7 @@ import_personas() {
             success "Persona '$persona_name' importada com sucesso."
             ((imported++))
         else
-            error "Falha ao importar persona '$persona_name'."
+            warn "Falha ao importar persona '$persona_name'."
             ((failed++))
         fi
     done
@@ -174,7 +174,7 @@ import_templates() {
             success "Template '$template_name' importado com sucesso."
             ((imported++))
         else
-            error "Falha ao importar template '$template_name'."
+            warn "Falha ao importar template '$template_name'."
             ((failed++))
         fi
     done
@@ -238,7 +238,8 @@ main() {
     warn "Este script irá importar as personas do Cluster AI para o OpenWebUI."
     echo
 
-    if confirm_operation "Continuar com a integração?"; then
+    # Skip confirmation for automated execution
+    if [ "${AUTO_CONFIRM:-false}" = "true" ] || confirm_operation "Continuar com a integração?"; then
         check_dependencies
         echo
         check_openwebui

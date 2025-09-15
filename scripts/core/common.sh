@@ -20,8 +20,10 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Diretórios importantes
-CORE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${CORE_SCRIPT_DIR}/../.." && pwd)"
+if [[ -z "${PROJECT_ROOT:-}" ]]; then
+  # Garante que o caminho seja resolvido corretamente, não importa como o script é chamado.
+  PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+fi
 CONFIG_FILE="${PROJECT_ROOT}/cluster.yaml"
 LOGS_DIR="${PROJECT_ROOT}/logs"
 RUN_DIR="${PROJECT_ROOT}/run"

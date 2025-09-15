@@ -61,7 +61,7 @@ bash install_unified.sh
 
 ### Primeiro Uso
 ```bash
-# Iniciar todos os serviços
+# Acessar o painel de controle principal
 ./manager.sh
 # Selecionar: 1. Iniciar Todos os Serviços
 

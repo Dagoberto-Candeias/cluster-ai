@@ -8,8 +8,11 @@
 set -euo pipefail
 
 # Carregar módulos dependentes
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/security.sh"
+if [[ -z "${PROJECT_ROOT:-}" ]]; then
+  PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+fi
+source "${PROJECT_ROOT}/scripts/core/common.sh"
+source "${PROJECT_ROOT}/scripts/core/security.sh"
 
 # =============================================================================
 # CONFIGURAÇÃO DE WORKERS

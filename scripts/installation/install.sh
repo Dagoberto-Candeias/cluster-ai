@@ -121,10 +121,98 @@ show_install_menu() {
     echo "1. 🚀 Instalação Completa (Recomendado)"
     echo "2. 🧩 Instalar Componentes (Avançado)"
     echo "3. 🩺 Verificar Saúde do Sistema"
-    echo "4. 🗑️  Desinstalar Ambiente"
+    echo "4. 🧰 Configurar Ambiente de Desenvolvimento Completo"
+    echo "5. 🛠️ Instalar Modelos e Configurar Worker Android"
+    echo "6. 🗑️  Desinstalar Ambiente"
     echo "---"
-    echo "5. 🚪 Sair"
+    echo "7. 🚪 Sair"
     echo ""
+}
+<<<<<<< SEARCH
+
+process_menu_choice() {
+    local choice="$1"
+    case $choice in
+        1) run_full_installation "$2" ;; # Passa argumentos extras
+        2) run_components_installation_menu ;;
+        3) bash "${UTILS_DIR}/health_check.sh" || warn "Health check encontrou problemas." ;;
+        4) bash "${DEV_DIR}/setup_dev_environment.sh" ;;
+        5) 
+           warn "Esta ação removerá os artefatos do Cluster AI (ambiente virtual, logs, etc.)."
+           warn "Dependências de sistema e modelos Ollama NÃO serão removidos."
+           if confirm_operation "Deseja prosseguir com a desinstalação?"; then
+               bash "${PROJECT_ROOT}/uninstall.sh"
+               log "Desinstalação concluída. Saindo do instalador."
+               exit 0
+           fi
+           ;;
+        6) log "Saindo..."; exit 0 ;;
+        *) warn "Opção inválida"; return 1 ;;
+    esac
+}
+=======
+process_menu_choice() {
+    local choice="$1"
+    case $choice in
+        1) run_full_installation "$2" ;; # Passa argumentos extras
+        2) run_components_installation_menu ;;
+        3) bash "${UTILS_DIR}/health_check.sh" || warn "Health check encontrou problemas." ;;
+        4) bash "${DEV_DIR}/setup_dev_environment.sh" ;;
+        5) bash "${INSTALL_DIR}/main.sh" ;;
+        6) 
+           warn "Esta ação removerá os artefatos do Cluster AI (ambiente virtual, logs, etc.)."
+           warn "Dependências de sistema e modelos Ollama NÃO serão removidos."
+           if confirm_operation "Deseja prosseguir com a desinstalação?"; then
+               bash "${PROJECT_ROOT}/uninstall.sh"
+               log "Desinstalação concluída. Saindo do instalador."
+               exit 0
+           fi
+           ;;
+        7) log "Saindo..."; exit 0 ;;
+        *) warn "Opção inválida"; return 1 ;;
+    esac
+}
+<<<<<<< SEARCH
+
+process_menu_choice() {
+    local choice="$1"
+    case $choice in
+        1) run_full_installation "$2" ;; # Passa argumentos extras
+        2) run_components_installation_menu ;;
+        3) bash "${UTILS_DIR}/health_check.sh" || warn "Health check encontrou problemas." ;;
+        4) 
+           warn "Esta ação removerá os artefatos do Cluster AI (ambiente virtual, logs, etc.)."
+           warn "Dependências de sistema e modelos Ollama NÃO serão removidos."
+           if confirm_operation "Deseja prosseguir com a desinstalação?"; then
+               bash "${PROJECT_ROOT}/uninstall.sh"
+               log "Desinstalação concluída. Saindo do instalador."
+               exit 0
+           fi
+           ;;
+        5) log "Saindo..."; exit 0 ;;
+        *) warn "Opção inválida"; return 1 ;;
+    esac
+}
+=======
+process_menu_choice() {
+    local choice="$1"
+    case $choice in
+        1) run_full_installation "$2" ;; # Passa argumentos extras
+        2) run_components_installation_menu ;;
+        3) bash "${UTILS_DIR}/health_check.sh" || warn "Health check encontrou problemas." ;;
+        4) bash "${DEV_DIR}/setup_dev_environment.sh" ;;
+        5) 
+           warn "Esta ação removerá os artefatos do Cluster AI (ambiente virtual, logs, etc.)."
+           warn "Dependências de sistema e modelos Ollama NÃO serão removidos."
+           if confirm_operation "Deseja prosseguir com a desinstalação?"; then
+               bash "${PROJECT_ROOT}/uninstall.sh"
+               log "Desinstalação concluída. Saindo do instalador."
+               exit 0
+           fi
+           ;;
+        6) log "Saindo..."; exit 0 ;;
+        *) warn "Opção inválida"; return 1 ;;
+    esac
 }
 
 # --- Funções de Detecção de Papel ---

@@ -9,8 +9,9 @@ set -euo pipefail
 
 # Carregar funções comuns se não estiver carregado
 if [[ -z "${PROJECT_ROOT:-}" ]]; then
-    source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+  PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 fi
+source "${PROJECT_ROOT}/scripts/core/common.sh"
 
 # =============================================================================
 # CONFIGURAÇÃO DE SEGURANÇA

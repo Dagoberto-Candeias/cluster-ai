@@ -13,6 +13,7 @@ import socket
 import time
 import argparse
 import configparser
+import json
 from pathlib import Path
 
 try:
@@ -55,18 +56,23 @@ def main(project_root: str):
 
     # Carregar configurações do cluster.conf
     config_file = project_root_path / "cluster.conf"
-    config = configparser.ConfigParser()
+    config = {}
     if config_file.exists():
-        config.read(config_file)
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        except json.JSONDecodeError:
+            print(f"AVISO: Erro ao ler {config_file}, usando configurações padrão")
+            config = {}
 
     # Obter configurações ou usar valores padrão
-    dask_section = config["dask"] if "dask" in config else {}
-    dashboard_port_config = int(dask_section.get("dashboard_port", "8787"))
-    scheduler_port_config = int(dask_section.get("scheduler_port", "8786"))
-    auth_token = dask_section.get("auth_token", "default_secure_token")
-    n_workers = int(dask_section.get("n_workers", 2))
-    threads_per_worker = int(dask_section.get("threads_per_worker", 2))
-    spill_directory = dask_section.get("spill_directory", "/tmp/dask-spill")
+    dask_config = config.get("dask", {})
+    dashboard_port_config = int(dask_config.get("dashboard_port", "8787"))
+    scheduler_port_config = int(dask_config.get("scheduler_port", "8786"))
+    auth_token = dask_config.get("auth_token", "default_secure_token")
+    n_workers = int(dask_config.get("n_workers", 2))
+    threads_per_worker = int(dask_config.get("threads_per_worker", 2))
+    spill_directory = dask_config.get("spill_directory", "/tmp/dask-spill")
 
     # --- Verificação de Portas ---
     final_scheduler_port = scheduler_port_config
@@ -127,7 +133,7 @@ def main(project_root: str):
         scheduler_port=final_scheduler_port,
         security=security,
         processes=False,
-        memory_limit=dask_section.get("memory_limit", None),
+        memory_limit=dask_config.get("memory_limit", None),
         local_directory=spill_directory,
     )
 

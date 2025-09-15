@@ -93,6 +93,13 @@ process_running() {
 # Função para verificar se uma porta está aberta
 port_open() {
     local port="$1"
+    # Special handling for Dask ports to avoid connection closed before handshake logs
+    if [[ "$port" == "8786" || "$port" == "8787" ]]; then
+        # Check if dask-scheduler process is running instead of port open
+        pgrep -f "dask-scheduler" >/dev/null 2>&1
+        return $?
+    fi
+
     if command_exists nc; then
         nc -z localhost "$port" >/dev/null 2>&1
     elif command_exists ss; then

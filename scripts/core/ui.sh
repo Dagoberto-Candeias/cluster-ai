@@ -8,8 +8,11 @@
 set -euo pipefail
 
 # Carregar módulos dependentes
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/security.sh"
+if [[ -z "${PROJECT_ROOT:-}" ]]; then
+  PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+fi
+source "${PROJECT_ROOT}/scripts/core/common.sh"
+source "${PROJECT_ROOT}/scripts/core/security.sh"
 
 # =============================================================================
 # CONFIGURAÇÃO DE INTERFACE
@@ -558,9 +561,10 @@ tools_menu() {
         ui_menu_item 2 "Testes" "Executar testes do sistema"
         ui_menu_item 3 "Relatórios" "Gerar relatórios do sistema"
         ui_menu_item 4 "Shell Interativo" "Acesso ao shell do sistema"
+        ui_menu_item 5 "Robustecer Instalação do Dask (systemd)" "Cria serviços para Dask"
         ui_menu_item 0 "Voltar" "Retornar ao menu principal"
 
-        ui_footer "Escolha uma opção (0-4)"
+        ui_footer "Escolha uma opção (0-5)"
 
         local choice
         read -r choice
@@ -570,6 +574,14 @@ tools_menu() {
             2) testing_tools_menu ;;
             3) reports_menu ;;
             4) interactive_shell ;;
+            5)
+            if declare -f run_dask_service_setup >/dev/null 2>&1; then
+                run_dask_service_setup
+            else
+                error "Função 'run_dask_service_setup' não encontrada. Verifique 'services.sh'."
+            fi
+                read -p "Pressione Enter para continuar..."
+                ;;
             0) return ;;
             *)
                 ui_status "error" "Opção inválida."
@@ -714,3 +726,35 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     init_ui_module
     info "Módulo ui.sh carregado com sucesso"
 fi
+
+# =============================================================================
+# FUNÇÃO DE AJUDA
+# =============================================================================
+
+# Mostrar ajuda do manager
+show_help() {
+    ui_header "Ajuda - Cluster AI Manager"
+
+    echo -e "${INFO_COLOR}Uso:${RESET_COLOR}"
+    echo "  ./manager.sh [comando] [opções]"
+    echo
+    echo -e "${INFO_COLOR}Comandos disponíveis:${RESET_COLOR}"
+    echo "  start     - Iniciar o cluster"
+    echo "  stop      - Parar o cluster"
+    echo "  restart   - Reiniciar o cluster"
+    echo "  status    - Mostrar status detalhado"
+    echo "  test      - Executar testes do sistema"
+    echo "  diag      - Mostrar diagnósticos"
+    echo "  logs      - Visualizar logs do sistema"
+    echo "  help      - Mostrar esta ajuda"
+    echo
+    echo -e "${INFO_COLOR}Exemplos:${RESET_COLOR}"
+    echo "  ./manager.sh start"
+    echo "  ./manager.sh status"
+    echo "  ./manager.sh test"
+    echo
+    echo -e "${INFO_COLOR}Menu interativo:${RESET_COLOR}"
+    echo "  ./manager.sh (sem argumentos)"
+    echo
+    ui_footer "Para mais informações, consulte a documentação"
+}
