@@ -168,9 +168,109 @@ jobs:
       with:
         status: ${{ job.status }}
         channel: '#github-actions'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  kubernetes-deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [test-multiple-distros, code-quality, performance-test, documentation, security-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: v3.12.0
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: v1.27.0
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Deploy to Staging
+      run: |
+        # Create staging namespace if it doesn't exist
+        kubectl create namespace cluster-ai-staging --dry-run=client -o yaml | kubectl apply -f -
+
+        # Deploy using Helm
+        helm upgrade --install cluster-ai-staging ./deployments/helm/cluster-ai \
+          --namespace cluster-ai-staging \
+          --set namespace.create=false \
+          --set namespace.name=cluster-ai-staging \
+          --set ingress.hosts[0].host=staging.cluster-ai.example.com \
+          --set ingress.hosts[1].host=api-staging.cluster-ai.example.com \
+          --wait \
+          --timeout 10m
+
+    - name: Run Staging Tests
+      run: |
+        # Wait for services to be ready
+        kubectl wait --for=condition=available --timeout=300s deployment/cluster-ai-staging-frontend -n cluster-ai-staging
+        kubectl wait --for=condition=available --timeout=300s deployment/cluster-ai-staging-backend -n cluster-ai-staging
+
+        # Run integration tests against staging
+        echo "Running integration tests against staging environment..."
+
+    - name: Deploy to Production
+      run: |
+        # Create production namespace if it doesn't exist
+        kubectl create namespace cluster-ai --dry-run=client -o yaml | kubectl apply -f -
+
+        # Deploy using Helm
+        helm upgrade --install cluster-ai ./deployments/helm/cluster-ai \
+          --namespace cluster-ai \
+          --set namespace.create=false \
+          --set postgresql.auth.password="${{ secrets.POSTGRES_PASSWORD }}" \
+          --set backend.env.secretKey="${{ secrets.SECRET_KEY }}" \
+          --set backend.env.jwtSecretKey="${{ secrets.JWT_SECRET_KEY }}" \
+          --set grafana.adminPassword="${{ secrets.GRAFANA_PASSWORD }}" \
+          --set ingress.hosts[0].host=cluster-ai.example.com \
+          --set ingress.hosts[1].host=api.cluster-ai.example.com \
+          --wait \
+          --timeout 15m
+
+    - name: Run Production Health Checks
+      run: |
+        # Wait for all services to be ready
+        kubectl wait --for=condition=available --timeout=600s deployment/cluster-ai-frontend -n cluster-ai
+        kubectl wait --for=condition=available --timeout=600s deployment/cluster-ai-backend -n cluster-ai
+
+        # Run health checks
+        echo "Running production health checks..."
+        kubectl get pods -n cluster-ai
+        kubectl get services -n cluster-ai
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [kubernetes-deploy]
+    if: failure()
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: v1.27.0
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Rollback Production
+      run: |
+        # Rollback to previous version
+        helm rollback cluster-ai 0 -n cluster-ai
 
   update-badges:
     name: Update Badges
@@ -179,14 +279,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Update status badge
       run: |
         # Gerar badge baseado no último status
         status="passing"
         color="green"
         echo "{\"schemaVersion\": 1, \"label\": \"CI/CD\", \"message\": \"$status\", \"color\": \"$color\"}" > badge.json
-        
+
         # Atualizar README com badge (se necessário)
         sed -i 's/!\[CI\/CD\].*/![CI\/CD](https:\/\/img.shields.io\/badge\/CI%2FCD-$status-$color)/' README.md
 

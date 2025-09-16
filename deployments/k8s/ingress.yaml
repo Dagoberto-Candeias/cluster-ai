@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cluster-ai-ingress
+  namespace: cluster-ai
+  labels:
+    app: cluster-ai
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - cluster-ai.example.com
+    - api.cluster-ai.example.com
+    secretName: cluster-ai-tls
+  rules:
+  - host: cluster-ai.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cluster-ai-frontend
+            port:
+              number: 80
+  - host: api.cluster-ai.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cluster-ai-backend
+            port:
+              number: 8000

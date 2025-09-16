@@ -1,0 +1,295 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-model-cache
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: model-cache
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: model-cache
+        app.kubernetes.io/component: ml-serving
+    spec:
+      containers:
+      - name: model-cache
+        image: redis:7.2-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cluster-ai-model-cache-secret
+              key: password
+        command:
+        - redis-server
+        - /etc/redis/redis.conf
+        volumeMounts:
+        - name: redis-config
+          mountPath: /etc/redis
+        - name: redis-data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: redis-config
+        configMap:
+          name: cluster-ai-model-cache-config
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: cluster-ai-model-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-model-cache
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app.kubernetes.io/name: model-cache
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-model-cache-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  redis.conf: |
+    # Model Cache Redis Configuration
+    bind 0.0.0.0
+    port 6379
+    timeout 0
+    tcp-keepalive 300
+    daemonize no
+    supervised no
+    loglevel notice
+    databases 16
+
+    # Memory optimization for model caching
+    maxmemory 1gb
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 5
+
+    # Persistence for model metadata
+    appendonly yes
+    appendfsync everysec
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+
+    # Performance tuning
+    tcp-backlog 511
+    databases 16
+
+    # Security
+    requirepass cluster_ai_cache_password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-ai-model-cache-secret
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+type: Opaque
+data:
+  password: Y2x1c3Rlcl9haV9jYWNoZV9wYXNzd29yZAo=
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cluster-ai-model-cache-pvc
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-model-preloader
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-preloader
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: model-preloader
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: model-preloader
+        app.kubernetes.io/component: ml-serving
+    spec:
+      containers:
+      - name: model-preloader
+        image: python:3.11-slim
+        command:
+        - python
+        - /app/model_preloader.py
+        env:
+        - name: REDIS_HOST
+          value: "cluster-ai-model-cache"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cluster-ai-model-cache-secret
+              key: password
+        - name: TF_SERVING_HOST
+          value: "cluster-ai-tensorflow-serving"
+        - name: TORCHSERVE_HOST
+          value: "cluster-ai-torchserve"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /models
+        - name: preloader-script
+          mountPath: /app
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: cluster-ai-models-pvc
+      - name: preloader-script
+        configMap:
+          name: cluster-ai-model-preloader-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-model-preloader-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-preloader
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  model_preloader.py: |
+    #!/usr/bin/env python3
+    import redis
+    import requests
+    import time
+    import os
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    class ModelPreloader:
+        def __init__(self):
+            self.redis_host = os.getenv('REDIS_HOST', 'localhost')
+            self.redis_password = os.getenv('REDIS_PASSWORD', '')
+            self.tf_host = os.getenv('TF_SERVING_HOST', 'localhost:8501')
+            self.torch_host = os.getenv('TORCHSERVE_HOST', 'localhost:8080')
+
+            self.redis = redis.Redis(
+                host=self.redis_host,
+                password=self.redis_password,
+                decode_responses=True
+            )
+
+        def preload_popular_models(self):
+            """Preload popular models into cache"""
+            popular_models = [
+                'sentiment_analysis_v2',
+                'text_classification_v1',
+                'image_recognition_v3'
+            ]
+
+            for model_name in popular_models:
+                try:
+                    # Check if model is available in TensorFlow Serving
+                    response = requests.get(f'http://{self.tf_host}/v1/models/{model_name}')
+                    if response.status_code == 200:
+                        self.redis.setex(f'model:{model_name}:status', 3600, 'loaded')
+                        logger.info(f"Preloaded TensorFlow model: {model_name}")
+
+                    # Check if model is available in TorchServe
+                    response = requests.get(f'http://{self.torch_host}/models/{model_name}')
+                    if response.status_code == 200:
+                        self.redis.setex(f'model:{model_name}:status', 3600, 'loaded')
+                        logger.info(f"Preloaded TorchServe model: {model_name}")
+
+                except Exception as e:
+                    logger.error(f"Error preloading model {model_name}: {e}")
+
+        def monitor_model_usage(self):
+            """Monitor model usage patterns"""
+            while True:
+                try:
+                    # Get usage statistics from Redis
+                    keys = self.redis.keys('usage:model:*')
+                    for key in keys:
+                        usage_count = self.redis.get(key)
+                        model_name = key.split(':')[-1]
+
+                        # If model is heavily used, ensure it's cached
+                        if int(usage_count) > 100:
+                            self.redis.setex(f'model:{model_name}:priority', 3600, 'high')
+
+                    time.sleep(300)  # Check every 5 minutes
+
+                except Exception as e:
+                    logger.error(f"Error monitoring model usage: {e}")
+                    time.sleep(60)
+
+    if __name__ == '__main__':
+        preloader = ModelPreloader()
+        preloader.preload_popular_models()
+        preloader.monitor_model_usage()

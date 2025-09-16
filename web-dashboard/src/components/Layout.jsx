@@ -38,6 +38,7 @@ const menuItems = [
   { text: 'Alerts', icon: <NotificationsIcon />, path: '/alerts' },
   { text: 'Logs', icon: <LogsIcon />, path: '/logs' },
   { text: 'Metrics', icon: <MetricsIcon />, path: '/metrics' },
+  { text: 'Advanced Metrics', icon: <MetricsIcon />, path: '/advanced-metrics' },
   { text: 'Cluster Status', icon: <ClusterIcon />, path: '/cluster-status' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }
 ]

@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: cluster-ai
+
+namespace: cluster-ai
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - pvc.yaml
+  - frontend-deployment.yaml
+  - backend-deployment.yaml
+  - postgres-deployment.yaml
+  - redis-deployment.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - network-policies.yaml
+
+images:
+  - name: cluster-ai-frontend
+    newTag: latest
+  - name: cluster-ai-backend
+    newTag: latest
+
+commonLabels:
+  app: cluster-ai
+  managed-by: kustomize
+
+configMapGenerator:
+  - name: cluster-ai-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+
+secretGenerator:
+  - name: cluster-ai-secrets
+    literals:
+      - POSTGRES_PASSWORD=change-me-in-production
+      - POSTGRES_USER=cluster_ai
+      - POSTGRES_DB=cluster_ai
+      - SECRET_KEY=change-me-in-production-secret-key
+      - JWT_SECRET_KEY=change-me-in-production-jwt-secret
+      - GRAFANA_PASSWORD=admin
+      - ELASTIC_PASSWORD=change-me-in-production

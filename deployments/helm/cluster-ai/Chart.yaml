@@ -1,0 +1,38 @@
+apiVersion: v2
+name: cluster-ai
+description: A Helm chart for Cluster AI application deployment
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - cluster-ai
+  - ai
+  - machine-learning
+  - dashboard
+home: https://github.com/your-org/cluster-ai
+sources:
+  - https://github.com/your-org/cluster-ai
+maintainers:
+  - name: Cluster AI Team
+    email: team@cluster-ai.com
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "17.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: prometheus
+    version: "15.x.x"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+  - name: grafana
+    version: "6.x.x"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled
+  - name: elasticsearch
+    version: "7.x.x"
+    repository: "https://helm.elastic.co"
+    condition: elasticsearch.enabled

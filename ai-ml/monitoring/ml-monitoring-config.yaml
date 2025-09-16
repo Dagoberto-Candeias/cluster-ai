@@ -1,0 +1,193 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-monitoring-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+data:
+  prometheus-ml-rules.yml: |
+    groups:
+    - name: ml-serving.rules
+      rules:
+      - alert: MLModelHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~"tensorflow-serving|torchserve"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High ML model inference latency"
+          description: "ML model inference latency is above 500ms for 5 minutes"
+
+      - alert: MLModelLowAccuracy
+        expr: ml_model_accuracy < 0.8
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ML model accuracy dropped"
+          description: "ML model accuracy is below 80% for 10 minutes"
+
+      - alert: MLModelDriftDetected
+        expr: ml_model_drift_score > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ML model drift detected"
+          description: "Model drift score is above threshold"
+
+  grafana-ml-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "ML Serving Dashboard",
+        "tags": ["ml", "serving", "cluster-ai"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "title": "Inference Latency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~\"tensorflow-serving|torchserve\"}[5m]))",
+                "legendFormat": "P95 Latency"
+              }
+            ]
+          },
+          {
+            "title": "Model Accuracy",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "ml_model_accuracy",
+                "legendFormat": "Model Accuracy"
+              }
+            ]
+          },
+          {
+            "title": "GPU Utilization",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "DCGM_FI_DEV_GPU_UTIL",
+                "legendFormat": "GPU {{gpu}}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ml-monitoring-sa
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ml-monitoring-role
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ml-monitoring-binding
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ml-monitoring-role
+subjects:
+- kind: ServiceAccount
+  name: ml-monitoring-sa
+  namespace: cluster-ai
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-monitoring-exporter
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+    app.kubernetes.io/name: ml-monitoring-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ml-monitoring
+      app.kubernetes.io/name: ml-monitoring-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ml-monitoring
+        app.kubernetes.io/name: ml-monitoring-exporter
+    spec:
+      serviceAccountName: ml-monitoring-sa
+      containers:
+      - name: ml-exporter
+        image: prom/prometheus:latest
+        ports:
+        - containerPort: 9090
+          name: http
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: config
+        configMap:
+          name: ml-monitoring-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-monitoring-exporter
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+    app.kubernetes.io/name: ml-monitoring-exporter
+spec:
+  selector:
+    app.kubernetes.io/component: ml-monitoring
+    app.kubernetes.io/name: ml-monitoring-exporter
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ml-monitoring-exporter
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/component: ml-monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ml-monitoring
+      app.kubernetes.io/name: ml-monitoring-exporter
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics

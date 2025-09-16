@@ -367,7 +367,6 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     """Get current user information"""
     return current_user
 
-@cached_async(ttl_seconds=30, namespace="cluster")  # Cache for 30 seconds
 async def get_cluster_status_cached(current_user: User = Depends(get_current_active_user)):
     """Get overall cluster status with caching"""
     cluster_data = get_cluster_metrics()

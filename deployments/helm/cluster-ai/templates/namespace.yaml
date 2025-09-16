@@ -1,0 +1,13 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace.name | default "cluster-ai" }}
+  labels:
+    name: {{ .Values.namespace.name | default "cluster-ai" }}
+    app: cluster-ai
+    app.kubernetes.io/name: cluster-ai
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
