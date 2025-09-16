@@ -201,6 +201,10 @@ model-backup-deploy: ## Deploy model backup system
 	kubectl create namespace cluster-ai || true
 	kubectl apply -f ai-ml/backup/model-backup-deployment.yaml
 
+ml-autoscaling-deploy: ## Deploy ML-specific autoscaling
+	kubectl create namespace cluster-ai || true
+	kubectl apply -f ai-ml/autoscaling/ml-autoscaling.yaml
+
 	@echo "Performance test completed"
 
 restore: ## Restore from backup
