@@ -1,0 +1,281 @@
+# Redis Cluster configuration for multi-cluster setup
+# This creates a Redis cluster with replication across clusters
+
+# ConfigMap for Redis configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  labels:
+    app: redis
+data:
+  redis.conf: |
+    # Basic settings
+    port 6379
+    timeout 0
+    tcp-keepalive 300
+
+    # Cluster settings
+    cluster-enabled yes
+    cluster-config-file /data/nodes.conf
+    cluster-node-timeout 5000
+    cluster-migration-barrier 1
+    cluster-require-full-coverage no
+
+    # Replication settings
+    replica-read-only no
+    repl-diskless-sync yes
+    repl-diskless-sync-delay 5
+
+    # Memory settings
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+
+    # Persistence
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+
+    # Logging
+    loglevel notice
+    logfile ""
+
+    # Security
+    protected-mode no
+    requirepass ""
+
+---
+# Redis Cluster StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  labels:
+    app: redis
+spec:
+  serviceName: redis-cluster
+  replicas: 6  # Redis Cluster needs at least 6 nodes (3 masters + 3 replicas)
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        - containerPort: 16379
+          name: cluster-bus
+        command:
+        - redis-server
+        - /etc/redis/redis.conf
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        - name: redis-config
+          mountPath: /etc/redis
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+  volumeClaimTemplates:
+  - metadata:
+    name: redis-data
+    labels:
+      app: redis
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+
+---
+# Headless Service for Redis Cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster
+  labels:
+    app: redis
+spec:
+  clusterIP: None
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  - port: 16379
+    targetPort: 16379
+    name: cluster-bus
+
+---
+# LoadBalancer Service for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-external
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  type: LoadBalancer
+
+---
+# Job to initialize Redis Cluster
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-cluster-init
+  labels:
+    app: redis
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: redis-cluster-init
+        image: redis:7-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+
+          # Wait for all Redis nodes to be ready
+          echo "Waiting for Redis nodes to be ready..."
+          for i in $(seq 0 5); do
+            while ! redis-cli -h redis-cluster-$i.redis-cluster ping > /dev/null 2>&1; do
+              echo "Waiting for redis-cluster-$i..."
+              sleep 2
+            done
+            echo "redis-cluster-$i is ready"
+          done
+
+          # Check if cluster is already initialized
+          if redis-cli -h redis-cluster-0.redis-cluster cluster nodes | grep -q "myself"; then
+            echo "Redis cluster already initialized"
+            exit 0
+          fi
+
+          # Create cluster
+          echo "Creating Redis cluster..."
+          redis-cli --cluster create \
+            redis-cluster-0.redis-cluster:6379 \
+            redis-cluster-1.redis-cluster:6379 \
+            redis-cluster-2.redis-cluster:6379 \
+            redis-cluster-3.redis-cluster:6379 \
+            redis-cluster-4.redis-cluster:6379 \
+            redis-cluster-5.redis-cluster:6379 \
+            --cluster-replicas 1 \
+            --cluster-yes
+
+          echo "Redis cluster created successfully"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+
+---
+# ConfigMap for Redis monitoring
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-monitor
+  labels:
+    app: redis
+data:
+  check-cluster.sh: |
+    #!/bin/bash
+    # Script to check Redis cluster status
+
+    echo "=== Redis Cluster Status ==="
+
+    # Get cluster info
+    redis-cli -h redis-cluster-0.redis-cluster cluster info
+
+    echo ""
+    echo "=== Cluster Nodes ==="
+    redis-cli -h redis-cluster-0.redis-cluster cluster nodes
+
+    echo ""
+    echo "=== Cluster Slots ==="
+    redis-cli -h redis-cluster-0.redis-cluster cluster slots
+
+    echo ""
+    echo "=== Test Write/Read ==="
+    # Test write
+    redis-cli -h redis-cluster-0.redis-cluster set test-key "Hello from Redis Cluster"
+    # Test read
+    redis-cli -h redis-cluster-0.redis-cluster get test-key
+    # Clean up
+    redis-cli -h redis-cluster-0.redis-cluster del test-key
+
+  failover-test.sh: |
+    #!/bin/bash
+    # Script to test Redis cluster failover
+
+    echo "=== Redis Cluster Failover Test ==="
+
+    # Get current master
+    MASTER_ID=$(redis-cli -h redis-cluster-0.redis-cluster cluster nodes | grep master | head -1 | awk '{print $1}')
+    echo "Current master ID: $MASTER_ID"
+
+    # Simulate node failure (stop a master)
+    echo "Stopping redis-cluster-0 for failover test..."
+    kubectl exec redis-cluster-0 -- redis-cli shutdown
+
+    # Wait for failover
+    echo "Waiting for failover to complete..."
+    sleep 10
+
+    # Check new master
+    NEW_MASTER_ID=$(redis-cli -h redis-cluster-1.redis-cluster cluster nodes | grep master | head -1 | awk '{print $1}')
+    echo "New master ID: $NEW_MASTER_ID"
+
+    if [ "$MASTER_ID" != "$NEW_MASTER_ID" ]; then
+      echo "✅ Failover successful - new master elected"
+    else
+      echo "❌ Failover failed"
+    fi
+
+    # Restart the stopped node
+    echo "Restarting redis-cluster-0..."
+    kubectl delete pod redis-cluster-0
+    kubectl wait --for=condition=ready --timeout=60s pod/redis-cluster-0

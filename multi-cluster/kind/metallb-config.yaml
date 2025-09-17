@@ -1,0 +1,259 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metallb-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metallb-config
+  namespace: metallb-system
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 172.18.255.1-172.18.255.250
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metallb-controller
+  namespace: metallb-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metallb-speaker
+  namespace: metallb-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: metallb-system:controller
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "update"]
+- apiGroups: [""]
+  resources: ["services/status"]
+  verbs: ["update"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: metallb-system:speaker
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints", "nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: metallb-system:config-watcher
+  namespace: metallb-system
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: metallb-system:controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: metallb-system:controller
+subjects:
+- kind: ServiceAccount
+  name: metallb-controller
+  namespace: metallb-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: metallb-system:speaker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: metallb-system:speaker
+subjects:
+- kind: ServiceAccount
+  name: metallb-speaker
+  namespace: metallb-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: metallb-system:config-watcher
+  namespace: metallb-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: metallb-system:config-watcher
+subjects:
+- kind: ServiceAccount
+  name: metallb-speaker
+  namespace: metallb-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metallb-controller
+  namespace: metallb-system
+spec:
+  selector:
+    matchLabels:
+      app: metallb
+      component: controller
+  template:
+    metadata:
+      labels:
+        app: metallb
+        component: controller
+    spec:
+      serviceAccountName: metallb-controller
+      containers:
+      - name: controller
+        image: metallb/controller:v0.12.1
+        args:
+        - --port=7472
+        - --config=config
+        ports:
+        - containerPort: 7472
+          protocol: TCP
+          name: webhook-server
+        - containerPort: 9443
+          protocol: TCP
+          name: webhook-tls
+        env:
+        - name: METALLB_ML_SECRET_NAME
+          value: metallb-memberlist
+        - name: METALLB_DEPLOYMENT
+          value: controller
+        volumeMounts:
+        - name: config
+          mountPath: /etc/mlb
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 7472
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 7472
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+      volumes:
+      - name: config
+        configMap:
+          name: metallb-config
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: metallb-speaker
+  namespace: metallb-system
+spec:
+  selector:
+    matchLabels:
+      app: metallb
+      component: speaker
+  template:
+    metadata:
+      labels:
+        app: metallb
+        component: speaker
+    spec:
+      serviceAccountName: metallb-speaker
+      hostNetwork: true
+      containers:
+      - name: speaker
+        image: metallb/speaker:v0.12.1
+        args:
+        - --port=7472
+        - --config=config
+        env:
+        - name: METALLB_ML_SECRET_NAME
+          value: metallb-memberlist
+        - name: METALLB_DEPLOYMENT
+          value: speaker
+        ports:
+        - containerPort: 7472
+          protocol: TCP
+          name: webhook-server
+        - containerPort: 7946
+          protocol: UDP
+          name: memberlist-tcp
+        - containerPort: 7946
+          protocol: TCP
+          name: memberlist-udp
+        volumeMounts:
+        - name: config
+          mountPath: /etc/mlb
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 7472
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 7472
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_RAW
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+      volumes:
+      - name: config
+        configMap:
+          name: metallb-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metallb-memberlist
+  namespace: metallb-system
+type: Opaque
+data:
+  secretkey: ""

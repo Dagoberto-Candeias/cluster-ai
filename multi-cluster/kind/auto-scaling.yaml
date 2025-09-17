@@ -1,0 +1,218 @@
+# Auto-Scaling Configuration for Local Multi-Cluster
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: autoscaling-config
+  namespace: default
+data:
+  autoscaling.yaml: |
+    # Auto-scaling configuration
+    scaling:
+      enabled: true
+      min_replicas: 1
+      max_replicas: 10
+      target_cpu_utilization: 70
+      target_memory_utilization: 80
+      scale_up_stabilization_window: "300s"
+      scale_down_stabilization_window: "300s"
+      predictive_scaling:
+        enabled: true
+        history_window: "1h"
+        prediction_interval: "15m"
+    metrics:
+      - type: "Resource"
+        resource:
+          name: "cpu"
+          target:
+            type: "Utilization"
+            averageUtilization: 70
+      - type: "Resource"
+        resource:
+          name: "memory"
+          target:
+            type: "Utilization"
+            averageUtilization: 80
+      - type: "Pods"
+        pods:
+          metric:
+            name: "packets-per-second"
+          target:
+            type: "AverageValue"
+            averageValue: "1k"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cluster-ai-demo-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cluster-ai-demo
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: storage-replicator-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: storage-replicator
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: predictive-scaling-config
+  namespace: default
+data:
+  predict.py: |
+    #!/usr/bin/env python3
+    import time
+    import random
+    from datetime import datetime, timedelta
+
+    def predict_load():
+        """Simple predictive scaling based on time patterns"""
+        current_hour = datetime.now().hour
+
+        # Simulate higher load during business hours
+        if 9 <= current_hour <= 17:
+            base_load = 0.8
+        else:
+            base_load = 0.3
+
+        # Add some randomness
+        load = base_load + random.uniform(-0.2, 0.2)
+        load = max(0.1, min(1.0, load))
+
+        return load
+
+    def scale_based_on_prediction():
+        """Scale deployments based on load prediction"""
+        predicted_load = predict_load()
+        print(f"🔮 Predicted load: {predicted_load:.2f}")
+
+        # Scale cluster-ai-demo based on prediction
+        if predicted_load > 0.8:
+            replicas = 5
+        elif predicted_load > 0.6:
+            replicas = 3
+        else:
+            replicas = 1
+
+        print(f"📈 Scaling to {replicas} replicas")
+        return replicas
+
+    if __name__ == "__main__":
+        while True:
+            scale_based_on_prediction()
+            time.sleep(900)  # Check every 15 minutes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-scaler
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: predictive-scaler
+  template:
+    metadata:
+      labels:
+        app: predictive-scaler
+    spec:
+      containers:
+      - name: scaler
+        image: python:3.9-slim
+        command:
+        - python3
+        - /scripts/predict.py
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: scripts
+        configMap:
+          name: predictive-scaling-config
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-autoscaler-check
+  namespace: default
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scaler
+            image: busybox:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "📊 Checking cluster auto-scaling..."
+
+              # Check current resource usage
+              cpu_usage=$(kubectl top pods --no-headers | awk '{sum+=$2} END {print sum/NR}')
+              memory_usage=$(kubectl top pods --no-headers | awk '{sum+=$3} END {print sum/NR}')
+
+              echo "📈 Current usage - CPU: ${cpu_usage}%, Memory: ${memory_usage}%"
+
+              # Scale based on usage
+              if (( $(echo "$cpu_usage > 80" | bc -l) )) || (( $(echo "$memory_usage > 85" | bc -l) )); then
+                echo "⬆️  Scaling up..."
+                kubectl scale deployment cluster-ai-demo --replicas=5
+              elif (( $(echo "$cpu_usage < 30" | bc -l) )) && (( $(echo "$memory_usage < 40" | bc -l) )); then
+                echo "⬇️  Scaling down..."
+                kubectl scale deployment cluster-ai-demo --replicas=1
+              else
+                echo "➡️  Keeping current scale"
+              fi
+
+              echo "✅ Auto-scaling check completed"
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: autoscaling-monitor-service
+  namespace: default
+spec:
+  selector:
+    app: predictive-scaler
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP

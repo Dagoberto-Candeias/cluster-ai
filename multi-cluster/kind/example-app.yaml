@@ -1,0 +1,151 @@
+# Example multi-cluster application deployment
+# This demonstrates how to deploy the same app across all clusters
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-demo
+  labels:
+    app: cluster-ai-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cluster-ai-demo
+  template:
+    metadata:
+      labels:
+        app: cluster-ai-demo
+    spec:
+      containers:
+      - name: demo-app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        env:
+        - name: CLUSTER_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: demo-page
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: demo-page
+        configMap:
+          name: demo-html
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-html
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Cluster AI - Multi-Cloud Demo</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #2c3e50; }
+            .cluster-info { background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .status { color: #27ae60; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 Cluster AI Multi-Cloud Demo</h1>
+            <div class="cluster-info">
+                <h2>Cluster Information</h2>
+                <p><strong>Node:</strong> <span id="cluster-name">Loading...</span></p>
+                <p><strong>Status:</strong> <span class="status">✅ Active</span></p>
+                <p><strong>Environment:</strong> Multi-Cluster Local Simulation</p>
+            </div>
+            <p>This application is running across multiple Kubernetes clusters simulating different cloud providers.</p>
+            <ul>
+                <li>🔄 Load balancing across clusters</li>
+                <li>🛡️ Automatic failover</li>
+                <li>🌐 Cross-cluster networking</li>
+                <li>📊 Centralized monitoring</li>
+            </ul>
+        </div>
+        <script>
+            // Display cluster information
+            fetch('/api/cluster-info')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('cluster-name').textContent = data.cluster || 'Unknown';
+                })
+                .catch(err => {
+                    document.getElementById('cluster-name').textContent = 'Demo Mode';
+                });
+        </script>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-demo-service
+  labels:
+    app: cluster-ai-demo
+spec:
+  selector:
+    app: cluster-ai-demo
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    nodePort: 30080
+  type: NodePort
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cluster-ai-demo-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: demo.cluster-ai.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cluster-ai-demo-service
+            port:
+              number: 80
+  - host: demo.aws.cluster-ai.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cluster-ai-demo-service
+            port:
+              number: 80
+  - host: demo.gcp.cluster-ai.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cluster-ai-demo-service
+            port:
+              number: 80
+  - host: demo.azure.cluster-ai.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cluster-ai-demo-service
+            port:
+              number: 80

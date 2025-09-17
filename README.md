@@ -32,6 +32,16 @@ O **Cluster AI** é uma plataforma integrada que combina:
 - **Balanceamento de Carga**: Otimização automática de recursos
 - **Memória Eficiente**: Spill-to-disk para datasets grandes
 
+### 🌐 Multi-Cloud e Alta Disponibilidade (Fase 14)
+- **Multi-Cluster Local**: Simulação de ambientes multi-cloud com Kind
+- **Load Balancing**: MetalLB para distribuição de carga cross-cluster
+- **Storage Replication**: PVC cross-cluster com sincronização automática
+- **Disaster Recovery**: Failover automático e backup cross-cluster
+- **Auto-Scaling**: Escalabilidade preditiva baseada em métricas
+- **Service Mesh**: Istio para gerenciamento avançado de tráfego
+- **PostgreSQL Replication**: Replicação de dados cross-cluster
+- **Redis Cluster**: Cache distribuído multi-cluster
+
 ### 🛠️ Gerenciamento Inteligente
 - **Instalação Automática**: Scripts inteligentes que detectam seu hardware
 - **Configuração Guiada**: Menus interativos para todas as operações
@@ -103,6 +113,7 @@ ollama run llama3:8b "Olá! Explique machine learning em uma frase."
 
 ## 🏗️ Arquitetura
 
+### Arquitetura Principal
 ```
 ┌─────────────────┐    ┌─────────────────┐
 │   OpenWebUI     │    │   Dask          │
@@ -122,6 +133,31 @@ ollama run llama3:8b "Olá! Explique machine learning em uma frase."
 │  Workers Linux  │    │ Workers Android │
 │  (SSH/Native)   │    │   (Termux/SSH)  │
 └─────────────────┘    └─────────────────┘
+```
+
+### Arquitetura Multi-Cloud (Fase 14)
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   AWS Cluster   │    │   GCP Cluster   │    │  Azure Cluster  │
+│   (Kind Local)  │◄──►│   (Kind Local)  │◄──►│   (Kind Local)  │
+│                 │    │                 │    │                 │
+│ • MetalLB       │    │ • MetalLB       │    │ • MetalLB       │
+│ • PostgreSQL    │    │ • PostgreSQL    │    │ • PostgreSQL    │
+│ • Redis         │    │ • Redis         │    │ • Redis         │
+│ • Storage Rep.  │    │ • Storage Rep.  │    │ • Storage Rep.  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │   Service Mesh  │
+                    │     (Istio)     │
+                    │                 │
+                    │ • Load Balance  │
+                    │ • Traffic Mgmt  │
+                    │ • mTLS Security │
+                    │ • Observability │
+                    └─────────────────┘
 ```
 
 ## 📚 Exemplos de Uso

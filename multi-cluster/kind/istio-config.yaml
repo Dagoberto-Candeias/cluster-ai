@@ -1,0 +1,215 @@
+# Istio Service Mesh Configuration for Local Multi-Cluster
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  namespace: istio-system
+  name: istiocontrolplane
+spec:
+  profile: demo
+  components:
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      k8s:
+        service:
+          type: LoadBalancer
+          ports:
+          - port: 80
+            targetPort: 8080
+            name: http2
+          - port: 443
+            targetPort: 8443
+            name: https
+    pilot:
+      enabled: true
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+    telemetry:
+      enabled: true
+  values:
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 2000m
+            memory: 1024Mi
+    pilot:
+      autoscaleEnabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    telemetry:
+      v2:
+        enabled: true
+        prometheus:
+          enabled: true
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: cluster-ai-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: cluster-ai-vs
+  namespace: default
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - cluster-ai-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/api"
+    route:
+    - destination:
+        host: cluster-ai-backend
+        port:
+          number: 8000
+  - match:
+    - uri:
+        prefix: "/"
+    route:
+    - destination:
+        host: cluster-ai-frontend
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: cluster-ai-dr
+  namespace: default
+spec:
+  host: cluster-ai-backend
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 10
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: default
+spec:
+  mtls:
+    mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: cluster-ai-auth
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: cluster-ai-backend
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster1/ns/default/sa/cluster-ai-frontend"]
+    to:
+    - operation:
+        methods: ["GET", "POST"]
+---
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: cluster-ai-telemetry
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: cluster-ai-backend
+  metrics:
+  - providers:
+    - name: prometheus
+    overrides:
+    - tagOverrides:
+        request_method:
+          value: "request.method"
+      match:
+        metricMatch:
+          name: REQUEST_COUNT
+          nameMatcher: REQUEST_COUNT
+  tracing:
+  - providers:
+    - name: zipkin
+    randomSamplingPercentage: 100.0
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-api
+  namespace: default
+spec:
+  hosts:
+  - api.external.com
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  resolution: DNS
+  endpoints:
+  - address: api.external.com
+---
+apiVersion: networking.istio.io/v1beta1
+kind: WorkloadEntry
+metadata:
+  name: cross-cluster-backend
+  namespace: default
+spec:
+  address: 192.168.1.100
+  ports:
+    http: 8000
+  labels:
+    app: cluster-ai-backend
+    cluster: remote
+---
+apiVersion: networking.istio.io/v1beta1
+kind: WorkloadGroup
+metadata:
+  name: cross-cluster-group
+  namespace: default
+spec:
+  metadata:
+    labels:
+      app: cluster-ai-backend
+      cluster: remote
+  template:
+    ports:
+      http: 8000
+    labels:
+      app: cluster-ai-backend
+      cluster: remote

@@ -69,7 +69,6 @@ kubectl_query() {
 # Parallel worker discovery
 discover_workers_parallel() {
     local namespaces=("default" "kube-system" "dask")
-    local results=()
 
     log "🔍 Discovering workers in parallel across namespaces..."
 
@@ -83,12 +82,14 @@ discover_workers_parallel() {
     }
 
     # Export function for parallel execution
-    export -f kubectl_query log warning error
-    export MAX_RETRIES TIMEOUT
+    export -f kubectl_query log warning error check_namespace
+    export MAX_RETRIES TIMEOUT PARALLEL_JOBS
 
-    # Run in parallel with memory monitoring
-    printf '%s\n' "${namespaces[@]}" | \
-        xargs -n 1 -P "$PARALLEL_JOBS" -I {} bash -c 'check_namespace "$@"' _ {}
+    # Run in parallel with background jobs
+    for ns in "${namespaces[@]}"; do
+        check_namespace "$ns" &
+    done
+    wait
 
     success "Parallel worker discovery completed"
 }
