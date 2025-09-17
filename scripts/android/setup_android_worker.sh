@@ -11,8 +11,10 @@
 
 set -euo pipefail
 
-# Import common library
-source "$(dirname "$0")/../lib/common.sh"
+# Import common library (only if running as file, not piped)
+if [ -n "$0" ] && [ "$0" != "bash" ]; then
+    source "$(dirname "$0")/../lib/common.sh"
+fi
 
 # --- Cores para o output ---
 RED='\033[0;31m'
@@ -111,6 +113,11 @@ main() {
     section "🔌 Sistema Plug-and-Play Cluster AI"
 
     log "Iniciando descoberta automática inteligente de servidores..."
+
+    # Instalar dask para o worker
+    log "Instalando Dask para o worker..."
+    pip install dask[distributed] >/dev/null 2>&1
+    success "Dask instalado com sucesso"
 
     # Função aprimorada para detectar servidor na rede
     detect_server() {
@@ -412,6 +419,12 @@ EOF
             if [[ "$registration_result" == "SUCCESS" ]]; then
                 success "✅ Worker registrado com sucesso no servidor!"
                 success "🎯 Capacidades detectadas automaticamente e configuradas"
+
+                # Iniciar o worker Dask
+                log "🚀 Iniciando worker Dask..."
+                nohup dask-worker "$server_ip":8786 --nthreads 1 --memory-limit 1GB --name "android-$(hostname)" >/dev/null 2>&1 &
+                success "✅ Worker Dask iniciado em background!"
+
                 return 0
             else
                 warn "⚠️ Falha no registro automático. Você pode registrar manualmente."
