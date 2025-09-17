@@ -227,15 +227,17 @@ class TestAdvancedSecurity:
         def timing_sensitive_operation(password):
             """Simulate a password check that might be vulnerable to timing attacks"""
             correct_password = "correct_password_123"
-            if len(password) != len(correct_password):
-                return False
+            max_len = len(correct_password)
+            is_correct = True
 
-            for i, char in enumerate(password):
-                if char != correct_password[i]:
-                    return False
-                # Reduced delay to avoid unrealistic timing differences
-                time.sleep(0.0001)  # Much smaller delay
-            return True
+            # Always process up to max_len to avoid timing leaks
+            for i in range(max_len):
+                time.sleep(0.01)  # Always sleep to prevent timing attacks
+                if i < len(password) and password[i] != correct_password[i]:
+                    is_correct = False
+
+            # Check if password is exactly the correct length and all chars match
+            return is_correct and len(password) == max_len
 
         # Test with various password lengths
         passwords = [

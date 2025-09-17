@@ -19,7 +19,6 @@ def test_known_bug_division_by_zero():
     assert result is not None
 
 
-@pytest.mark.xfail(reason="Este bug foi corrigido, mas o marcador não foi removido.")
 def test_unexpected_pass():
-    """Este teste é executado, passa inesperadamente (XPASS)."""
+    """Este teste passa normalmente."""
     assert 1 + 1 == 2
