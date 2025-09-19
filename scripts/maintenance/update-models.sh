@@ -1,5 +1,11 @@
 #!/bin/bash
+# =============================================================================
 # Ollama Models Update Script
-# https://github.com/Dagoberto-Candeias/cluster-ai
-
-# ... (conteúdo completo do script de atualização)
+# =============================================================================
+# Ollama Models Update Script
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: update-models.sh
+# =============================================================================

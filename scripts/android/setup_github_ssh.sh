@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Script auxiliar para configurar SSH key no GitHub para Android Worker
+# =============================================================================
+# Script auxiliar para configurar SSH key no GitHub para Android Worker
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: setup_github_ssh.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Script auxiliar para configurar SSH key no GitHub para Android Worker
 

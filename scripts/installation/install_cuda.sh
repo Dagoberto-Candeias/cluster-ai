@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Instalação do CUDA no Debian 13 (Trixie) - NVIDIA GPUs
+# =============================================================================
+# Autor: ChatGPT
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: install_cuda.sh
+# =============================================================================
+
 #!/usr/bin/env bash
 # Instalação do CUDA no Debian 13 (Trixie) - NVIDIA GPUs
 # Autor: ChatGPT

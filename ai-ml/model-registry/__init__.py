@@ -9,7 +9,7 @@ Este pacote fornece ferramentas completas para:
 - API REST
 """
 
-from .model_registry import ModelRegistry, create_registry
+from model_registry import ModelRegistry, create_registry
 
 __version__ = "1.0.0"
 __author__ = "Cluster AI Team"

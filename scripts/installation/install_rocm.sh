@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Instalação do ROCm no Debian 13 (Trixie) - AMD GPUs
+# =============================================================================
+# Autor: ChatGPT
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: install_rocm.sh
+# =============================================================================
+
 #!/usr/bin/env bash
 # Instalação do ROCm no Debian 13 (Trixie) - AMD GPUs
 # Autor: ChatGPT

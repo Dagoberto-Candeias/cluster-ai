@@ -1,5 +1,11 @@
 #!/bin/bash
+# =============================================================================
 # Ollama Cache Cleanup Script
-# https://github.com/Dagoberto-Candeias/cluster-ai
-
-# ... (conteúdo completo do script de limpeza)
+# =============================================================================
+# Ollama Cache Cleanup Script
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: clean-cache.sh
+# =============================================================================

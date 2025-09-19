@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Usage:
+# =============================================================================
+# Features:
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: issue-certs-robust.sh
+# =============================================================================
+
 #!/usr/bin/env bash
 set -euo pipefail
 # issue-certs-robust.sh -- idempotent, retrying Let's Encrypt issuance via certbot container

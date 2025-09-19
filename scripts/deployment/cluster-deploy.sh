@@ -1,5 +1,11 @@
 #!/bin/bash
+# =============================================================================
 # Cluster AI Deployment Script
-# https://github.com/Dagoberto-Candeias/cluster-ai
-
-# ... (conteúdo completo do script de implantação)
+# =============================================================================
+# Cluster AI Deployment Script
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: cluster-deploy.sh
+# =============================================================================

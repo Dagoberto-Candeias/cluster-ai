@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# INSTALAÇÃO MANUAL COMPLETA - Worker Android Cluster AI
+# =============================================================================
+# COPIE E COLE TODO ESTE CONTEÚDO NO TERMUX
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: install_manual.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # INSTALAÇÃO MANUAL COMPLETA - Worker Android Cluster AI
 # COPIE E COLE TODO ESTE CONTEÚDO NO TERMUX

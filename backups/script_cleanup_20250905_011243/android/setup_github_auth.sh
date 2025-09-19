@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Script para configurar autenticação GitHub no Termux
+# =============================================================================
+# Suporte para SSH e Token de Acesso Pessoal
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: setup_github_auth.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Script para configurar autenticação GitHub no Termux
 # Suporte para SSH e Token de Acesso Pessoal

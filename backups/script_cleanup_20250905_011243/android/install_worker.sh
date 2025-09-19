@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Script de instalação do Worker Android para Cluster AI
+# =============================================================================
+# Execute este script no Termux
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: install_worker.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Script de instalação do Worker Android para Cluster AI
 # Execute este script no Termux

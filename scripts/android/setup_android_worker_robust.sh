@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Script Robusto para configurar Worker Android - Cluster AI
+# =============================================================================
+# Versão melhorada com timeout, progresso e tratamento de erros
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: setup_android_worker_robust.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Robusto para configurar Worker Android - Cluster AI
 # Versão melhorada com timeout, progresso e tratamento de erros

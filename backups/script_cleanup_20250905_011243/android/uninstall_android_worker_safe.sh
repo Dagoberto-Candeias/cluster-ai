@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Script de desinstalação SEGURO do Worker Android para Cluster AI
+# =============================================================================
+# Execute este script no Termux para remover apenas os arquivos do projeto
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: uninstall_android_worker_safe.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Script de desinstalação SEGURO do Worker Android para Cluster AI
 # Execute este script no Termux para remover apenas os arquivos do projeto

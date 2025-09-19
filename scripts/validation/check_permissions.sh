@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# check_permissions.sh
+# =============================================================================
+# Script utilitário do Cluster AI
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: check_permissions.sh
+# =============================================================================
+
     
     local non_executable_scripts=()
     
@@ -14,4 +26,3 @@
 
     if [ ${#all_scripts[@]} -eq 0 ]; then
         warn "Nenhum script .sh encontrado para verificação."
-

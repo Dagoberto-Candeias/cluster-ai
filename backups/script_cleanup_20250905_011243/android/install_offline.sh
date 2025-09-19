@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Instalação Offline do Worker Android - Cluster AI
+# =============================================================================
+# Use quando o download direto falhar
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: install_offline.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Instalação Offline do Worker Android - Cluster AI
 # Use quando o download direto falhar

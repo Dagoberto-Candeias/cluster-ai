@@ -25,7 +25,10 @@ class AutoWorkerProvisioning:
         self.config_dir = Path.home() / ".cluster_config"
         self.config_file = self.config_dir / "nodes_list.conf"
         self.yaml_config = Path("cluster.yaml")
-        self.ssh_key_file = Path.home() / ".ssh" / "id_rsa"
+        # Try cluster_ai_key first, fallback to id_rsa
+        cluster_key = Path.home() / ".ssh" / "cluster_ai_key"
+        id_rsa_key = Path.home() / ".ssh" / "id_rsa"
+        self.ssh_key_file = cluster_key if cluster_key.exists() else id_rsa_key
         self.project_root = Path.cwd()
 
         # Worker requirements
@@ -42,16 +45,28 @@ set -e
 
 echo "🚀 Setting up Cluster AI Worker..."
 
-# Install system dependencies
-if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update
-    sudo apt-get install -y python3 python3-pip python3-venv
-elif command -v yum >/dev/null 2>&1; then
-    sudo yum install -y python3 python3-pip
-elif command -v apk >/dev/null 2>&1; then
-    # Android/Termux
+# Detect environment and install system dependencies
+if command -v pkg >/dev/null 2>&1; then
+    # Android/Termux - check first since it might have apt-get but we want pkg
+    echo "📱 Detected Termux environment"
     pkg update
     pkg install -y python python-pip
+elif command -v apt-get >/dev/null 2>&1; then
+    # Ubuntu/Debian
+    echo "🐧 Detected Ubuntu/Debian environment"
+    apt-get update
+    apt-get install -y python3 python3-pip python3-venv
+elif command -v yum >/dev/null 2>&1; then
+    # CentOS/RHEL
+    echo "🐧 Detected CentOS/RHEL environment"
+    yum install -y python3 python3-pip
+elif command -v apk >/dev/null 2>&1; then
+    # Alpine Linux
+    echo "🐧 Detected Alpine Linux environment"
+    apk add python3 py3-pip
+else
+    echo "❌ Unsupported package manager. Please install Python manually."
+    exit 1
 fi
 
 # Create worker directory
@@ -59,8 +74,17 @@ mkdir -p ~/cluster_worker
 cd ~/cluster_worker
 
 # Setup Python environment
-python3 -m venv venv
-source venv/bin/activate
+if command -v python3 >/dev/null 2>&1; then
+    python3 -m venv venv
+    source venv/bin/activate
+elif command -v python >/dev/null 2>&1; then
+    # Android/Termux
+    python -m venv venv
+    source venv/bin/activate
+else
+    echo "❌ Python not found. Please install Python first."
+    exit 1
+fi
 
 # Install Python packages
 pip install dask distributed paramiko
@@ -203,14 +227,32 @@ echo "✅ Worker setup completed!"
 
         try:
             # Upload setup script
-            setup_script_path = f"/tmp/cluster_worker_setup_{int(time.time())}.sh"
-            temp_script_path = f"/tmp/remote_setup_{int(time.time())}.sh"
+            timestamp = int(time.time())
+            # Use home directory for temp script on remote since /tmp does not exist
+            # Get absolute home path for Android/Termux
+            home_path_output, _, _ = self.execute_remote_command(ssh_client, "echo $HOME")
+            home_path = home_path_output.strip() if home_path_output else "/data/data/com.termux/files/home"
+            setup_script_path = f"{home_path}/cluster_worker_setup_{timestamp}.sh"
+            temp_script_path = f"/tmp/remote_setup_{timestamp}.sh"
+
+            logger.info(f"Creating temp script at: {temp_script_path}")
 
             # Create temporary setup script locally
-            with open(temp_script_path, "w") as f:
-                f.write(self.worker_setup_script)
-            os.chmod(temp_script_path, 0o755)
+            try:
+                with open(temp_script_path, "w") as f:
+                    f.write(self.worker_setup_script)
+                os.chmod(temp_script_path, 0o755)
+                logger.info(f"✅ Temp script created successfully, size: {os.path.getsize(temp_script_path)} bytes")
+            except Exception as e:
+                logger.error(f"❌ Failed to create temp script: {e}")
+                return False
 
+            # Verify file exists before upload
+            if not os.path.exists(temp_script_path):
+                logger.error(f"❌ Temp script file does not exist: {temp_script_path}")
+                return False
+
+            logger.info(f"Uploading {temp_script_path} to {setup_script_path}")
             if not self.upload_file(ssh_client, temp_script_path, setup_script_path):
                 # Clean up local temp file
                 os.remove(temp_script_path)
@@ -218,11 +260,13 @@ echo "✅ Worker setup completed!"
 
             # Clean up local temp file
             os.remove(temp_script_path)
+            logger.info("✅ Temp script uploaded and cleaned up successfully")
 
             # Execute setup script
             logger.info(f"📦 Installing dependencies on {hostname}...")
+            # Try running without sudo first, then with sudo if fails
             output, error, returncode = self.execute_remote_command(
-                ssh_client, f"bash {setup_script_path}"
+                ssh_client, f"bash {setup_script_path} || sudo bash {setup_script_path}"
             )
 
             if returncode != 0:

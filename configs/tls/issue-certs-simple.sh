@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Usage:
+# =============================================================================
+# Example:
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: issue-certs-simple.sh
+# =============================================================================
+
 #!/usr/bin/env bash
 set -euo pipefail
 # issue-certs.sh -- automates Let's Encrypt certificate issuance using the certbot container

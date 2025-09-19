@@ -11,6 +11,9 @@ Sistema completo de gerenciamento de modelos de IA para o Cluster AI, com versio
 - ✅ **CLI Tools** - Ferramentas de linha de comando
 - ✅ **Cache Inteligente** - Otimização de carregamento
 - ✅ **Backup Automático** - Segurança de modelos
+- ✅ **Dashboard Web** - Interface gráfica completa
+- ✅ **Registro Visual** - Formulários web para registro
+- ✅ **Monitoramento em Tempo Real** - Dashboard interativo
 
 ## 🏗️ Arquitetura
 
@@ -53,6 +56,38 @@ model = registry.load_model("resnet50", version="1.0.0")
 ```bash
 python scripts/model_registry/list_models.py
 ```
+
+## 🌐 Dashboard Web
+
+### Iniciar Dashboard
+```bash
+# Executar dashboard web
+python scripts/run_dashboard.py
+
+# Ou diretamente
+python dashboard/app.py
+```
+
+### Funcionalidades do Dashboard
+- **📊 Dashboard Principal:** Visão geral com estatísticas
+- **📋 Lista de Modelos:** Gerenciamento completo de modelos
+- **➕ Registro Visual:** Formulários web para registro
+- **👁️ Detalhes do Modelo:** Informações completas
+- **🔍 Busca e Filtros:** Localização rápida de modelos
+- **📱 Interface Responsiva:** Funciona em desktop e mobile
+
+### Acessar Dashboard
+```
+🌐 URL: http://localhost:5000
+📱 Interface web completa
+⚡ Atualização em tempo real
+```
+
+### Screenshots
+- Dashboard com estatísticas gerais
+- Lista de modelos com filtros
+- Formulário de registro intuitivo
+- Detalhes completos do modelo
 
 ## 📊 Metadados
 

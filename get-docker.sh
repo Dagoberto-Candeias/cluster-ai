@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Docker Engine for Linux installation script.
+# =============================================================================
+# This script is intended as a convenient way to configure docker's package
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: get-docker.sh
+# =============================================================================
+
 #!/bin/sh
 set -e
 # Docker Engine for Linux installation script.

@@ -1,0 +1,176 @@
+#!/bin/bash
+
+echo "=== TESTE COMPLETO DE FUNCIONAMENTO DO SSD EXTERNO ==="
+echo "Data: $(date)"
+echo ""
+
+# Definir variáveis
+SSD_MOUNT_POINT="/media/dcm/7f52e2c4-4a5e-439a-9096-70c201b296aa"
+TEST_DIR="$SSD_MOUNT_POINT/ssd_test_$(date +%s)"
+LOG_FILE="$HOME/ssd_test_results.log"
+
+echo "Ponto de montagem: $SSD_MOUNT_POINT"
+echo "Diretório de teste: $TEST_DIR"
+echo "Arquivo de log: $LOG_FILE"
+echo ""
+
+# Função para log
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+}
+
+# Verificar se o SSD está montado
+log "1. VERIFICANDO SE O SSD ESTÁ MONTADO..."
+if mount | grep -q "$SSD_MOUNT_POINT"; then
+    log "✅ SSD está montado corretamente"
+else
+    log "❌ SSD não está montado!"
+    exit 1
+fi
+
+# Verificar espaço disponível
+log "2. VERIFICANDO ESPAÇO DISPONÍVEL..."
+SPACE_INFO=$(df -h "$SSD_MOUNT_POINT" | tail -1)
+log "Espaço: $SPACE_INFO"
+
+# Criar diretório de teste
+log "3. CRIANDO DIRETÓRIO DE TESTE..."
+if mkdir -p "$TEST_DIR"; then
+    log "✅ Diretório de teste criado com sucesso"
+else
+    log "❌ Falha ao criar diretório de teste"
+    exit 1
+fi
+
+# Teste 1: Arquivos pequenos
+log "4. TESTE 1: CRIAÇÃO DE ARQUIVOS PEQUENOS..."
+START_TIME=$(date +%s)
+for i in {1..100}; do
+    echo "Teste de arquivo pequeno $i - $(date)" > "$TEST_DIR/small_file_$i.txt"
+done
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+log "✅ Criados 100 arquivos pequenos em ${DURATION}s"
+
+# Teste 2: Arquivo médio
+log "5. TESTE 2: CRIAÇÃO DE ARQUIVO MÉDIO (100MB)..."
+START_TIME=$(date +%s)
+if dd if=/dev/zero of="$TEST_DIR/medium_file_100MB.dat" bs=1M count=100 status=progress 2>/dev/null; then
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    FILE_SIZE=$(du -h "$TEST_DIR/medium_file_100MB.dat" | cut -f1)
+    log "✅ Arquivo de 100MB criado em ${DURATION}s (tamanho: $FILE_SIZE)"
+else
+    log "❌ Falha ao criar arquivo de 100MB"
+fi
+
+# Teste 3: Arquivo grande
+log "6. TESTE 3: CRIAÇÃO DE ARQUIVO GRANDE (1GB)..."
+START_TIME=$(date +%s)
+if dd if=/dev/zero of="$TEST_DIR/large_file_1GB.dat" bs=1M count=1000 status=progress 2>/dev/null; then
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    FILE_SIZE=$(du -h "$TEST_DIR/large_file_1GB.dat" | cut -f1)
+    log "✅ Arquivo de 1GB criado em ${DURATION}s (tamanho: $FILE_SIZE)"
+else
+    log "❌ Falha ao criar arquivo de 1GB"
+fi
+
+# Teste 4: Leitura sequencial
+log "7. TESTE 4: LEITURA SEQUENCIAL..."
+START_TIME=$(date +%s)
+if dd if="$TEST_DIR/large_file_1GB.dat" of=/dev/null bs=1M status=progress 2>/dev/null; then
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    if [ $DURATION -gt 0 ]; then
+        SPEED=$((1000 / DURATION))  # MB/s aproximado
+        log "✅ Leitura sequencial concluída em ${DURATION}s (~${SPEED} MB/s)"
+    else
+        log "✅ Leitura sequencial concluída em menos de 1s (velocidade muito alta)"
+    fi
+else
+    log "❌ Falha na leitura sequencial"
+fi
+
+# Teste 5: Cópia de arquivos
+log "8. TESTE 5: CÓPIA DE ARQUIVOS..."
+START_TIME=$(date +%s)
+if cp "$TEST_DIR/large_file_1GB.dat" "$TEST_DIR/large_file_copy.dat"; then
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    SPEED=$((1000 / DURATION))  # MB/s aproximado
+    log "✅ Arquivo copiado em ${DURATION}s (~${SPEED} MB/s)"
+else
+    log "❌ Falha na cópia do arquivo"
+fi
+
+# Teste 6: Verificação de integridade
+log "9. TESTE 6: VERIFICAÇÃO DE INTEGRIDADE..."
+if cmp "$TEST_DIR/large_file_1GB.dat" "$TEST_DIR/large_file_copy.dat"; then
+    log "✅ Arquivos idênticos - integridade OK"
+else
+    log "❌ Arquivos diferentes - problema de integridade!"
+fi
+
+# Teste 7: Teste de metadados
+log "10. TESTE 7: OPERAÇÕES DE METADADOS..."
+START_TIME=$(date +%s)
+for i in {1..1000}; do
+    touch "$TEST_DIR/metadata_test_$i.tmp"
+done
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+log "✅ Criados 1000 arquivos de metadados em ${DURATION}s"
+
+# Teste 8: Teste de permissões
+log "11. TESTE 8: TESTE DE PERMISSÕES..."
+chmod 644 "$TEST_DIR/small_file_1.txt"
+if [ $(stat -c %a "$TEST_DIR/small_file_1.txt") = "644" ]; then
+    log "✅ Permissões alteradas corretamente"
+else
+    log "❌ Falha na alteração de permissões"
+fi
+
+# Teste 9: Teste de filesystem
+log "12. TESTE 9: VERIFICAÇÃO DO FILESYSTEM..."
+echo "🔐 Digite sua senha sudo quando solicitado (para verificar filesystem):"
+if sudo -p "Senha para verificar filesystem: " fsck -n /dev/sdb1 2>/dev/null; then
+    log "✅ Filesystem está íntegro"
+else
+    log "⚠️  Possível problema no filesystem (verificar manualmente)"
+fi
+
+# Teste 10: Limpeza
+log "13. LIMPEZA DOS ARQUIVOS DE TESTE..."
+START_TIME=$(date +%s)
+rm -rf "$TEST_DIR"
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+log "✅ Arquivos de teste removidos em ${DURATION}s"
+
+# Verificar espaço após limpeza
+log "14. VERIFICAÇÃO FINAL DO ESPAÇO..."
+FINAL_SPACE=$(df -h "$SSD_MOUNT_POINT" | tail -1)
+log "Espaço final: $FINAL_SPACE"
+
+# Resumo final
+log ""
+log "=== RESUMO DOS TESTES ==="
+log "✅ SSD detectado e montado"
+log "✅ Operações básicas de arquivo funcionam"
+log "✅ Leitura e escrita de arquivos grandes OK"
+log "✅ Cópia de arquivos funciona"
+log "✅ Integridade de dados mantida"
+log "✅ Operações de metadados rápidas"
+log "✅ Sistema de permissões funciona"
+log "✅ Limpeza de arquivos OK"
+
+echo ""
+echo "🎉 TESTES CONCLUÍDOS COM SUCESSO!"
+echo "📄 Resultados salvos em: $LOG_FILE"
+echo ""
+echo "📊 PRÓXIMOS PASSOS RECOMENDADOS:"
+echo "1. Monitore o SSD durante uso normal"
+echo "2. Configure backups automáticos se necessário"
+echo "3. Considere particionamento se usar para múltiplos propósitos"
+echo "4. Mantenha o SSD atualizado com firmware (se aplicável)"

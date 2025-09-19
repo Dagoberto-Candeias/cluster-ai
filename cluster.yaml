@@ -19,3 +19,13 @@ workers:
     port: 8022
     user: dcm
     status: active
+  10.0.0.12:
+    ip: 10.0.0.12
+    port: 8022
+    user: dcm
+    status: active
+  worker-10-0-0-12:
+    ip: 10.0.0.12
+    port: 8022
+    user: dcm
+    status: active

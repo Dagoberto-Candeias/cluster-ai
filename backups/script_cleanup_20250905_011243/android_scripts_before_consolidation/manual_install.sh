@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Instalação Manual do Worker Android - Cluster AI
+# =============================================================================
+# Use este script quando o download automático falhar
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: manual_install.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Instalação Manual do Worker Android - Cluster AI
 # Use este script quando o download automático falhar

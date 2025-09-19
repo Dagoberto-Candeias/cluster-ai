@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# Script Simplificado para configurar Worker Android - Cluster AI
+# =============================================================================
+# Versão: 1.0 - Fácil de usar
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: setup_android_worker_simple.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Simplificado para configurar Worker Android - Cluster AI
 # Versão: 1.0 - Fácil de usar

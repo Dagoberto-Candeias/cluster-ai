@@ -1,3 +1,15 @@
+#!/bin/bash
+# =============================================================================
+# INSTALAÇÃO MELHORADA - Worker Android Cluster AI
+# =============================================================================
+# Versão com tratamento de instalações existentes
+#
+# Autor: Cluster AI Team
+# Data: 2025-09-19
+# Versão: 1.0.0
+# Arquivo: install_improved.sh
+# =============================================================================
+
 #!/data/data/com.termux/files/usr/bin/bash
 # INSTALAÇÃO MELHORADA - Worker Android Cluster AI
 # Versão com tratamento de instalações existentes

