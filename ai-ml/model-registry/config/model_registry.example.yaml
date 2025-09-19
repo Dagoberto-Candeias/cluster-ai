@@ -1,0 +1,30 @@
+frameworks:
+  onnx:
+    extensions:
+    - .onnx
+    supported_versions:
+    - 1.10+
+    - 1.11+
+  pytorch:
+    extensions:
+    - .pth
+    - .pt
+    supported_versions:
+    - 1.9+
+    - 2.0+
+  tensorflow:
+    extensions:
+    - .h5
+    - .pb
+    supported_versions:
+    - 2.8+
+    - 2.9+
+general:
+  description: Sistema de gerenciamento de modelos de IA
+  name: Cluster AI Model Registry
+  version: 1.0.0
+storage:
+  backup_enabled: true
+  base_path: /opt/cluster-ai/models
+  cache_size: 10GB
+  compression_enabled: true

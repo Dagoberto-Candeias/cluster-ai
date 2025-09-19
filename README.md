@@ -76,9 +76,35 @@ bash install_unified.sh
 # Selecionar: 1. Iniciar Todos os Serviços
 
 # Acesse as interfaces:
-# - OpenWebUI (IA): http://localhost:3000
-# - Dask Dashboard: http://localhost:8787
-# - Ollama API: http://localhost:11434
+# - 🌐 OpenWebUI (IA Conversacional): http://localhost:3000
+# - 📊 Dask Dashboard (Computação Distribuída): http://localhost:8787
+# - 🎛️ Web Dashboard Principal (Monitoramento): http://localhost:3000
+# - 📈 Grafana (Visualização Avançada): http://localhost:3001
+# - 📊 Prometheus (Métricas): http://localhost:9090
+# - 🔍 Kibana (Análise de Logs): http://localhost:5601
+# - 🤖 Ollama API: http://localhost:11434
+```
+
+### Deploy com Docker (Stack Completo)
+```bash
+# Iniciar todos os serviços de monitoramento
+docker-compose up -d
+
+# Verificar status dos containers
+docker-compose ps
+
+# Acessar logs em tempo real
+docker-compose logs -f
+```
+
+### Configuração de Workers
+```bash
+# Configurar workers automaticamente
+./scripts/deployment/auto_discover_workers.sh
+
+# Ou configurar manualmente via interface
+./manager.sh
+# Selecionar: 2. Gerenciar Workers
 ```
 
 ### Teste Básico

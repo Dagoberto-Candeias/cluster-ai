@@ -1,0 +1,109 @@
+# 🧠 Model Registry Configuration - Cluster AI
+
+# Configurações gerais
+general:
+  name: "Cluster AI Model Registry"
+  version: "1.0.0"
+  description: "Sistema de gerenciamento de modelos de IA"
+
+# Configurações de storage
+storage:
+  base_path: "/home/dcm/Projetos/cluster-ai/models"
+  cache_size: "10GB"
+  backup_enabled: true
+  compression_enabled: true
+  max_model_size: "5GB"
+
+# Frameworks suportados
+frameworks:
+  pytorch:
+    supported_versions: ["1.9+", "2.0+", "2.1+"]
+    extensions: [".pth", ".pt", ".torch"]
+    loader: "torch.load"
+
+  tensorflow:
+    supported_versions: ["2.8+", "2.9+", "2.10+"]
+    extensions: [".h5", ".pb", ".savedmodel"]
+    loader: "tf.saved_model.load"
+
+  onnx:
+    supported_versions: ["1.10+", "1.11+", "1.12+"]
+    extensions: [".onnx"]
+    loader: "onnx.load"
+
+# Configurações de cache
+cache:
+  enabled: true
+  max_size: "10GB"
+  ttl_hours: 24
+  preload_models: []
+  eviction_policy: "LRU"
+
+# Configurações da API
+api:
+  host: "0.0.0.0"
+  port: 8080
+  auth_required: false
+  cors_enabled: true
+  rate_limit: 100
+
+# Configurações de segurança
+security:
+  jwt_secret: "change-this-in-production"
+  token_expiry_hours: 24
+  allowed_origins: ["*"]
+  audit_logs: true
+
+# Configurações de monitoramento
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  dashboard_enabled: true
+  alert_thresholds:
+    cache_hit_rate: 0.8
+    disk_usage: 0.9
+    load_time_seconds: 30
+
+# Configurações de backup
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention_days: 30
+  compression: true
+  remote_storage: false
+
+# Configurações de versionamento
+versioning:
+  semantic_versioning: true
+  auto_increment: true
+  max_versions_per_model: 10
+  keep_latest_only: false
+
+# Configurações de integração
+integration:
+  dask_enabled: true
+  mlflow_sync: false
+  kubernetes_enabled: false
+  docker_registry: ""
+
+# Configurações de logging
+logging:
+  level: "INFO"
+  format: "json"
+  file_path: "/var/log/model-registry.log"
+  max_size_mb: 100
+  backup_count: 5
+
+# Configurações de performance
+performance:
+  parallel_loading: true
+  memory_preallocation: true
+  gpu_support: true
+  batch_size: 32
+
+# Configurações de metadados
+metadata:
+  required_fields: ["name", "framework", "version"]
+  optional_fields: ["description", "author", "license", "tags"]
+  custom_fields_allowed: true
+  validation_enabled: true

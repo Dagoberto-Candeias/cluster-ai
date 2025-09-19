@@ -11,23 +11,64 @@
 
 set -euo pipefail
 
-# Import common library (only if running as file, not piped)
-if [ -n "$0" ] && [ "$0" != "bash" ]; then
-    source "$(dirname "$0")/../lib/common.sh"
-fi
+# -----------------------------------------------------------------------------
+# CONSTANTES
+# -----------------------------------------------------------------------------
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+readonly LOG_DIR="${PROJECT_ROOT}/logs"
+readonly CONFIG_DIR="${PROJECT_ROOT}/config"
+readonly BACKUP_DIR="${PROJECT_ROOT}/backups"
 
-# --- Cores para o output ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# -----------------------------------------------------------------------------
+# CORES PARA OUTPUT (ANSI)
+# -----------------------------------------------------------------------------
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m' # No Color
 
-log() { echo -e "${BLUE}[INFO]${NC} $1"; }
-success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; }
-info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+# -----------------------------------------------------------------------------
+# FUNÇÕES DE LOGGING PADRONIZADAS
+# -----------------------------------------------------------------------------
+log_info() {
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] ${SCRIPT_NAME}: $*${NC}" >&2
+}
+
+log_warn() {
+    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] [WARN] ${SCRIPT_NAME}: $*${NC}" >&2
+}
+
+log_error() {
+    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] ${SCRIPT_NAME}: $*${NC}" >&2
+}
+
+log_success() {
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] [SUCCESS] ${SCRIPT_NAME}: $*${NC}" >&2
+}
+
+# -----------------------------------------------------------------------------
+# FUNÇÃO DE LOG PARA ARQUIVO
+# -----------------------------------------------------------------------------
+log_to_file() {
+    local level="$1"
+    local message="$2"
+    local log_file="${LOG_DIR}/${SCRIPT_NAME%.sh}.log"
+
+    # Criar diretório de logs se não existir
+    mkdir -p "${LOG_DIR}"
+
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [${level}] ${SCRIPT_NAME}: ${message}" >> "${log_file}"
+}
+
+# Alias para compatibilidade com código existente
+log() { log_info "$*"; }
+success() { log_success "$*"; }
+warn() { log_warn "$*"; }
+error() { log_error "$*"; }
+info() { log_info "$*"; }
 
 section() {
     echo ""

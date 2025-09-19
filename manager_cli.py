@@ -11,6 +11,7 @@ def run(cmd: str):
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
         typer.echo(f"⚠️  Comando falhou: {result.stderr}")
+        typer.echo(f"⚠️  Código de saída: {result.returncode}")
         return False
     else:
         typer.echo(result.stdout)

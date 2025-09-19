@@ -600,26 +600,62 @@ list_workers() {
     echo
 }
 
-# Atualizar lista de workers via descoberta de rede
+# Atualizar lista de workers via descoberta inteligente de rede
 refresh_worker_list() {
-    log_info "Atualizando lista de workers via descoberta de rede..."
+    log_info "Atualizando lista de workers via descoberta inteligente de rede..."
 
-    if [[ -f "scripts/utils/network_discovery.sh" ]]; then
-        # Executar descoberta de rede em background para não bloquear
-        bash scripts/utils/network_discovery.sh discover --no-mdns > /dev/null 2>&1 &
-        local pid=$!
+    if [[ -f "scripts/utils/smart_worker_discovery.py" ]]; then
+        # Executar descoberta inteligente de rede
+        if python3 scripts/utils/smart_worker_discovery.py; then
+            log_success "Descoberta inteligente de rede concluída"
 
-        # Aguardar um pouco para a descoberta
-        sleep 5
+            # Provisionar workers descobertos automaticamente
+            if [[ -f "scripts/utils/auto_worker_provisioning.py" ]]; then
+                log_info "Provisionando workers automaticamente..."
+                if python3 scripts/utils/auto_worker_provisioning.py provision; then
+                    log_success "Provisionamento automático concluído"
+                else
+                    log_warning "Alguns workers podem não ter sido provisionados automaticamente"
+                fi
+            fi
 
-        # Verificar se o processo ainda está rodando
-        if kill -0 $pid 2>/dev/null; then
-            log_info "Descoberta de rede em andamento... (PID: $pid)"
+            # Verificar e aplicar atualizações automáticas aos workers
+            if [[ -f "scripts/utils/auto_worker_updates.py" ]]; then
+                log_info "Verificando atualizações para workers..."
+                if python3 scripts/utils/auto_worker_updates.py update; then
+                    log_success "Atualizações aplicadas aos workers"
+                else
+                    log_info "Nenhuma atualização necessária ou workers já atualizados"
+                fi
+            fi
         else
-            log_success "Descoberta de rede concluída"
+            log_warning "Falha na descoberta inteligente, tentando método alternativo..."
+
+            # Fallback para método antigo se disponível
+            if [[ -f "scripts/utils/network_discovery.sh" ]]; then
+                bash scripts/utils/network_discovery.sh discover --no-mdns > /dev/null 2>&1 &
+                local pid=$!
+                sleep 5
+                if kill -0 $pid 2>/dev/null; then
+                    log_info "Descoberta de rede alternativa em andamento... (PID: $pid)"
+                else
+                    log_success "Descoberta de rede alternativa concluída"
+                fi
+            fi
         fi
     else
-        log_warning "Script de descoberta de rede não encontrado"
+        log_warning "Script de descoberta inteligente não encontrado, usando método alternativo"
+        # Fallback para método antigo
+        if [[ -f "scripts/utils/network_discovery.sh" ]]; then
+            bash scripts/utils/network_discovery.sh discover --no-mdns > /dev/null 2>&1 &
+            local pid=$!
+            sleep 5
+            if kill -0 $pid 2>/dev/null; then
+                log_info "Descoberta de rede em andamento... (PID: $pid)"
+            else
+                log_success "Descoberta de rede concluída"
+            fi
+        fi
     fi
 }
 

@@ -1,30 +1,99 @@
 #!/bin/bash
-# Cluster AI Manager - Script de gerenciamento com opções de reset/reconfiguração
+# =============================================================================
+# CLUSTER AI - CLUSTER MANAGER
+# =============================================================================
+#
+# DESCRIÇÃO: Script de gerenciamento com opções de reset/reconfiguração
+#
+# AUTOR: Sistema de Padronização Automática
+# DATA: $(date +%Y-%m-%d)
+# VERSÃO: 1.0.0
+#
+# =============================================================================
 
-# Cores para output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES GLOBAIS
+# -----------------------------------------------------------------------------
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
+IFS=$'\n\t'       # Internal Field Separator seguro
 
-# Função para log colorido
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+# -----------------------------------------------------------------------------
+# CONSTANTES
+# -----------------------------------------------------------------------------
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+readonly LOG_DIR="${PROJECT_ROOT}/logs"
+readonly CONFIG_DIR="${PROJECT_ROOT}/config"
+readonly BACKUP_DIR="${PROJECT_ROOT}/backups"
+
+# -----------------------------------------------------------------------------
+# CORES PARA OUTPUT (ANSI)
+# -----------------------------------------------------------------------------
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m' # No Color
+
+# -----------------------------------------------------------------------------
+# FUNÇÕES DE LOGGING PADRONIZADAS
+# -----------------------------------------------------------------------------
+log_info() {
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] ${SCRIPT_NAME}: $*${NC}" >&2
 }
 
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+log_warn() {
+    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] [WARN] ${SCRIPT_NAME}: $*${NC}" >&2
 }
 
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+log_error() {
+    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] ${SCRIPT_NAME}: $*${NC}" >&2
 }
 
-info() {
-    echo -e "${CYAN}[INFO]${NC} $1"
+log_success() {
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] [SUCCESS] ${SCRIPT_NAME}: $*${NC}" >&2
 }
+
+# -----------------------------------------------------------------------------
+# FUNÇÃO DE LOG PARA ARQUIVO
+# -----------------------------------------------------------------------------
+log_to_file() {
+    local level="$1"
+    local message="$2"
+    local log_file="${LOG_DIR}/${SCRIPT_NAME%.sh}.log"
+
+    # Criar diretório de logs se não existir
+    mkdir -p "${LOG_DIR}"
+
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [${level}] ${SCRIPT_NAME}: ${message}" >> "${log_file}"
+}
+
+# -----------------------------------------------------------------------------
+# FUNÇÃO DE VALIDAÇÃO DE DEPENDÊNCIAS
+# -----------------------------------------------------------------------------
+check_dependencies() {
+    local deps=("$@")
+    local missing_deps=()
+
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            missing_deps+=("$dep")
+        fi
+    done
+
+    if [ ${#missing_deps[@]} -ne 0 ]; then
+        log_error "Dependências faltando: ${missing_deps[*]}"
+        log_error "Por favor, instale as dependências necessárias e tente novamente."
+        exit 1
+    fi
+}
+
+# Alias para compatibilidade com código existente
+log() { log_info "$*"; }
+warn() { log_warn "$*"; }
+error() { log_error "$*"; }
+info() { log_info "$*"; }
 
 # Função para limpar ambiente completamente
 clean_environment() {
@@ -457,5 +526,31 @@ show_orphan_data() {
     read -p "Pressione Enter para continuar..."
 }
 
-# Executar menu principal
-show_main_menu
+# -----------------------------------------------------------------------------
+# FUNÇÃO PRINCIPAL
+# -----------------------------------------------------------------------------
+main() {
+    log_info "Iniciando Cluster Manager"
+
+    # Verificar dependências
+    check_dependencies "bash" "mkdir" "cp" "pgrep" "pkill"
+
+    # Criar diretórios necessários
+    mkdir -p "${LOG_DIR}" "${BACKUP_DIR}"
+
+    # Log da execução
+    log_to_file "INFO" "Cluster Manager iniciado"
+
+    # Executar menu principal
+    show_main_menu
+
+    log_success "Cluster Manager finalizado"
+    log_to_file "INFO" "Cluster Manager finalizado"
+}
+
+# -----------------------------------------------------------------------------
+# EXECUÇÃO PRINCIPAL
+# -----------------------------------------------------------------------------
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

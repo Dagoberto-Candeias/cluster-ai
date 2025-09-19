@@ -1,18 +1,28 @@
-# TODO: Fix Security Test Failures
+# TODO: Implement Recommendations from Test Analysis
 
-## Completed Tasks
-- [x] Added basic configuration (node_ip, scheduler_port) to cluster.conf to pass test_cluster_config_format
-- [x] Increased sleep time in timing attack test to 0.01 for more consistent timing
-- [x] Verified api_auth_login.sh uses environment variable for password (not hardcoded)
+## Tasks to Complete
 
-## Pending Tasks
-- [ ] Investigate and fix command injection test assertion failure
-- [ ] Verify node_modules exclusion in hardcoded secrets test
-- [ ] Run tests to confirm all failures are resolved
-- [ ] Update test exclusions if needed for false positives
+- [ ] Create unit tests for manager_cli.py (tests/unit/test_manager_cli.py)
+  - [ ] Test start command
+  - [ ] Test stop command
+  - [ ] Test restart command
+  - [ ] Test discover command
+  - [ ] Test health command
+  - [ ] Test backup command
+  - [ ] Test restore command
+  - [ ] Test scale command with different backends
 
-## Notes
-- cluster.conf now includes required basic config fields
-- Timing attack test delay increased to reduce variability
-- Password in api_auth_login.sh uses OPENWEBUI_PASSWORD env var with safe default
-- Node_modules already excluded from hardcoded secrets scan
+- [ ] Convert test_pytorch_functionality.py to proper pytest format
+  - [ ] Convert test_basic_tensor_operations to pytest
+  - [ ] Convert test_neural_network to pytest
+  - [ ] Convert test_torchvision to pytest
+  - [ ] Convert test_torchaudio to pytest
+  - [ ] Convert test_performance to pytest
+  - [ ] Convert test_gpu_availability to pytest
+
+- [ ] Investigate and fix division by zero in test_xfail_vs_skip.py
+  - [ ] Add proper error handling for division by zero
+  - [ ] Remove xfail mark if fixed
+
+- [ ] Run pytest to verify improved coverage
+- [ ] Manual testing if needed

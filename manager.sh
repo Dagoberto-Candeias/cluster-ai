@@ -38,6 +38,47 @@ section() { ui_section "$1"; }
 subsection() { ui_subsection "$1"; }
 
 # =============================================================================
+# FUNÇÕES DE MONITORAMENTO E ATUALIZAÇÃO DE WORKERS
+# =============================================================================
+
+start_worker_monitor() {
+    if pgrep -f "scripts/monitor_worker_updates.sh" > /dev/null; then
+        echo "Monitor de workers já está rodando."
+    else
+        nohup bash scripts/monitor_worker_updates.sh > logs/worker_monitor.log 2>&1 &
+        echo "Monitor de workers iniciado."
+    fi
+}
+
+stop_worker_monitor() {
+    pids=$(pgrep -f "scripts/monitor_worker_updates.sh")
+    if [ -z "$pids" ]; then
+        echo "Monitor de workers não está rodando."
+    else
+        kill $pids
+        echo "Monitor de workers parado."
+    fi
+}
+
+check_worker_monitor() {
+    if pgrep -f "scripts/monitor_worker_updates.sh" > /dev/null; then
+        echo "Monitor de workers está rodando."
+    else
+        echo "Monitor de workers não está rodando."
+    fi
+}
+
+update_all_workers() {
+    echo "Iniciando atualização manual de todos os workers..."
+    if python3 scripts/utils/auto_worker_updates.py update; then
+        echo "Atualização dos workers concluída com sucesso."
+    else
+        echo "Falha na atualização dos workers."
+        exit 1
+    fi
+}
+
+# =============================================================================
 # FUNÇÃO PRINCIPAL
 # =============================================================================
 
@@ -70,6 +111,18 @@ main() {
             ;;
         logs)
             view_system_logs
+            ;;
+        monitor-start)
+            start_worker_monitor
+            ;;
+        monitor-stop)
+            stop_worker_monitor
+            ;;
+        monitor-status)
+            check_worker_monitor
+            ;;
+        update-workers)
+            update_all_workers
             ;;
         help|--help|-h)
             show_help
