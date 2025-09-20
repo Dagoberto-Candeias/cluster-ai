@@ -19,7 +19,7 @@ sys.path.insert(0, str(project_root))
 from model_registry import ModelRegistry
 
 app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
-app.secret_key = 'cluster-ai-model-registry-dashboard'
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Inicializar CSRF protection
 csrf = CSRFProtect()

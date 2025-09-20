@@ -37,105 +37,45 @@ class AutoWorkerProvisioning:
             "dask", "distributed", "paramiko"
         ]
 
-        self.worker_setup_script = """
-#!/bin/bash
-# Auto worker setup script
+        # Use external setup script instead of embedded one
+        self.worker_setup_script_path = self.project_root / "scripts" / "android" / "setup_worker_remote.sh"
+        if not self.worker_setup_script_path.exists():
+            # Fallback to creating a simple setup script
+            self.worker_setup_script = self._create_simple_setup_script()
+        else:
+            with open(self.worker_setup_script_path, 'r') as f:
+                self.worker_setup_script = f.read()
+
+    def _create_simple_setup_script(self):
+        """Create a simple setup script without complex embedded Python"""
+        return """#!/bin/bash
+# Simple worker setup script
 
 set -e
 
 echo "🚀 Setting up Cluster AI Worker..."
 
-# Detect environment and install system dependencies
-if command -v pkg >/dev/null 2>&1; then
-    # Android/Termux - check first since it might have apt-get but we want pkg
-    echo "📱 Detected Termux environment"
-    pkg update
-    pkg install -y python python-pip
-elif command -v apt-get >/dev/null 2>&1; then
-    # Ubuntu/Debian
-    echo "🐧 Detected Ubuntu/Debian environment"
-    apt-get update
-    apt-get install -y python3 python3-pip python3-venv
-elif command -v yum >/dev/null 2>&1; then
-    # CentOS/RHEL
-    echo "🐧 Detected CentOS/RHEL environment"
-    yum install -y python3 python3-pip
-elif command -v apk >/dev/null 2>&1; then
-    # Alpine Linux
-    echo "🐧 Detected Alpine Linux environment"
-    apk add python3 py3-pip
-else
-    echo "❌ Unsupported package manager. Please install Python manually."
-    exit 1
-fi
-
 # Create worker directory
 mkdir -p ~/cluster_worker
 cd ~/cluster_worker
 
-# Setup Python environment
-if command -v python3 >/dev/null 2>&1; then
-    python3 -m venv venv
-    source venv/bin/activate
-elif command -v python >/dev/null 2>&1; then
-    # Android/Termux
-    python -m venv venv
-    source venv/bin/activate
+# Worker service script should already be uploaded
+if [ -f "worker_service_manual.py" ]; then
+    chmod +x worker_service_manual.py
+    echo "✅ Worker service script ready"
 else
-    echo "❌ Python not found. Please install Python first."
+    echo "❌ Worker service script not found"
     exit 1
 fi
 
-# Install Python packages
+# Create virtual environment and install dependencies
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
 pip install dask distributed paramiko
 
-# Create worker service script
-cat > worker_service.py << 'EOF'
-#!/usr/bin/env python3
-import sys
-import time
-import socket
-from distributed import Worker
-import logging
-
-logging.basicConfig(level=logging.INFO)
-
-def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except:
-        return "127.0.0.1"
-
-def start_worker(scheduler_ip, scheduler_port=8786):
-    local_ip = get_local_ip()
-    worker = Worker(f"tcp://{scheduler_ip}:{scheduler_port}")
-    print(f"Worker started on {local_ip}, connected to {scheduler_ip}:{scheduler_port}")
-    worker.start()
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python worker_service.py <scheduler_ip> [scheduler_port]")
-        sys.exit(1)
-
-    scheduler_ip = sys.argv[1]
-    scheduler_port = int(sys.argv[2]) if len(sys.argv) > 2 else 8786
-
-    try:
-        start_worker(scheduler_ip, scheduler_port)
-    except KeyboardInterrupt:
-        print("Worker stopped")
-    except Exception as e:
-        print(f"Error starting worker: {e}")
-        sys.exit(1)
-EOF
-
-chmod +x worker_service.py
-
 echo "✅ Worker setup completed!"
+echo "📝 To start the worker, run: python worker_service_manual.py <scheduler_ip> [port]"
 """
 
     def run_command(self, cmd: List[str], timeout: int = 30) -> Tuple[str, str, int]:
@@ -226,72 +166,185 @@ echo "✅ Worker setup completed!"
             return False
 
         try:
-            # Upload setup script
-            timestamp = int(time.time())
-            # Use home directory for temp script on remote since /tmp does not exist
-            # Get absolute home path for Android/Termux
-            home_path_output, _, _ = self.execute_remote_command(ssh_client, "echo $HOME")
-            home_path = home_path_output.strip() if home_path_output else "/data/data/com.termux/files/home"
-            setup_script_path = f"{home_path}/cluster_worker_setup_{timestamp}.sh"
-            temp_script_path = f"/tmp/remote_setup_{timestamp}.sh"
-
-            logger.info(f"Creating temp script at: {temp_script_path}")
-
-            # Create temporary setup script locally
-            try:
-                with open(temp_script_path, "w") as f:
-                    f.write(self.worker_setup_script)
-                os.chmod(temp_script_path, 0o755)
-                logger.info(f"✅ Temp script created successfully, size: {os.path.getsize(temp_script_path)} bytes")
-            except Exception as e:
-                logger.error(f"❌ Failed to create temp script: {e}")
-                return False
-
-            # Verify file exists before upload
-            if not os.path.exists(temp_script_path):
-                logger.error(f"❌ Temp script file does not exist: {temp_script_path}")
-                return False
-
-            logger.info(f"Uploading {temp_script_path} to {setup_script_path}")
-            if not self.upload_file(ssh_client, temp_script_path, setup_script_path):
-                # Clean up local temp file
-                os.remove(temp_script_path)
-                return False
-
-            # Clean up local temp file
-            os.remove(temp_script_path)
-            logger.info("✅ Temp script uploaded and cleaned up successfully")
-
-            # Execute setup script
-            logger.info(f"📦 Installing dependencies on {hostname}...")
-            # Try running without sudo first, then with sudo if fails
+            # Get remote home directory
             output, error, returncode = self.execute_remote_command(
-                ssh_client, f"bash {setup_script_path} || sudo bash {setup_script_path}"
+                ssh_client, "echo $HOME"
+            )
+            if returncode != 0:
+                logger.error(f"Failed to get remote home directory: {error}")
+                return False
+            remote_home = output.strip()
+
+            # Create worker directory on remote host
+            remote_worker_dir = f"{remote_home}/cluster_worker"
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, f"mkdir -p {remote_worker_dir}"
+            )
+            if returncode != 0:
+                logger.error(f"Failed to create worker directory: {error}")
+                return False
+
+            # Upload worker service script first
+            worker_script_path = self.project_root / "worker_service_manual.py"
+            if worker_script_path.exists():
+                remote_worker_path = f"{remote_worker_dir}/worker_service_manual.py"
+                if not self.upload_file(ssh_client, str(worker_script_path), remote_worker_path):
+                    logger.error("Failed to upload worker service script")
+                    return False
+                # Make it executable
+                self.execute_remote_command(ssh_client, f"chmod +x {remote_worker_path}")
+                logger.info("✅ Worker service script uploaded")
+            else:
+                logger.error("Worker service script not found locally")
+                return False
+
+            # Create and upload setup script
+            timestamp = int(time.time())
+            setup_script_path = f"{remote_home}/cluster_worker_setup_{timestamp}.sh"
+
+            # Write setup script to remote host
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, f"cat > {setup_script_path} << 'EOF'\n{self.worker_setup_script}\nEOF"
+            )
+
+            if returncode != 0:
+                logger.error(f"Failed to create setup script: {error}")
+                return False
+
+            # Make it executable and run it
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, f"chmod +x {setup_script_path} && PROJECT_DIR={self.project_root} bash {setup_script_path}"
             )
 
             if returncode != 0:
                 logger.error(f"Failed to setup worker {hostname}: {error}")
                 return False
 
-            # Get scheduler IP
-            scheduler_ip = self.get_scheduler_ip()
-
             # Start worker service
             logger.info(f"🚀 Starting worker service on {hostname}...")
-            worker_cmd = f"cd ~/cluster_worker && source venv/bin/activate && python worker_service.py {scheduler_ip} 8786"
-            output, error, returncode = self.execute_remote_command(
-                ssh_client, f"nohup {worker_cmd} > worker.log 2>&1 &"
-            )
-
-            if returncode != 0:
-                logger.warning(f"Failed to start worker service on {hostname}: {error}")
-            else:
+            success = self.start_worker_service(ssh_client, hostname)
+            if success:
                 logger.info(f"✅ Worker {hostname} provisioned and started successfully!")
+            else:
+                logger.warning(f"⚠️ Worker {hostname} provisioned but failed to start service")
 
             # Clean up
             self.execute_remote_command(ssh_client, f"rm -f {setup_script_path}")
 
             return True
+
+        finally:
+            ssh_client.close()
+
+    def start_worker_service(self, ssh_client: paramiko.SSHClient, hostname: str) -> bool:
+        """Start worker service on remote host"""
+        try:
+            # Get remote home directory
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, "echo $HOME"
+            )
+            if returncode != 0:
+                logger.error(f"Failed to get remote home directory: {error}")
+                return False
+            remote_home = output.strip()
+            remote_worker_dir = f"{remote_home}/cluster_worker"
+
+            # Get scheduler IP
+            scheduler_ip = self.get_scheduler_ip()
+
+            # Create a startup script
+            startup_script = f"""#!/bin/bash
+cd {remote_worker_dir} || exit 1
+source venv/bin/activate || exit 1
+export PYTHONPATH=$PYTHONPATH:{remote_worker_dir}
+python worker_service_manual.py {scheduler_ip} 8786 > worker.log 2>&1 &
+echo $! > worker.pid
+"""
+
+            # Upload and execute startup script
+            timestamp = int(time.time())
+            startup_path = f"{remote_home}/worker_startup_{timestamp}.sh"
+
+            # Write startup script to remote host
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, f"cat > {startup_path} << 'EOF'\n{startup_script}\nEOF"
+            )
+
+            if returncode != 0:
+                logger.error(f"Failed to create startup script: {error}")
+                return False
+
+            # Make it executable and run it
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, f"chmod +x {startup_path} && bash {startup_path}"
+            )
+
+            if returncode != 0:
+                logger.warning(f"Failed to start worker service: {error}")
+                # Clean up startup script
+                self.execute_remote_command(ssh_client, f"rm -f {startup_path}")
+                return False
+
+            # Clean up startup script
+            self.execute_remote_command(ssh_client, f"rm -f {startup_path}")
+
+            # Verify worker is running
+            time.sleep(2)  # Give it time to start
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, "pgrep -f worker_service_manual.py"
+            )
+
+            return returncode == 0
+
+        except Exception as e:
+            logger.error(f"Error starting worker service: {e}")
+            return False
+
+    def start_worker(self, hostname: str, ip: str, port: int = 22, user: str = None) -> bool:
+        """Start a worker that is already provisioned but stopped"""
+        logger.info(f"🚀 Starting worker: {hostname} ({ip}:{port})")
+
+        ssh_client = self.ssh_connect(hostname, ip, port, user)
+        if not ssh_client:
+            return False
+
+        try:
+            # Get remote home directory
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, "echo $HOME"
+            )
+            if returncode != 0:
+                logger.error(f"Failed to get remote home directory: {error}")
+                return False
+            remote_home = output.strip()
+            remote_worker_dir = f"{remote_home}/cluster_worker"
+
+            # Check if worker is already provisioned
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, f"ls -la {remote_worker_dir}/"
+            )
+
+            if returncode != 0:
+                logger.error(f"Worker {hostname} is not provisioned")
+                return False
+
+            # Check if worker is already running
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, "pgrep -f worker_service_manual.py"
+            )
+
+            if returncode == 0:
+                logger.info(f"Worker {hostname} is already running")
+                return True
+
+            # Start the worker service
+            success = self.start_worker_service(ssh_client, hostname)
+            if success:
+                logger.info(f"✅ Worker {hostname} started successfully!")
+            else:
+                logger.error(f"❌ Failed to start worker {hostname}")
+
+            return success
 
         finally:
             ssh_client.close()
@@ -362,9 +415,18 @@ echo "✅ Worker setup completed!"
             return "disconnected"
 
         try:
+            # Get remote home directory
+            output, error, returncode = self.execute_remote_command(
+                ssh_client, "echo $HOME"
+            )
+            if returncode != 0:
+                return "error_getting_home"
+            remote_home = output.strip()
+            remote_worker_dir = f"{remote_home}/cluster_worker"
+
             # Check if worker directory exists
             output, error, returncode = self.execute_remote_command(
-                ssh_client, "ls -la ~/cluster_worker/"
+                ssh_client, f"ls -la {remote_worker_dir}/"
             )
 
             if returncode != 0:
@@ -372,7 +434,7 @@ echo "✅ Worker setup completed!"
 
             # Check if worker process is running
             output, error, returncode = self.execute_remote_command(
-                ssh_client, "pgrep -f worker_service.py"
+                ssh_client, "pgrep -f worker_service_manual.py"
             )
 
             if returncode == 0:
@@ -388,9 +450,9 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Auto Worker Provisioning System")
-    parser.add_argument("action", choices=["provision", "status", "all"],
+    parser.add_argument("action", choices=["provision", "status", "all", "start"],
                        help="Action to perform")
-    parser.add_argument("--worker", help="Specific worker hostname to provision")
+    parser.add_argument("--worker", help="Specific worker hostname to provision/start")
     parser.add_argument("--ip", help="Worker IP address")
     parser.add_argument("--port", type=int, default=22, help="SSH port")
     parser.add_argument("--user", help="SSH username")
@@ -428,6 +490,20 @@ def main():
                         worker["port"], worker["user"]
                     )
                     print(f"{worker['hostname']:<20} {worker['ip']:<15} {worker['port']:<6} {status}")
+
+        elif args.action == "start":
+            if args.worker and args.ip:
+                success = provisioner.start_worker(
+                    args.worker, args.ip, args.port, args.user
+                )
+                if success:
+                    print(f"✅ Worker {args.worker} started successfully!")
+                else:
+                    print(f"❌ Failed to start worker {args.worker}")
+                    sys.exit(1)
+            else:
+                print("❌ Worker hostname and IP required for start action")
+                sys.exit(1)
 
         elif args.action == "all":
             # Discover and provision all

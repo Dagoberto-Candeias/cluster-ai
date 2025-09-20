@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
 # =============================================================================
 # Local: scripts/android/setup_android_worker.sh
 # =============================================================================
@@ -9,8 +9,6 @@
 # Versão: 1.0.0
 # Arquivo: setup_android_worker.sh
 # =============================================================================
-
-#!/data/data/com.termux/files/usr/bin/bash
 # Local: scripts/android/setup_android_worker.sh
 # Autor: Dagoberto Candeias <betoallnet@gmail.com>
 # Script para configurar um dispositivo Android como um Worker do Cluster AI via Termux.

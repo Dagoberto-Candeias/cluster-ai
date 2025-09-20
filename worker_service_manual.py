@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import sys
-import time
+import asyncio
+import signal
 import socket
 from distributed import Worker
 import logging
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def get_local_ip():
     try:
@@ -17,13 +19,34 @@ def get_local_ip():
     except:
         return "127.0.0.1"
 
-def start_worker(scheduler_ip, scheduler_port=8786):
+async def start_worker_async(scheduler_ip, scheduler_port=8786):
+    """Start worker asynchronously"""
     local_ip = get_local_ip()
-    worker = Worker(f"tcp://{scheduler_ip}:{scheduler_port}")
-    print(f"Worker started on {local_ip}, connected to {scheduler_ip}:{scheduler_port}")
-    worker.start()
+    logger.info(f"Worker starting on {local_ip}, connecting to {scheduler_ip}:{scheduler_port}")
 
-if __name__ == "__main__":
+    try:
+        # Create worker
+        worker = Worker(f"tcp://{scheduler_ip}:{scheduler_port}")
+
+        # Start the worker
+        await worker.start()
+
+        logger.info(f"✅ Worker successfully started and connected to {scheduler_ip}:{scheduler_port}")
+
+        # Keep the worker running
+        while True:
+            await asyncio.sleep(1)
+
+    except Exception as e:
+        logger.error(f"Error in worker: {e}")
+        raise
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    logger.info(f"Received signal {signum}, shutting down worker...")
+    sys.exit(0)
+
+async def main():
     if len(sys.argv) < 2:
         print("Usage: python worker_service.py <scheduler_ip> [scheduler_port]")
         sys.exit(1)
@@ -31,10 +54,17 @@ if __name__ == "__main__":
     scheduler_ip = sys.argv[1]
     scheduler_port = int(sys.argv[2]) if len(sys.argv) > 2 else 8786
 
+    # Setup signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
-        start_worker(scheduler_ip, scheduler_port)
+        await start_worker_async(scheduler_ip, scheduler_port)
     except KeyboardInterrupt:
-        print("Worker stopped")
+        logger.info("Worker stopped by user")
     except Exception as e:
-        print(f"Error starting worker: {e}")
+        logger.error(f"Error starting worker: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    asyncio.run(main())
