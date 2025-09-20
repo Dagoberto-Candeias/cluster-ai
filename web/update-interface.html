@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔄 Sistema de Auto Atualização - Cluster AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            cursor: pointer;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .content {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .update-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .update-card.git {
+            border-left-color: #28a745;
+        }
+
+        .update-card.docker {
+            border-left-color: #007bff;
+        }
+
+        .update-card.system {
+            border-left-color: #ffc107;
+        }
+
+        .update-card.model {
+            border-left-color: #dc3545;
+        }
+
+        .update-card h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .update-card p {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #ffc107, #fd7e14);
+            color: black;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #dc3545, #fd7e14);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .status.loading {
+            background: rgba(255, 193, 7, 0.1);
+            color: #856404;
+        }
+
+        .status.success {
+            background: rgba(40, 167, 69, 0.1);
+            color: #155724;
+        }
+
+        .status.error {
+            background: rgba(220, 53, 69, 0.1);
+            color: #721c24;
+        }
+
+        .logs {
+            background: #1e1e1e;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .config-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .config-item h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .config-item p {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .back-button {
+                position: static;
+                margin: 20px auto;
+                display: block;
+                width: fit-content;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-button">⬅️ Voltar ao Início</a>
+
+        <div class="header">
+            <h1>🔄 Sistema de Auto Atualização</h1>
+            <p>Interface completa para gerenciar atualizações do Cluster AI</p>
+        </div>
+
+        <div class="content">
+            <!-- Status das Atualizações -->
+            <div class="section">
+                <h2>📋 Status das Atualizações</h2>
+                <div id="update-status" class="status loading">
+                    🔄 Verificando atualizações...
+                </div>
+            </div>
+
+            <!-- Atualizações Disponíveis -->
+            <div class="section" id="updates-section" style="display: none;">
+                <h2>🚀 Atualizações Disponíveis</h2>
+                <div id="updates-list"></div>
+            </div>
+
+            <!-- Ações Rápidas -->
+            <div class="section">
+                <h2>⚡ Ações Rápidas</h2>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="checkForUpdates()">🔍 Verificar Atualizações</button>
+                    <button class="btn btn-success" onclick="applyAllUpdates()">🚀 Aplicar Todas</button>
+                    <button class="btn btn-warning" onclick="openBackupManager()">💾 Gerenciar Backups</button>
+                    <button class="btn btn-danger" onclick="openSystemMonitor()">📊 Monitor de Sistema</button>
+                </div>
+            </div>
+
+            <!-- Logs em Tempo Real -->
+            <div class="section">
+                <h2>📝 Logs em Tempo Real</h2>
+                <div class="logs" id="live-logs">Aguardando logs...</div>
+            </div>
+
+            <!-- Configurações -->
+            <div class="section">
+                <h2>⚙️ Configurações</h2>
+                <div class="config-section">
+                    <h3>Políticas de Atualização</h3>
+                    <div class="config-grid" id="config-grid">
+                        <div class="config-item">
+                            <h4>🔧 Git</h4>
+                            <p id="git-policy">Carregando...</p>
+                        </div>
+                        <div class="config-item">
+                            <h4>🐳 Docker</h4>
+                            <p id="docker-policy">Carregando...</p>
+                        </div>
+                        <div class="config-item">
+                            <h4>🖥️ Sistema</h4>
+                            <p id="system-policy">Carregando...</p>
+                        </div>
+                        <div class="config-item">
+                            <h4>🤖 Modelos</h4>
+                            <p id="models-policy">Carregando...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let logsInterval;
+
+        // Função para verificar atualizações
+        async function checkForUpdates() {
+            const statusDiv = document.getElementById('update-status');
+            const updatesSection = document.getElementById('updates-section');
+            const updatesList = document.getElementById('updates-list');
+
+            statusDiv.className = 'status loading';
+            statusDiv.textContent = '🔄 Verificando atualizações...';
+
+            try {
+                const response = await fetch('/api/check-updates');
+                const data = await response.json();
+
+                if (data.updates_available) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✅ Encontradas ${data.components.length} atualizações disponíveis`;
+
+                    updatesSection.style.display = 'block';
+                    updatesList.innerHTML = '';
+
+                    data.components.forEach(component => {
+                        const updateCard = document.createElement('div');
+                        updateCard.className = `update-card ${component.type}`;
+
+                        const icon = getComponentIcon(component.type);
+                        const actions = getComponentActions(component);
+
+                        updateCard.innerHTML = `
+                            <h3>${icon} ${component.description}</h3>
+                            <p><strong>Tipo:</strong> ${component.type.toUpperCase()}</p>
+                            ${component.commits_ahead ? `<p><strong>Commits:</strong> ${component.commits_ahead}</p>` : ''}
+                            ${component.packages ? `<p><strong>Pacotes:</strong> ${component.packages}</p>` : ''}
+                            ${component.container ? `<p><strong>Container:</strong> ${component.container}</p>` : ''}
+                            ${component.name ? `<p><strong>Modelo:</strong> ${component.name}</p>` : ''}
+                            <div class="button-group">
+                                ${actions}
+                            </div>
+                        `;
+
+                        updatesList.appendChild(updateCard);
+                    });
+                } else {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ Sistema está atualizado!';
+                    updatesSection.style.display = 'none';
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ Erro: ${error.message}`;
+            }
+        }
+
+        // Função para obter ícone do componente
+        function getComponentIcon(type) {
+            const icons = {
+                'git': '🔧',
+                'docker': '🐳',
+                'system': '🖥️',
+                'model': '🤖'
+            };
+            return icons[type] || '📦';
+        }
+
+        // Função para obter ações do componente
+        function getComponentActions(component) {
+            return `
+                <button class="btn btn-success" onclick="applyUpdate('${component.type}', '${component.container || component.name || 'main'}')">Aplicar</button>
+                <button class="btn btn-warning" onclick="showDetails('${component.type}')">Detalhes</button>
+                <button class="btn btn-danger" onclick="skipUpdate('${component.type}')">Pular</button>
+            `;
+        }
+
+        // Função para aplicar atualização específica
+        async function applyUpdate(type, value) {
+            if (!confirm(`Deseja aplicar a atualização de ${type}?`)) {
+                return;
+            }
+
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '⏳ Aplicando...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch('/api/apply-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, value })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    button.textContent = '✅ Aplicado!';
+                    button.className = 'btn btn-success';
+                    setTimeout(() => checkForUpdates(), 2000);
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                button.textContent = '❌ Erro!';
+                button.className = 'btn btn-danger';
+                alert('Erro ao aplicar atualização: ' + error.message);
+            }
+        }
+
+        // Função para aplicar todas as atualizações
+        async function applyAllUpdates() {
+            if (!confirm('Deseja aplicar TODAS as atualizações disponíveis? Esta operação pode demorar alguns minutos.')) {
+                return;
+            }
+
+            const buttons = document.querySelectorAll('.btn-success');
+            buttons.forEach(btn => {
+                btn.textContent = '⏳ Aguardando...';
+                btn.disabled = true;
+            });
+
+            try {
+                const response = await fetch('/api/apply-all-updates', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Todas as atualizações foram aplicadas com sucesso!');
+                    checkForUpdates();
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                alert('Erro ao aplicar atualizações: ' + error.message);
+            }
+        }
+
+        // Funções auxiliares
+        function showDetails(type) {
+            alert(`Detalhes da atualização ${type} - Em desenvolvimento`);
+        }
+
+        function skipUpdate(type) {
+            alert(`Atualização ${type} pulada - Em desenvolvimento`);
+        }
+
+        function openBackupManager() {
+            window.open('/backup-manager.html', '_blank');
+        }
+
+        function openSystemMonitor() {
+            window.open('/system-monitor.html', '_blank');
+        }
+
+        // Função para carregar configurações
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+
+                document.getElementById('git-policy').textContent = config.git_policy || 'Carregando...';
+                document.getElementById('docker-policy').textContent = config.docker_policy || 'Carregando...';
+                document.getElementById('system-policy').textContent = config.system_policy || 'Carregando...';
+                document.getElementById('models-policy').textContent = config.models_policy || 'Carregando...';
+            } catch (error) {
+                console.error('Erro ao carregar configurações:', error);
+            }
+        }
+
+        // Função para iniciar logs em tempo real
+        function startLiveLogs() {
+            logsInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/logs');
+                    const logs = await response.text();
+                    document.getElementById('live-logs').textContent = logs;
+                } catch (error) {
+                    console.error('Erro ao carregar logs:', error);
+                }
+            }, 2000);
+        }
+
+        // Inicializar página
+        document.addEventListener('DOMContentLoaded', function() {
+            checkForUpdates();
+            loadConfig();
+            startLiveLogs();
+        });
+
+        // Limpar interval ao sair
+        window.addEventListener('beforeunload', function() {
+            if (logsInterval) {
+                clearInterval(logsInterval);
+            }
+        });
+    </script>
+</body>
+</html>

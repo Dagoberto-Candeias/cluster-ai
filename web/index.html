@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Cluster AI - Central de Interfaces</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+
+        .card-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.4em;
+        }
+
+        .card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .card a {
+            display: inline-block;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .card a:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .status-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .status-ok {
+            background: rgba(40, 167, 69, 0.1);
+            border-left: 4px solid #28a745;
+        }
+
+        .status-warn {
+            background: rgba(255, 193, 7, 0.1);
+            border-left: 4px solid #ffc107;
+        }
+
+        .status-error {
+            background: rgba(220, 53, 69, 0.1);
+            border-left: 4px solid #dc3545;
+        }
+
+        .status-item h4 {
+            margin-bottom: 5px;
+            font-size: 1em;
+        }
+
+        .status-item p {
+            font-size: 0.9em;
+            margin: 0;
+        }
+
+        .update-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .update-button {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .update-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        .update-button.danger {
+            background: linear-gradient(45deg, #dc3545, #fd7e14);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .update-button.danger:hover {
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .refresh-btn {
+                position: static;
+                margin: 20px auto;
+                display: block;
+                width: fit-content;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Cluster AI</h1>
+            <p>Central de Interfaces - Acesso Rápido a Todos os Serviços</p>
+        </div>
+
+        <button class="refresh-btn" onclick="location.reload()">🔄 Atualizar Status</button>
+
+        <!-- Status do Sistema -->
+        <div class="status-section">
+            <h2>📊 Status do Sistema</h2>
+            <div class="status-grid" id="system-status">
+                <div class="status-item status-ok">
+                    <h4>🔄 Carregando...</h4>
+                    <p>Aguarde</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interfaces Principais -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon">🖥️</div>
+                <h3>OpenWebUI</h3>
+                <p>Interface de Chat com IA - Converse com seus modelos</p>
+                <a href="http://localhost:3000" target="_blank">Acessar Chat IA</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">📈</div>
+                <h3>Grafana</h3>
+                <p>Monitoramento e Dashboards - Métricas do Sistema</p>
+                <a href="http://localhost:3001" target="_blank">Ver Dashboards</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">📊</div>
+                <h3>Prometheus</h3>
+                <p>Monitoramento de Métricas - Coleta de Dados</p>
+                <a href="http://localhost:9090" target="_blank">Acessar Prometheus</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">📋</div>
+                <h3>Kibana</h3>
+                <p>Visualização de Logs - Análise de Logs do Sistema</p>
+                <a href="http://localhost:5601" target="_blank">Ver Logs</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">💻</div>
+                <h3>VSCode Server</h3>
+                <p>IDE na Nuvem - Desenvolvimento Remoto</p>
+                <a href="http://localhost:8081" target="_blank">Acessar VSCode</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">📱</div>
+                <h3>Android Worker</h3>
+                <p>Interface do Worker Android - Gerenciar Dispositivos</p>
+                <a href="http://localhost:8082" target="_blank">Acessar Worker</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">🔍</div>
+                <h3>Jupyter Lab</h3>
+                <p>Ambiente de Notebooks - Análise de Dados e ML</p>
+                <a href="http://localhost:8888" target="_blank">Abrir Jupyter</a>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">🔧</div>
+                <h3>Sistema de Updates</h3>
+                <p>Gerenciar Atualizações - Verificar e Aplicar Updates</p>
+                <a href="#" onclick="openUpdateManager()">Gerenciar Updates</a>
+            </div>
+        </div>
+
+        <!-- Seção de Atualizações -->
+        <div class="update-section">
+            <h2>🔄 Sistema de Auto Atualização</h2>
+            <p>Gerencie atualizações do sistema de forma automática e segura</p>
+
+            <button class="update-button" onclick="checkUpdates()">🔍 Verificar Atualizações</button>
+            <button class="update-button" onclick="openUpdateInterface()">⚙️ Interface de Updates</button>
+            <button class="update-button danger" onclick="openBackupManager()">💾 Gerenciar Backups</button>
+
+            <div id="update-status" style="margin-top: 20px; display: none;">
+                <h3>📋 Status das Atualizações</h3>
+                <div id="update-info"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🚀 Cluster AI - Sistema de IA Distribuída | © 2025</p>
+            <p>Desenvolvido pela equipe Cluster AI</p>
+        </div>
+    </div>
+
+    <script>
+        // Função para verificar status do sistema
+        async function checkSystemStatus() {
+            try {
+                const response = await fetch('/api/system-status');
+                const data = await response.json();
+
+                const statusGrid = document.getElementById('system-status');
+                statusGrid.innerHTML = '';
+
+                data.services.forEach(service => {
+                    const statusItem = document.createElement('div');
+                    statusItem.className = `status-item status-${service.status}`;
+
+                    statusItem.innerHTML = `
+                        <h4>${service.icon} ${service.name}</h4>
+                        <p>${service.details}</p>
+                    `;
+
+                    statusGrid.appendChild(statusItem);
+                });
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+            }
+        }
+
+        // Função para verificar atualizações
+        async function checkUpdates() {
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '⏳ Verificando...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch('/api/check-updates');
+                const data = await response.json();
+
+                showUpdateStatus(data);
+            } catch (error) {
+                alert('Erro ao verificar atualizações: ' + error.message);
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // Função para mostrar status das atualizações
+        function showUpdateStatus(data) {
+            const updateStatus = document.getElementById('update-status');
+            const updateInfo = document.getElementById('update-info');
+
+            updateStatus.style.display = 'block';
+
+            if (data.updates_available) {
+                updateInfo.innerHTML = `
+                    <div style="background: rgba(255, 193, 7, 0.1); padding: 15px; border-radius: 10px; margin: 10px 0;">
+                        <h4 style="color: #856404;">⚠️ Atualizações Disponíveis!</h4>
+                        <p>Encontradas ${data.components.length} atualizações pendentes.</p>
+                        <ul style="text-align: left; margin: 10px 0;">
+                            ${data.components.map(comp => `<li>${comp.type}: ${comp.description}</li>`).join('')}
+                        </ul>
+                        <button class="update-button" onclick="applyUpdates()">🚀 Aplicar Atualizações</button>
+                    </div>
+                `;
+            } else {
+                updateInfo.innerHTML = `
+                    <div style="background: rgba(40, 167, 69, 0.1); padding: 15px; border-radius: 10px; margin: 10px 0;">
+                        <h4 style="color: #155724;">✅ Sistema Atualizado!</h4>
+                        <p>Todas as verificações foram concluídas. O sistema está em dia.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Função para aplicar atualizações
+        async function applyUpdates() {
+            if (!confirm('Deseja aplicar as atualizações disponíveis? Esta operação pode demorar alguns minutos.')) {
+                return;
+            }
+
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '⏳ Aplicando...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch('/api/apply-updates', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Atualizações aplicadas com sucesso!');
+                    location.reload();
+                } else {
+                    alert('❌ Erro ao aplicar atualizações: ' + data.message);
+                }
+            } catch (error) {
+                alert('Erro ao aplicar atualizações: ' + error.message);
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // Função para abrir interface de updates
+        function openUpdateInterface() {
+            window.open('/update-interface.html', '_blank');
+        }
+
+        // Função para abrir gerenciador de backups
+        function openBackupManager() {
+            window.open('/backup-manager.html', '_blank');
+        }
+
+        // Função para abrir gerenciador de updates
+        function openUpdateManager() {
+            window.open('/update-manager.html', '_blank');
+        }
+
+        // Verificar status ao carregar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSystemStatus();
+
+            // Atualizar status a cada 30 segundos
+            setInterval(checkSystemStatus, 30000);
+        });
+    </script>
+</body>
+</html>

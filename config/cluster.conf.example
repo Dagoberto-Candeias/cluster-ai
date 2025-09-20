@@ -89,7 +89,7 @@ OPENWEBUI_PORT="3000"
 OPENWEBUI_DATA_DIR="${PROJECT_ROOT}/data/openwebui"
 
 # Imagem do OpenWebUI
-OPENWEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
+OPENWEBUI_IMAGE="ghcr.io/open-webui/open-webui:v0.6.30"
 
 # ==================== CONFIGURAÇÕES DE SEGURANÇA ====================
 
