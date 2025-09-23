@@ -251,6 +251,9 @@ manager = ConnectionManager()
 async def broadcast_realtime_updates():
     """Background task to broadcast real-time updates to all connected clients"""
     last_update_hash = None
+    # Import hashlib and json here to keep them local to the task
+    import hashlib
+    import json
 
     while True:
         try:
@@ -274,18 +277,16 @@ async def broadcast_realtime_updates():
             }
 
             # Calculate hash of current data to detect changes
-            import hashlib
-            import json
             current_hash = hashlib.md5(json.dumps(update_message["data"], sort_keys=True).encode()).hexdigest()
 
             # Only broadcast if data has changed
-            if current_hash != last_update_hash:
+            if manager.active_connections and current_hash != last_update_hash: # This was line 285
                 # Broadcast to all connected clients
                 await manager.broadcast(update_message)
                 last_update_hash = current_hash
                 logger.debug("Broadcasted real-time update with new data")
             else:
-                logger.debug("Skipped broadcast - no data changes")
+                logger.debug("Skipped broadcast - no data changes or no active connections")
 
         except Exception as e:
             logger.error(f"Error in realtime updates: {e}")
@@ -367,47 +368,11 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     """Get current user information"""
     return current_user
 
-async def get_cluster_status_cached(current_user: User = Depends(get_current_active_user)):
-    """Get overall cluster status with caching"""
-    cluster_data = get_cluster_metrics()
-    workers_data = get_workers_info()
-
-    active_workers = len([w for w in workers_data if w["status"] == "active"])
-    total_cpu = sum(w["cpu_usage"] for w in workers_data)
-    total_memory = sum(w["memory_usage"] for w in workers_data)
-
-    return ClusterStatus(
-        total_workers=len(workers_data),
-        active_workers=active_workers,
-        total_cpu=total_cpu,
-        total_memory=total_memory,
-        status="healthy" if active_workers > 0 else "degraded",
-        ollama_running=cluster_data.get("ollama_running", False),
-        dask_running=cluster_data.get("dask_running", False),
-        webui_running=cluster_data.get("webui_running", False),
-        dask_tasks_completed=cluster_data.get("dask_tasks_completed", 0),
-        dask_tasks_failed=cluster_data.get("dask_tasks_failed", 0),
-        dask_tasks_pending=cluster_data.get("dask_tasks_pending", 0),
-        dask_tasks_processing=cluster_data.get("dask_tasks_processing", 0),
-        dask_task_throughput=cluster_data.get("dask_task_throughput", 0.0),
-        dask_avg_task_time=cluster_data.get("dask_avg_task_time", 0.0)
-    )
-
-@app.get("/cluster/status", response_model=ClusterStatus)
-async def get_cluster_status(current_user: User = Depends(get_current_active_user)):
-    """Get overall cluster status"""
-    return await get_cluster_status_cached(current_user)
-
-@cached_async(ttl_seconds=20, namespace="workers")  # Cache for 20 seconds
-async def get_workers_cached(current_user: User = Depends(get_current_active_user)):
-    """Get all workers information with caching"""
+@cached_async(ttl_seconds=20, namespace="workers")
+async def get_workers_cached_data():
+    """Get all workers information"""
     workers_data = get_workers_info()
     return [WorkerInfo(**worker) for worker in workers_data]
-
-@app.get("/workers", response_model=list[WorkerInfo])
-async def get_workers(current_user: User = Depends(get_current_active_user)):
-    """Get all workers information"""
-    return await get_workers_cached(current_user)
 
 @app.get("/workers/{worker_id}", response_model=WorkerInfo)
 async def get_worker(worker_id: str, current_user: User = Depends(get_current_active_user)):
@@ -418,8 +383,12 @@ async def get_worker(worker_id: str, current_user: User = Depends(get_current_ac
         raise HTTPException(status_code=404, detail="Worker not found")
     return WorkerInfo(**worker)
 
-@cached_async(ttl_seconds=15, namespace="metrics")  # Cache for 15 seconds
-async def get_system_metrics_cached(limit: int = 100, current_user: User = Depends(get_current_active_user)):
+@app.get("/workers", response_model=List[WorkerInfo])
+async def get_workers(current_user: User = Depends(get_current_active_user)):
+    """Get all workers information"""
+    return await get_workers_cached_data()
+
+async def get_system_metrics_data(limit: int = 100):
     """Get system metrics history with caching"""
     # Get real metrics from monitoring logs
     real_metrics = get_system_metrics()
@@ -457,8 +426,8 @@ async def get_system_metrics_endpoint(
     limit: int = 100,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get system metrics history"""
-    return await get_system_metrics_cached(limit, current_user)
+    """Get system metrics history with caching"""
+    return await cached_async(get_system_metrics_data, ttl_seconds=15, namespace="metrics")(limit=limit)
 
 @app.post("/workers/{worker_id}/restart")
 async def restart_worker(worker_id: str, current_user: User = Depends(get_current_active_user)):
@@ -564,8 +533,7 @@ async def start_worker(worker_id: str, current_user: User = Depends(get_current_
         logger.error(f"Failed to start worker {worker_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start worker: {str(e)}")
 
-@cached_async(ttl_seconds=10, namespace="alerts")  # Cache for 10 seconds
-async def get_alerts_cached(limit: int = 50, current_user: User = Depends(get_current_active_user)):
+async def get_alerts_data(limit: int = 50):
     """Get recent alerts from monitoring system with caching"""
     alerts_data = get_alerts()
 
@@ -603,8 +571,8 @@ async def get_alerts_endpoint(
     limit: int = 50,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get recent alerts from monitoring system"""
-    return await get_alerts_cached(limit, current_user)
+    """Get recent alerts from monitoring system with caching"""
+    return await cached_async(get_alerts_data, ttl_seconds=10, namespace="alerts")(limit=limit)
 
 @app.get("/monitoring/status")
 async def get_monitoring_status(current_user: User = Depends(get_current_active_user)):
@@ -770,7 +738,7 @@ async def update_settings(settings: dict, current_user: User = Depends(get_curre
     return {"message": "Settings updated successfully", "settings": settings_store}
 
 # Cluster status endpoint
-@app.get("/cluster/status")
+@app.get("/cluster/status", response_model=ClusterStatus)
 async def get_cluster_status(current_user: User = Depends(get_current_active_user)):
     """Get comprehensive cluster status"""
     try:
@@ -788,10 +756,12 @@ async def get_cluster_status(current_user: User = Depends(get_current_active_use
         webui_running = check_service_running("open-webui")
 
         # Get workers info (simplified for demo)
-        workers_count = 0
-        active_workers = 0
+        workers_data = get_workers_info()
+        workers_count = len(workers_data)
+        active_workers = len([w for w in workers_data if w["status"] == "active"])
 
         # Get alerts count
+        alerts_db = get_alerts()
         alerts_count = len(alerts_db) if 'alerts_db' in globals() else 0
 
         cluster_status = {
@@ -811,8 +781,8 @@ async def get_cluster_status(current_user: User = Depends(get_current_active_use
             "workers": {
                 "total_workers": workers_count,
                 "active_workers": active_workers,
-                "total_cpu": 0.0,
-                "total_memory": 0.0
+                "total_cpu": sum(w["cpu_usage"] for w in workers_data),
+                "total_memory": sum(w["memory_usage"] for w in workers_data)
             },
             "performance": {
                 "dask_tasks_completed": 0,
@@ -831,7 +801,22 @@ async def get_cluster_status(current_user: User = Depends(get_current_active_use
             })
         }
 
-        return cluster_status
+        # Convert to Pydantic model
+        return ClusterStatus(
+            total_workers=cluster_status["workers"]["total_workers"],
+            active_workers=cluster_status["workers"]["active_workers"],
+            total_cpu=cluster_status["workers"]["total_cpu"],
+            total_memory=cluster_status["workers"]["total_memory"],
+            status="healthy" if active_workers > 0 else "degraded",
+            ollama_running=cluster_status["services"]["ollama_running"],
+            dask_running=cluster_status["services"]["dask_running"],
+            webui_running=cluster_status["services"]["webui_running"],
+            dask_tasks_completed=cluster_status["performance"]["dask_tasks_completed"],
+            dask_tasks_failed=cluster_status["performance"]["dask_tasks_failed"],
+            dask_tasks_pending=cluster_status["performance"]["dask_tasks_pending"],
+            dask_task_throughput=cluster_status["performance"]["dask_task_throughput"]
+        )
+
     except Exception as e:
         logger.error(f"Failed to get cluster status: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve cluster status")

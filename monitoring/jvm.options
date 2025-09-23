@@ -1,0 +1,28 @@
+# JVM configuration for Logstash
+# These settings help with memory management and performance
+
+# Set initial and maximum heap size
+-Xms512m
+-Xmx512m
+
+# Optimize for lower memory usage
+-XX:+UseCompressedOops
+-XX:+UseG1GC
+-XX:+UnlockExperimentalVMOptions
+
+# Set container support
+-XX:+UseContainerSupport
+-XX:MaxRAMPercentage=75.0
+
+# Disable unnecessary features for containerized environment
+-XX:-UsePerfData
+-Djava.security.egd=file:/dev/urandom
+
+# Logstash specific settings
+-Dlogstash.jackson.stream-read-constraints.max-nested-depth=10000
+-Dlogstash.jackson.stream-read-constraints.max-number-length=10000
+-Dlogstash.jackson.stream-read-constraints.max-string-length=100000000
+
+# Disable DNS caching for container environments
+-Dsun.net.inetaddr.ttl=0
+-Dsun.net.inetaddr.negative.ttl=0

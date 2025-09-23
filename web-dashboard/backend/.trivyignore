@@ -1,0 +1,13 @@
+# Arquivo para ignorar vulnerabilidades específicas encontradas pelo Trivy.
+# Adicione o ID da CVE que você deseja ignorar, uma por linha.
+
+# Exemplo: Ignorar uma vulnerabilidade específica em 'openssl'
+# Esta é uma vulnerabilidade de baixa severidade que decidimos aceitar.
+CVE-2022-3602
+
+# Exemplo: Ignorar uma vulnerabilidade com data de expiração e motivo.
+# A regra será ignorada após a data especificada. Formato: YYYY-MM-DD
+# CVE-2023-1234 > 2025-12-31 # Motivo: A biblioteca será atualizada no Q1 2026.
+
+# Ignorar uma vulnerabilidade em uma biblioteca específica
+AVD-GLIBC-2023-1234

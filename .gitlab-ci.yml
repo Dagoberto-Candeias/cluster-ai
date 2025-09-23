@@ -3,40 +3,68 @@
 
 stages:
   - quality
-  - test
+  - build_and_test
   - deploy
 
 default:
   # Define uma imagem padrão e cache para todos os jobs, reduzindo repetição.
   image: ubuntu:22.04
+  # Garante que submódulos sejam clonados em todos os jobs.
+  before_script:
+    - export GIT_SUBMODULE_STRATEGY=recursive
   cache:
+    # A chave de cache agora inclui o hash do próprio arquivo de CI.
+    # Invalida o cache se as dependências de pacotes (apt-get) mudarem.
     key:
       files:
         - .gitlab-ci.yml # Invalida o cache se as dependências de pacotes mudarem
     paths:
       - /var/cache/apt/archives/
       - /var/lib/apt/lists/
+
+# Template para jobs que precisam de dependências Python
+.python-deps:
+  variables:
+    # Define um diretório de cache para o pip dentro do diretório do projeto.
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    # A chave de cache agora inclui a versão do Python e o hash do requirements.txt.
+    # Isso cria um cache separado para cada versão do Python.
+    key:
+      files:
+        - requirements.txt
+      prefix: ${PYTHON_VERSION}
+    # Especifica o diretório a ser cacheado.
+    paths:
+      - .cache/pip
   before_script:
-    # Garante que submódulos sejam clonados em todos os jobs
+    # Garante que submódulos sejam clonados
     - export GIT_SUBMODULE_STRATEGY=recursive
-    # Instala dependências comuns para evitar repetição nos jobs
-    - apt-get update -qq
-    - apt-get install -y -qq bats kcov jq git sudo curl
+    # Instala a versão específica do Python definida pela matriz e suas dependências.
+    - apt-get update -qq && apt-get install -y -qq python${PYTHON_VERSION} python${PYTHON_VERSION}-pip python${PYTHON_VERSION}-dev git
+    # Usa a versão específica do pip para instalar os pacotes.
+    - python${PYTHON_VERSION} -m pip install -r requirements.txt
 
 code_quality:
   stage: quality
+  needs: [] # Executa em paralelo com outros jobs iniciais
   before_script:
-    # Instala dependências específicas para este job
-    - apt-get update -qq && apt-get install -y -qq shellcheck
+    - apt-get update -qq && apt-get install -y -qq shellcheck jq curl git
   script:
     - echo "Executando verificação de qualidade de código..."
     - shellcheck scripts/**/*.sh
     - bash ./scripts/documentation/consolidate_docs.sh # Verifica links quebrados
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - changes:
+        - scripts/**/*.sh
+        - "**/*.md"
 
 security_scan:
   stage: quality
   # Usa a imagem oficial do Semgrep, que contém todas as dependências.
   image: returntocorp/semgrep
+  needs: [] # Executa em paralelo com outros jobs iniciais
   script:
     - echo "Executando varredura de segurança..."
     # O comando `semgrep ci` é otimizado para ambientes de CI.
@@ -49,9 +77,62 @@ security_scan:
     reports:
       sast:
         - semgrep.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - changes:
+        - "**/*.py"
+        - "**/*.sh"
+
+build_image:
+  stage: build_and_test
+  # Usa uma imagem que já contém Docker para simplificar
+  image: docker:24.0-cli
+  services:
+    # Habilita Docker-in-Docker
+    - name: docker:24.0-dind
+      alias: docker
+  variables:
+    # Define o nome da imagem no registro do GitLab
+    IMAGE_TAG: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script: # Sobrescreve o default
+    # Faz login no registro de contêineres do GitLab
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - echo "Construindo a imagem Docker: $IMAGE_TAG"
+    - docker build -t $IMAGE_TAG ./web-dashboard/backend
+    - echo "Enviando a imagem para o registro..."
+    - docker push $IMAGE_TAG
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - changes:
+        - web-dashboard/backend/**/*
+
+container_scan:
+  stage: build_and_test
+  # Usa a imagem oficial do Trivy
+  image: aquasec/trivy:latest
+  variables:
+    # Pega a tag da imagem do job de build
+    IMAGE_TAG: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+    # Configurações para o GitLab processar o relatório
+    GIT_DEPTH: "0"
+  needs:
+    # Este job depende diretamente da imagem construída no job 'build_image'.
+    - build_image
+  script:
+    - trivy image --exit-code 1 --severity CRITICAL --ignorefile web-dashboard/backend/.trivyignore --format gitlab --output gl-container-scanning-report.json $IMAGE_TAG
+  artifacts:
+    reports:
+      container_scanning: gl-container-scanning-report.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - changes:
+        - web-dashboard/backend/**/*
 
 integration_test:
-  stage: test
+  stage: build_and_test
   # Usa uma imagem que já contém Docker para simplificar
   image: docker:24.0-cli
   services:
@@ -62,25 +143,48 @@ integration_test:
     # Configura o cliente Docker para se conectar ao daemon DinD
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: "" # Desabilita TLS para a conexão local
-  before_script:
+  needs:
+    - code_quality
+    - security_scan
+  before_script: # Sobrescreve o default
     # Instala dependências para o teste de integração
     - apk add --no-cache bash openssh-client bats coreutils
   script:
     - echo "Executando testes de integração..."
-    # Espera o serviço Docker-in-Docker iniciar completamente
-    - sleep 15
+    # Espera o serviço Docker-in-Docker (dind) iniciar de forma robusta
+    - |
+      for i in $(seq 1 30); do
+        docker info >/dev/null 2>&1 && break
+        echo "Aguardando o Docker daemon..."
+        sleep 1
+      done
     # Executa o script de teste BATS
     - bats tests/integration/test_manager_worker_comm.bats
   artifacts:
     when: on_failure
     paths:
       - logs/
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - changes:
+        - scripts/**/*.sh
+        - tests/integration/**/*.bats
 
 test_and_coverage:
-  stage: test
-  variables:
-    MIN_COVERAGE: "80" # Define o limite mínimo de cobertura de código
+  extends: .python-deps # Herda a configuração de cache e instalação do Python
+  stage: build_and_test
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11"]
+        MIN_COVERAGE: ["80"]
 
+  needs:
+    - code_quality
+    - security_scan
+  before_script:
+    - !reference [.python-deps, before_script] # Executa o before_script do template
+    # Instala dependências adicionais. python-is-python3 cria um link simbólico de 'python' para 'python3'.
+    - apt-get install -y -qq bats kcov jq sudo python-is-python3
   script:
     # Executa o script, passando o limite mínimo de cobertura.
     # O job falhará se a cobertura for menor que $MIN_COVERAGE.
@@ -95,12 +199,20 @@ test_and_coverage:
     paths:
       - coverage/
     expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - changes:
+        - scripts/**/*.sh
+        - tests/**/*.bats
 
 # Job especial que publica o conteúdo no GitLab Pages
 pages:
   stage: deploy
+  # O job 'pages' agora depende da execução da matriz para a versão mais recente do Python.
+  # Isso garante que o relatório de cobertura seja sempre da versão principal.
   needs:
     - job: test_and_coverage
+      vars: { PYTHON_VERSION: "3.11" }
       artifacts: true # Garante que os artefatos do job anterior sejam baixados
   script:
     - echo "Publicando relatório de cobertura no GitLab Pages..."

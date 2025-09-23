@@ -1,4 +1,6 @@
 # Multi-stage build for Python FastAPI application
+
+# --- Estágio Builder: Instala as dependências ---
 FROM python:3.11-slim AS builder
 
 # Set environment variables
@@ -8,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Instala dependências de build do sistema
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
@@ -18,9 +20,13 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copia apenas os arquivos de dependência para aproveitar o cache
+WORKDIR /app
+COPY requirements-dev.txt ./
+# Copia o requirements.txt da raiz do projeto para o contexto de build
+COPY ../../requirements.txt ./
+
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
 # Production stage
 FROM python:3.11-slim AS production
@@ -41,10 +47,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set working directory
 WORKDIR /app
 
-# Copy application code
+# Copia o código da aplicação como uma das últimas etapas para otimizar o cache
 COPY . .
 
-# Create logs directory
+# Ajusta permissões e cria diretórios necessários
 RUN mkdir -p logs && chown -R appuser:appuser /app
 
 # Switch to non-root user
@@ -58,4 +64,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
 # Start application
-CMD ["python", "main_fixed.py"]
+ENTRYPOINT ["uvicorn", "main_fixed:app"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]

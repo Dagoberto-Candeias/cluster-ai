@@ -1,0 +1,21 @@
+# Dockerfile para o ambiente de desenvolvimento do Frontend (React)
+
+FROM node:18-alpine
+
+# Define o diretório de trabalho dentro do contêiner
+WORKDIR /app
+
+# Copia os arquivos de manifesto para instalar as dependências
+# Isso aproveita o cache do Docker se os arquivos não mudarem.
+COPY package.json package-lock.json ./
+
+# Instala as dependências
+RUN npm install
+
+# O código-fonte será montado via volume no docker-compose.yml.
+
+# Expõe a porta do servidor de desenvolvimento
+EXPOSE 3000
+
+# Comando padrão para iniciar o servidor de desenvolvimento
+CMD ["npm", "start"]

@@ -1,15 +1,3 @@
-#!/bin/bash
-# =============================================================================
-# Docker Engine for Linux installation script.
-# =============================================================================
-# This script is intended as a convenient way to configure docker's package
-#
-# Autor: Cluster AI Team
-# Data: 2025-09-19
-# Versão: 1.0.0
-# Arquivo: get-docker.sh
-# =============================================================================
-
 #!/bin/sh
 set -e
 # Docker Engine for Linux installation script.
@@ -87,12 +75,20 @@ set -e
 #
 #   $ sudo sh install-docker.sh --mirror AzureChinaCloud
 #
+# --setup-repo
+#
+# Use the --setup-repo option to configure Docker's package repositories without
+# installing Docker packages. This is useful when you want to add the repository
+# but install packages separately:
+#
+#   $ sudo sh install-docker.sh --setup-repo
+#
 # ==============================================================================
 
 
 # Git commit from https://github.com/docker/docker-install when
 # the script was uploaded (Should only be modified by upload job):
-SCRIPT_COMMIT_SHA="bedc5d6b3e782a5e50d3d2a870f5e1f1b5a38d5c"
+SCRIPT_COMMIT_SHA="1ebc10ccd106153669a1e7b5984497e0fcf9d3b1"
 
 # strip "v" prefix if present
 VERSION="${VERSION#v}"
@@ -122,6 +118,7 @@ fi
 
 mirror=''
 DRY_RUN=${DRY_RUN:-}
+REPO_ONLY=${REPO_ONLY:-0}
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--channel)
@@ -137,6 +134,10 @@ while [ $# -gt 0 ]; do
 			;;
 		--version)
 			VERSION="${2#v}"
+			shift
+			;;
+		--setup-repo)
+			REPO_ONLY=1
 			shift
 			;;
 		--*)
@@ -504,7 +505,7 @@ do_install() {
 		ubuntu.focal|ubuntu.bionic|ubuntu.xenial|ubuntu.trusty)
 			deprecation_notice "$lsb_dist" "$dist_version"
 			;;
-		ubuntu.mantic|ubuntu.lunar|ubuntu.kinetic|ubuntu.impish|ubuntu.hirsute|ubuntu.groovy|ubuntu.eoan|ubuntu.disco|ubuntu.cosmic)
+		ubuntu.oracular|ubuntu.mantic|ubuntu.lunar|ubuntu.kinetic|ubuntu.impish|ubuntu.hirsute|ubuntu.groovy|ubuntu.eoan|ubuntu.disco|ubuntu.cosmic)
 			deprecation_notice "$lsb_dist" "$dist_version"
 			;;
 		fedora.*)
@@ -531,6 +532,11 @@ do_install() {
 				$sh_c "echo \"$apt_repo\" > /etc/apt/sources.list.d/docker.list"
 				$sh_c 'apt-get -qq update >/dev/null'
 			)
+
+			if [ "$REPO_ONLY" = "1" ]; then
+				exit 0
+			fi
+
 			pkg_version=""
 			if [ -n "$VERSION" ]; then
 				if is_dry_run; then
@@ -620,6 +626,11 @@ do_install() {
 					$sh_c "yum makecache"
 				fi
 			)
+
+			if [ "$REPO_ONLY" = "1" ]; then
+				exit 0
+			fi
+
 			pkg_version=""
 			if command_exists dnf; then
 				pkg_manager="dnf"

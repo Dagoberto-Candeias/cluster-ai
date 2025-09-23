@@ -11,13 +11,14 @@ from typing import Any, Optional, Dict, List
 from datetime import datetime, timedelta
 import hashlib
 import pickle
+import os
 
 logger = logging.getLogger(__name__)
 
 class CacheManager:
     """Redis-based cache manager with fallback to memory cache"""
 
-    def __init__(self, redis_url: str = "redis://localhost:6379", db: int = 0):
+    def __init__(self, redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379"), db: int = 0):
         self.redis_url = redis_url
         self.db = db
         self.redis_client = None
@@ -251,7 +252,7 @@ def cached(ttl_seconds: int = 300, namespace: str = "default"):
         return wrapper
     return decorator
 
-async def cached_async(ttl_seconds: int = 300, namespace: str = "default"):
+def cached_async(ttl_seconds: int = 300, namespace: str = "default"):
     """Decorator to cache async function results"""
     def decorator(func):
         async def wrapper(*args, **kwargs):

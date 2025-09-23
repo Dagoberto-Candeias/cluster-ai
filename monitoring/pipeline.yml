@@ -1,0 +1,30 @@
+# Logstash Pipeline Configuration
+# This file configures pipeline settings and batch processing
+
+- pipeline.id: main
+  path.config: "/usr/share/logstash/pipeline/logstash.conf"
+  pipeline.workers: 2
+  pipeline.batch.size: 125
+  pipeline.batch.delay: 50
+  pipeline.ordered: false
+  queue.type: memory
+  queue.max_events: 0
+  queue.max_bytes: 0
+
+# Dead letter queue configuration for failed events
+dead_letter_queue.enable: true
+dead_letter_queue.path: "/usr/share/logstash/data/dead_letter_queue"
+
+# Path settings
+path.data: /usr/share/logstash/data
+path.logs: /usr/share/logstash/logs
+path.config: /usr/share/logstash/pipeline
+
+# HTTP settings for API access
+http.host: "0.0.0.0"
+http.port: 9600-9700
+
+# Monitoring and metrics
+monitoring.enabled: true
+monitoring.collection.interval: 10s
+monitoring.collection.pipeline.period: 5s

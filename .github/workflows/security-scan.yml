@@ -18,7 +18,7 @@ jobs:
 
     - name: Build Docker images
       run: |
-        docker build -t cluster-ai-frontend ./web-dashboard
+        docker build -t cluster-ai-frontend ./web-dashboard/frontend
         docker build -t cluster-ai-backend ./web-dashboard/backend
 
     - name: Run Trivy vulnerability scanner
@@ -81,7 +81,7 @@ jobs:
 
     - name: Build and push to local registry
       run: |
-        docker build -t localhost:5000/cluster-ai-frontend ./web-dashboard
+        docker build -t localhost:5000/cluster-ai-frontend ./web-dashboard/frontend
         docker build -t localhost:5000/cluster-ai-backend ./web-dashboard/backend
 
     - name: Run Clair scanner
@@ -91,7 +91,7 @@ jobs:
         chmod +x clairctl
 
         # Build and scan frontend image
-        docker build -t cluster-ai-frontend ./web-dashboard
+        docker build -t cluster-ai-frontend ./web-dashboard/frontend
         ./clairctl report cluster-ai-frontend > clair-frontend-report.json
 
     - name: Run Clair scanner for backend

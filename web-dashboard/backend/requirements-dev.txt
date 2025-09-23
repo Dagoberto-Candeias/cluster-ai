@@ -1,0 +1,15 @@
+# Cluster AI - Dependências de Desenvolvimento
+# ==========================================
+
+# Utilitários
+GitPython>=3.1.0
+pyyaml>=6.0.0
+
+# Testes, Linting e Formatação
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+pytest-cov>=5.0.0
+black>=24.0.0
+flake8>=7.1.0
+mypy>=1.11.0
+pre-commit>=3.8.0
