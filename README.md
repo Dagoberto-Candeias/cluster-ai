@@ -47,6 +47,7 @@ O **Cluster AI** é uma plataforma integrada que combina:
 - **Configuração Guiada**: Menus interativos para todas as operações
 - **Backup/Restauração**: Estratégias completas de backup
 - **Monitoramento 24/7**: Alertas e dashboards de status
+- **Sistema de Auto-Atualização**: Verificação automática de atualizações (pacotes, Git, Docker, modelos IA)
 
 ### 📱 Suporte Multi-Plataforma
 - **Linux Nativo**: Otimizado para distribuições Linux
@@ -353,6 +354,7 @@ bash scripts/format.sh
 - [x] **Modelos**: Gestão inteligente implementada (Cache, limpeza automática, métricas)
 - [x] **Monitoramento**: Dashboards avançados implementados (Métricas em tempo real, alertas)
 - [x] **Integração**: Smart Manager integrado (Gestão unificada de todo o sistema)
+- [x] **Sistema de Auto-Atualização**: FASE 7 concluída - Verificações automáticas de atualizações integradas
 
 ### 🎯 Roadmap
 - **v1.1.0**: Fase 8.2 - Integração com modelos de IA (GPT, Claude, etc.)
