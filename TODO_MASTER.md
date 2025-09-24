@@ -1,514 +1,367 @@
 # 🎯 TODO MASTER - CLUSTER AI CONSOLIDADO
 
 ## 📊 STATUS GERAL DO PROJETO
-- **Data da Análise**: $(date)
-- **Status**: Análise completa realizada
-- **Prioridade**: ALTA - Consolidação necessária
+- **Data da Consolidação**: $(date)
+- **Status**: Consolidação simples realizada
+- **Prioridade**: ALTA - Manutenção necessária
 
 ---
 
-## 🔍 ANÁLISE DE DUPLICAÇÕES IDENTIFICADAS
+## 🔍 CONSOLIDAÇÃO REALIZADA
 
-### 📋 1. ARQUIVOS TODO (9 arquivos → 1 consolidado)
-**Arquivos identificados:**
-- `TODO.md` ✅ (base principal)
-- `TODO_CONSOLIDATION.md` ✅ (já consolidado)
-- `TODO_DETALHADO.md` ✅ (detalhado)
-- `TODO_FASE1.md` ❌ (duplicado)
-- `TODO_HEALTH_CHECK_FIXES.md` ❌ (duplicado)
-- `TODO_HEALTH_CHECK_IMPLEMENTATION.md` ❌ (duplicado)
-- `TODO_HEALTH_CHECK_IMPROVEMENTS.md` ❌ (duplicado)
-- `TODO_IMPROVEMENTS.md` ❌ (duplicado)
-- `TODO_NGINX_FIX.md` ❌ (duplicado)
-- `TODO_REVISAO_PROJETO.md` ❌ (duplicado)
-- `TODO_WORKSTATION.md` ❌ (duplicado)
+### 📋 CONSOLIDAÇÃO DOS ARQUIVOS TODO DA RAIZ
+**Processo realizado:**
+- ✅ **Análise**: $(echo "$root_todos" | wc -l) arquivos TODO processados
+- ✅ **Consolidação**: Todas as tarefas unificadas
+- ✅ **Backup**: Arquivos originais preservados
+- ✅ **Limpeza**: Apenas arquivos duplicados removidos
 
-**Ação**: Consolidar em `TODO_MASTER.md`, remover duplicatas.
-
-### 📝 2. SCRIPTS ANDROID (5 scripts → 2 otimizados)
-**Scripts identificados:**
-- `scripts/android/setup_android_worker.sh` ✅ (manter)
-- `scripts/android/setup_android_worker_simple.sh` ✅ (manter otimizado)
-- `scripts/android/setup_android_worker_robust.sh` ✅ (novo - melhorado)
-- `scripts/android/manual_install.sh` ❌ (duplicado)
-- `scripts/android/install_android_worker.sh` ❌ (duplicado)
-
-**Ação**: Manter apenas versões otimizadas, remover duplicatas.
-
-### 📚 3. DOCUMENTAÇÃO (múltiplas duplicatas)
-**Problemas identificados:**
-- `README.md` vs `DEMO_README.md`
-- `docs/guides/quick-start.md` vs `docs/guides/QUICK_START.md`
-- Guias fragmentados em `docs/guides/` e `docs/manuals/`
-
-**Ação**: Unificar documentação, criar estrutura hierárquica.
-
-### ⚙️ 4. SCRIPTS DE INSTALAÇÃO
-**Scripts identificados:**
-- `install.sh`, `auto_setup.sh`, `quick_start.sh`
-- Scripts em `scripts/installation/`
-
-**Ação**: Criar script principal que orquestra sub-scripts.
+**Arquivos consolidados:**
+- /home/dcm/Projetos/cluster-ai/TODO_AUTO_UPDATE_SYSTEM_COMPLETED.md
+- /home/dcm/Projetos/cluster-ai/TODO_AUTO_UPDATE_SYSTEM.md
+- /home/dcm/Projetos/cluster-ai/TODO_DASHBOARD_WEB.md
+- /home/dcm/Projetos/cluster-ai/TODO_FASE9.md
+- /home/dcm/Projetos/cluster-ai/TODO_IMPROVEMENTS.md
+- /home/dcm/Projetos/cluster-ai/TODO_INTEGRATION_COMPLETED.md
+- /home/dcm/Projetos/cluster-ai/TODO.md
+- /home/dcm/Projetos/cluster-ai/TODO_OPENWEBUI_UPDATE.md
 
 ---
 
-## 🎯 PLANO DE CONSOLIDAÇÃO EXECUTÁVEL
+## 📋 TAREFAS CONSOLIDADAS
 
-### 📋 FASE 1: TODOs ✅ CONCLUÍDA
-**Objetivo**: Consolidar 9 arquivos TODO em 1
 
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: Redução de 11 para 2 arquivos TODO
+### 📄 TODO_AUTO_UPDATE_SYSTEM_COMPLETED.md
 
-**Ações Realizadas:**
-1. ✅ **Análise de Conteúdo**
-   - ✅ Revisar conteúdo de todos os TODOs
-   - ✅ Identificar tarefas únicas vs duplicadas
-   - ✅ Categorizar por prioridade
+- [x] Criar `scripts/update_checker.sh` - Verifica atualizações disponíveis
+- [x] Verificar atualizações do Git (repositório)
+- [x] Verificar atualizações de containers Docker
+- [x] Verificar atualizações do sistema operacional
+- [x] Verificar atualizações de modelos de IA
+- [x] Criar `scripts/update_notifier.sh` - Sistema de notificação
+- [x] Interface interativa para aprovar atualizações
+- [x] Logs detalhados de todas as operações
+- [x] Notificações por email (opcional)
+- [x] Criar `scripts/backup_manager.sh` - Gerenciador de backups
+- [x] Backup automático antes de atualizações
+- [x] Sistema de rotação de backups
+- [x] Backup de configurações, dados e estado do sistema
+- [x] Completar `scripts/maintenance/auto_updater.sh`
+- [x] Suporte a diferentes tipos de atualização
+- [x] Verificação de dependências
+- [x] Rollback automático em caso de falha
+- [x] Completar `scripts/monitor_worker_updates.sh`
+- [x] Monitoramento em background
+- [x] Verificação periódica configurável
+- [x] Integração com cron
+- [x] Criar `config/update.conf` - Configurações do sistema de atualização
+- [x] Opções de frequência de verificação
+- [x] Configurações de backup
+- [x] Lista de componentes a serem atualizados
+- [ ] Integrar com `scripts/auto_init_project.sh`
+- [ ] Adicionar verificação de atualizações no status do sistema
+- [ ] Integração com scripts de instalação existentes
+- [x] `scripts/update_checker.sh`
+- [x] `scripts/update_notifier.sh`
+- [x] `scripts/backup_manager.sh`
+- [x] `config/update.conf`
+- [x] `scripts/maintenance/update_scheduler.sh`
+- [x] `scripts/maintenance/auto_updater.sh`
+- [x] `scripts/monitor_worker_updates.sh`
+- [ ] `scripts/auto_init_project.sh` (adicionar verificação de atualizações)
+- [ ] `scripts/lib/common.sh` (adicionar funções específicas para updates)
+- [x] Git para atualizações do repositório
+- [x] Docker para containers
+- [x] Ferramentas do sistema (apt, dnf, etc.)
+- [x] Cron para agendamento
+- [x] Análise completa do sistema atual
+- [x] Plano detalhado criado e aprovado
+- [x] **FASES 1-6 CONCLUÍDAS** - Sistema de auto atualização implementado
+- [ ] FASE 7 - Integração com scripts existentes (em andamento)
 
-2. ✅ **Criação do TODO_MASTER.md**
-   - ✅ Migrar tarefas ativas de todos os arquivos
-   - ✅ Organizar por categoria e prioridade
-   - ✅ Adicionar seção de progresso
+### 📄 TODO_AUTO_UPDATE_SYSTEM.md
 
-3. ✅ **Limpeza**
-   - ✅ Fazer backup dos TODOs originais em `backups/todos_before_consolidation/`
-   - ✅ Remover 9 arquivos duplicados
-   - ✅ Manter TODO_MASTER.md e TODO.md (histórico)
+- [ ] Criar `scripts/update_checker.sh` - Verifica atualizações disponíveis
+- [ ] Verificar atualizações do Git (repositório)
+- [ ] Verificar atualizações de containers Docker
+- [ ] Verificar atualizações do sistema operacional
+- [ ] Verificar atualizações de modelos de IA
+- [ ] Criar `scripts/update_notifier.sh` - Sistema de notificação
+- [ ] Interface interativa para aprovar atualizações
+- [ ] Logs detalhados de todas as operações
+- [ ] Notificações por email (opcional)
+- [ ] Criar `scripts/backup_manager.sh` - Gerenciador de backups
+- [ ] Backup automático antes de atualizações
+- [ ] Sistema de rotação de backups
+- [ ] Backup de configurações, dados e estado do sistema
+- [ ] Completar `scripts/maintenance/auto_updater.sh`
+- [ ] Suporte a diferentes tipos de atualização
+- [ ] Verificação de dependências
+- [ ] Rollback automático em caso de falha
+- [ ] Completar `scripts/monitor_worker_updates.sh`
+- [ ] Monitoramento em background
+- [ ] Verificação periódica configurável
+- [ ] Integração com cron
+- [ ] Criar `config/update.conf` - Configurações do sistema de atualização
+- [ ] Opções de frequência de verificação
+- [ ] Configurações de backup
+- [ ] Lista de componentes a serem atualizados
+- [ ] Integrar com `scripts/auto_init_project.sh`
+- [ ] Adicionar verificação de atualizações no status do sistema
+- [ ] Integração com scripts de instalação existentes
+- [ ] `scripts/update_checker.sh`
+- [ ] `scripts/update_notifier.sh`
+- [ ] `scripts/backup_manager.sh`
+- [ ] `config/update.conf`
+- [ ] `scripts/maintenance/update_scheduler.sh`
+- [ ] `scripts/maintenance/auto_updater.sh`
+- [ ] `scripts/monitor_worker_updates.sh`
+- [ ] `scripts/auto_init_project.sh` (adicionar verificação de atualizações)
+- [ ] `scripts/lib/common.sh` (adicionar funções específicas para updates)
+- [ ] Git para atualizações do repositório
+- [ ] Docker para containers
+- [ ] Ferramentas do sistema (apt, dnf, etc.)
+- [ ] Cron para agendamento
+- [x] Análise completa do sistema atual
+- [x] Plano detalhado criado e aprovado
+- [ ] Implementação iniciada
 
-### 📝 FASE 2: SCRIPTS ANDROID ✅ CONCLUÍDA
-**Objetivo**: Reduzir de 5 para 2 scripts otimizados
+### 📄 TODO_DASHBOARD_WEB.md
 
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: Redução de 7 para 6 scripts (1 duplicado removido, 1 mantido por funcionalidade única)
+- [ ] **Dashboard em Tempo Real**: Visualização de status do cluster
+- [ ] **Gerenciamento de Workers**: Interface para controle de workers
+- [ ] **Métricas de Performance**: Gráficos de CPU, memória, rede
+- [ ] **Sistema de Alertas**: Notificações de problemas
+- [ ] **Logs Visuais**: Interface para visualização de logs
+- [ ] **Configurações**: Interface para configurações do sistema
+- [ ] **Frontend**: React.js com TypeScript
+- [ ] **Backend**: FastAPI (Python) para APIs REST
+- [ ] **Banco de Dados**: SQLite/PostgreSQL para métricas
+- [ ] **Autenticação**: JWT tokens
+- [ ] **WebSocket**: Para updates em tempo real
+- [ ] **Responsivo**: Funciona em desktop e mobile
+- [x] Definir funcionalidades do dashboard
+- [x] Mapear dados necessários das APIs existentes
+- [x] Definir arquitetura da aplicação
+- [ ] Criar documentação de requisitos
+- [ ] Criar estrutura de diretórios para web app
+- [ ] Configurar ambiente de desenvolvimento
+- [ ] Instalar dependências (Node.js, Python FastAPI)
+- [ ] Configurar ferramentas de build (Vite, etc.)
+- [ ] Criar wireframes das principais telas
+- [ ] Definir paleta de cores e componentes base
+- [ ] Configurar tema escuro/claro
+- [ ] Criar estrutura FastAPI
+- [ ] Implementar endpoints básicos (/health, /status)
+- [ ] Configurar CORS e middleware
+- [ ] Adicionar documentação automática (Swagger)
+- [ ] Implementar sistema de login
+- [ ] JWT token generation/validation
+- [ ] Role-based access control
+- [ ] API rate limiting
+- [ ] **Workers API**: /api/workers (GET, POST, PUT, DELETE)
+- [ ] **Metrics API**: /api/metrics (CPU, memória, rede)
+- [ ] **Logs API**: /api/logs com filtros e paginação
+- [ ] **Config API**: /api/config para configurações
+- [ ] Criar projeto React com Vite
+- [ ] Configurar TypeScript
+- [ ] Instalar bibliotecas essenciais (React Router, Axios, etc.)
+- [ ] Configurar ESLint e Prettier
+- [ ] Criar layout principal (Header, Sidebar, Content)
+- [ ] Implementar sistema de navegação
+- [ ] Criar componentes reutilizáveis (Button, Card, Table)
+- [ ] Configurar tema e estilos globais
+- [ ] **Dashboard Home**: Visão geral do sistema
+- [ ] **Workers Page**: Lista e gerenciamento de workers
+- [ ] **Metrics Page**: Gráficos de performance
+- [ ] **Logs Page**: Visualização de logs
+- [ ] Widgets de status em tempo real
+- [ ] Gráficos de performance (Chart.js ou Recharts)
+- [ ] Cards de métricas importantes
+- [ ] Sistema de alertas visuais
+- [ ] Tabela de workers com status
+- [ ] Ações: start/stop/restart worker
+- [ ] Modal para adicionar novo worker
+- [ ] Filtros e busca
+- [ ] Interface de logs com syntax highlighting
+- [ ] Filtros por nível, data, worker
+- [ ] Paginação e busca em tempo real
+- [ ] Export de logs
+- [ ] Conexão WebSocket para updates live
+- [ ] Notificações push para alertas
+- [ ] Auto-refresh de dados
+- [ ] Indicadores de conexão
+- [ ] Interface para configurações do cluster
+- [ ] Backup e restore de configurações
+- [ ] Gestão de usuários e permissões
+- [ ] Configurações de segurança
+- [ ] Otimizar layout para tablets
+- [ ] Interface touch-friendly
+- [ ] PWA capabilities (offline support)
+- [ ] Testes unitários (Jest)
+- [ ] Testes de integração (API + Frontend)
+- [ ] Testes end-to-end (Cypress)
+- [ ] Testes de performance
+- [ ] Bundle optimization
+- [ ] Lazy loading de componentes
+- [ ] Cache de API responses
+- [ ] Compressão de assets
+- [ ] Code review de segurança
+- [ ] Validação de inputs
+- [ ] Proteção contra XSS/CSRF
+- [ ] Audit de dependências
+- [ ] Configurar CI/CD pipeline
+- [ ] Containerização (Docker)
+- [ ] Deploy em ambiente de staging
+- [ ] Testes de produção
+- [ ] Documentação da API
+- [ ] Guia de usuário do dashboard
+- [ ] Documentação de desenvolvimento
+- [ ] Vídeos tutoriais
+- [ ] Sessões de treinamento para usuários
+- [ ] Documentação de troubleshooting
+- [ ] FAQ e suporte
+- [ ] Deploy em produção
+- [ ] Monitoramento inicial
+- [ ] Backup de dados críticos
+- [ ] Plano de rollback
+- [ ] Monitoramento 24/7 primeira semana
+- [ ] Suporte técnico para usuários
+- [ ] Correções de bugs críticos
+- [ ] Otimização baseada em feedback
+- [ ] Dashboard carrega em < 3 segundos
+- [ ] Updates em tempo real funcionam
+- [ ] Interface responsiva em todos os dispositivos
+- [ ] Todas as operações CRUD funcionam
+- [ ] Cobertura de testes > 80%
+- [ ] Performance: Lighthouse score > 90
+- [ ] Segurança: Zero vulnerabilidades críticas
+- [ ] Acessibilidade: WCAG 2.1 AA compliance
+- [ ] Tempo de treinamento < 30 minutos
+- [ ] Satisfação do usuário > 4.5/5
+- [ ] Redução de 50% no tempo de resolução de problemas
+- [ ] Aumento de 30% na eficiência operacional
 
-**Ações Realizadas:**
-1. ✅ **Análise Comparativa**
-   - ✅ Comparar funcionalidades de cada script
-   - ✅ Identificar melhores recursos
-   - ✅ Documentar diferenças
+### 📄 TODO_FASE9.md
 
-2. ✅ **Otimização**
-   - ✅ Manter `setup_android_worker.sh` (versão padrão)
-   - ✅ Manter `setup_android_worker_robust.sh` (versão avançada com timeout)
-   - ✅ Manter `advanced_worker.sh` (funcionalidade única de execução)
-   - ✅ Incorporar melhorias de timeout nos scripts restantes
+- [ ] **Containerização Completa**: Docker + Docker Compose para todo o sistema
+- [ ] **Orquestração Kubernetes**: Deploy automatizado em clusters K8s
+- [ ] **CI/CD Pipeline**: GitHub Actions para deploy automatizado
+- [ ] **Monitoring Avançado**: Prometheus + Grafana para observabilidade
+- [ ] **Logging Centralizado**: ELK Stack (Elasticsearch, Logstash, Kibana)
+- [ ] **Backup Automatizado**: Estratégias de backup e recuperação
+- [ ] **Security Hardening**: Configurações de segurança para produção
+- [ ] **Load Balancing**: Distribuição de carga inteligente
+- [ ] **Auto-scaling**: Escalabilidade automática baseada em demanda
+- [ ] **Health Checks**: Monitoramento de saúde avançado
+- [ ] **Dockerfiles Otimizados**
+- [ ] **Docker Compose Completo**
+- [ ] **Otimização de Imagens**
+- [ ] **Manifestos K8s**
+- [ ] **Helm Charts**
+- [ ] **StatefulSets**
+- [ ] **GitHub Actions Pipeline**
+- [ ] **Blue-Green Deployment**
+- [ ] **Secrets Management**
+- [ ] **Prometheus + Grafana**
+- [ ] **ELK Stack**
+- [ ] **Distributed Tracing**
+- [ ] **Security Hardening**
+- [ ] **Compliance**
+- [ ] **Backup e Disaster Recovery**
+- [ ] **Performance Tuning**
+- [ ] **Load Testing**
+- [ ] **Cost Optimization**
 
-3. ✅ **Limpeza**
-   - ✅ Remover `install_android_worker.sh` (duplicado)
-   - ✅ Remover `manual_install.sh` (duplicado)
-   - ✅ Atualizar documentação
-   - ✅ Testar funcionalidades preservadas
+### 📄 TODO_IMPROVEMENTS.md
 
-**Scripts Mantidos (6):**
-- `setup_android_worker.sh` - Instalação padrão
-- `setup_android_worker_robust.sh` - Instalação robusta com timeout
-- `setup_android_worker_simple.sh` - Instalação simples
-- `advanced_worker.sh` - Execução do worker (funcionalidade única)
-- `setup_github_ssh.sh` - Configuração SSH específica
-- `test_android_worker.sh` - Scripts de teste
-
-### 📚 FASE 3: DOCUMENTAÇÃO ✅ CONCLUÍDA
-**Objetivo**: Unificar e organizar documentação
-
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: README consolidado, duplicatas removidas
-
-**Ações Realizadas:**
-1. ✅ **Análise de Estrutura**
-   - ✅ Mapear todos os arquivos de documentação
-   - ✅ Identificar conteúdo duplicado
-   - ✅ Definir estrutura hierárquica
-
-2. ✅ **Consolidação**
-   - ✅ Unificar READMEs (incorporar DEMO_README.md)
-   - ✅ Consolidar guias similares (remover QUICK_START.md duplicado)
-   - ✅ Criar índice unificado no README principal
-
-3. ✅ **Reorganização**
-   - ✅ Remover arquivos duplicados (DEMO_README.md, QUICK_START.md, prompts_desenvolvedores_completo.md vazio)
-   - ✅ Atualizar referências cruzadas
-   - ✅ Backup completo em `backups/documentation_before_consolidation/`
-
-### ⚙️ FASE 4: SCRIPTS DE INSTALAÇÃO ✅ CONCLUÍDA
-**Objetivo**: Criar sistema de instalação unificado
-
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: Sistema de instalação unificado criado com sucesso
-
-**Ações Realizadas:**
-1. ✅ **Mapeamento de Scripts**
-   - ✅ Identificar todos os scripts de instalação
-   - ✅ Documentar responsabilidades
-   - ✅ Identificar dependências
-
-2. ✅ **Criação do Sistema Unificado**
-   - ✅ Criar script orquestrador principal (`install_unified.sh`)
-   - ✅ Modularizar funcionalidades (usa scripts em `scripts/installation/`)
-   - ✅ Implementar verificações de integridade
-
-3. ✅ **Correções de Inconsistências**
-   - ✅ Padronizar localização do ambiente virtual (`.venv` no projeto)
-   - ✅ Corrigir caminhos de sourcing dos scripts modulares
-   - ✅ Unificar logging e tratamento de erros
-
-4. ✅ **Funcionalidades Implementadas**
-   - ✅ Menu interativo com opções de instalação
-   - ✅ Instalação completa automatizada
-   - ✅ Instalação personalizada por componente
-   - ✅ Verificação de status da instalação
-   - ✅ Relatórios detalhados de progresso
-   - ✅ Tratamento robusto de erros
-   - ✅ Backup automático de configurações
-
-### 🔐 FASE 5: VERIFICAÇÃO SSH (Concluída)
-**Objetivo**: Confirmar configuração correta da chave pública SSH
-
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: Configuração SSH verificada e documentação atualizada
-
-**Ações Realizadas:**
-1. ✅ **Verificação do Script SSH**
-   - ✅ Script `scripts/android/setup_github_ssh.sh` gera chave corretamente
-   - ✅ Instruções claras para adicionar chave ao GitHub
-   - ✅ Teste de conectividade implementado
-
-2. ✅ **Atualização da Documentação**
-   - ✅ README.md atualizado com menção à configuração SSH
-   - ✅ Guias Android já incluem instruções detalhadas
-   - ✅ Plano de testes inclui validação SSH
-
-3. ✅ **Confirmação de Funcionalidade**
-   - ✅ Chave pública gerada automaticamente (RSA 2048 bits)
-   - ✅ Instruções para registro no GitHub claras
-   - ✅ Fallback para HTTPS se SSH falhar
-   - ✅ Testes de conectividade implementados
-
-### 🤖 FASE 7: SISTEMA INTELIGENTE COMPLETO (Nova - Concluída)
-**Objetivo**: Implementar sistema de automação completa para descoberta, instalação e organização
-
-**Status**: ✅ FINALIZADA
-**Data**: $(date '+%Y-%m-%d %H:%M:%S')
-**Resultado**: Sistema inteligente completo implementado com 4 componentes principais
-
-### 🚀 FASE 8: MELHORIAS PÓS-CONSOLIDAÇÃO (Nova - Em Andamento)
-**Objetivo**: Implementar melhorias identificadas no plano de melhorias
-
-**Status**: 🔄 EM ANDAMENTO
-**Data**: $(date '+%Y-%m-%d %H:%M:%S')
-**Resultado**: Melhorias sistemáticas para elevar qualidade do projeto
-
-#### 🎯 8.1: PADRONIZAÇÃO DE SCRIPTS
-**Status**: 🔄 EM ANDAMENTO
-**Prioridade**: ALTA
-
-**Tarefas Concluídas:**
-- [x] Padronizar cabeçalhos de arquivo em scripts selecionados
-- [x] Implementar função de logging unificada em cluster_manager.sh e setup_android_worker.sh
-- [x] Criar template padrão para novos scripts (já existe em templates/bash_template.sh)
-
-**Tarefas Pendentes:**
-- [ ] Padronizar cabeçalhos de arquivo nos scripts restantes
-- [ ] Implementar função de logging unificada em scripts restantes
-- [ ] Adicionar validação de entrada consistente
-- [ ] Atualizar scripts para usar set -euo pipefail
-
-#### 📚 8.2: DOCUMENTAÇÃO TÉCNICA
-**Status**: 🔄 EM ANDAMENTO
-**Prioridade**: MÉDIA
-
-**Tarefas Concluídas:**
-- [x] Criar documentação técnica completa da arquitetura (technical_architecture.md)
-- [x] Documentar APIs e interfaces (no technical_architecture.md)
-
-**Tarefas Pendentes:**
-- [ ] Adicionar guias de troubleshooting detalhados
-- [ ] Criar índice de documentação unificado
-- [ ] Documentar endpoints específicos das APIs
-
-#### ⚡ 8.3: CONFIGURAÇÕES DE PERFORMANCE
-**Status**: ⏳ PENDENTE
-**Prioridade**: MÉDIA
-
-**Tarefas Pendentes:**
-- [ ] Otimizar configurações Dask para melhor performance
-- [ ] Implementar sistema de cache inteligente
-- [ ] Ajustar parâmetros de performance
-- [ ] Monitorar uso de recursos em tempo real
-
-#### 🧪 8.4: TESTES AUTOMATIZADOS
-**Status**: ⏳ PENDENTE
-**Prioridade**: ALTA
-
-**Tarefas Pendentes:**
-- [ ] Expandir suíte de testes para cobertura >90%
-- [ ] Implementar testes de carga automatizados
+- [x] Criar template padrão para scripts bash
+- [x] Implementar função de logging unificada
+- [x] Adicionar validação de entrada consistente
+- [ ] Padronizar cabeçalhos de arquivo em todos os scripts
+- [ ] Identificar todos os scripts bash no projeto
+- [ ] Aplicar template de cabeçalho padronizado
+- [ ] Verificar consistência de comentários
+- [ ] Testar scripts após padronização
+- [ ] Expandir suíte de testes unitários
+- [ ] Implementar testes de integração completos
 - [ ] Adicionar testes de regressão
+- [ ] Criar testes de carga automatizados
 - [ ] Automatizar testes de CI/CD
-
-#### 🔒 8.5: SEGURANÇA AVANÇADA
-**Status**: ⏳ PENDENTE
-**Prioridade**: ALTA
-
-**Tarefas Pendentes:**
-- [ ] Implementar hardening de segurança completo
-- [ ] Configurar monitoramento de segurança avançado
+- [ ] Implementar hardening de segurança
+- [ ] Configurar monitoramento avançado
 - [ ] Melhorar sistema de auditoria
-- [ ] Adicionar validações de segurança em APIs
+- [ ] Adicionar validações de segurança
+- [ ] Criar documentação técnica completa
+- [ ] Adicionar guias de troubleshooting
+- [ ] Documentar APIs e interfaces
+- [ ] Criar índice de documentação
+- [ ] Otimizar configurações Dask
+- [ ] Implementar cache inteligente
+- [ ] Ajustar parâmetros de performance
+- [ ] Monitorar uso de recursos
 
-#### 🎯 7.1: Instalação Inteligente
-**Status**: ✅ IMPLEMENTADO
-**Script**: `scripts/installation/install_intelligent.sh`
+### 📄 TODO_INTEGRATION_COMPLETED.md
 
-**Funcionalidades:**
-- ✅ Detecção automática de instalação existente
-- ✅ Múltiplas opções: Instalar, Reinstalar, Reparar, Desinstalar
-- ✅ Análise de impacto antes de executar
-- ✅ Segurança máxima (não altera SO)
-- ✅ Interface interativa com confirmações
+- [x] Integrar com `scripts/auto_init_project.sh`
+- [x] Adicionar verificação de atualizações no status do sistema
+- [x] Integração com scripts de instalação existentes
+- [x] Criar `web/index.html` - Central de interfaces com cards
+- [x] Criar `web/update-interface.html` - Interface web de atualizações
+- [x] Criar `web/backup-manager.html` - Interface web de backups
+- [x] Criar `scripts/web_server.sh` - Servidor web para interfaces
+- [x] Criar `scripts/start_cluster_complete.sh` - Inicialização completa
+- [x] `scripts/auto_init_with_updates.sh` - Status completo com verificação de updates
+- [x] `scripts/web_server.sh` - Servidor web para interfaces
+- [x] `scripts/start_cluster_complete.sh` - Inicialização completa integrada
+- [x] `web/index.html` - Central de interfaces com cards modernos
+- [x] `web/update-interface.html` - Interface completa para gerenciar atualizações
+- [x] `web/backup-manager.html` - Interface para gerenciar backups
 
-#### 🔍 7.2: Descoberta Automática de Workers
-**Status**: ✅ IMPLEMENTADO
-**Script**: `scripts/deployment/auto_discover_workers.sh`
+### 📄 TODO.md
 
-**Funcionalidades:**
-- ✅ Varredura automática da rede local (portas 22/8022)
-- ✅ Detecção de dispositivos SSH
-- ✅ Verificação se são workers Cluster AI
-- ✅ Configuração automática sem intervenção manual
-- ✅ Relatório detalhado de workers encontrados
-- ✅ Gerenciamento da lista de workers
-- ✅ Teste de conectividade individual
+- [ ] Create unit tests for manager_cli.py (tests/unit/test_manager_cli.py)
+- [ ] Convert test_pytorch_functionality.py to proper pytest format
+- [ ] Investigate and fix division by zero in test_xfail_vs_skip.py
+- [ ] Run pytest to verify improved coverage
+- [ ] Manual testing if needed
 
-#### 🧹 7.3: Consolidação de TODOs
-**Status**: ✅ IMPLEMENTADO
-**Script**: `scripts/maintenance/consolidate_todos.sh`
+### 📄 TODO_OPENWEBUI_UPDATE.md
 
-**Funcionalidades:**
-- ✅ Análise automática de todos os arquivos TODO
-- ✅ Identificação de duplicatas e redundâncias
-- ✅ Consolidação em TODO_MASTER.md único
-- ✅ Backup automático dos arquivos originais
-- ✅ Relatórios de eficiência e organização
-- ✅ Limpeza de arquivos duplicados
-- ✅ Geração de relatórios detalhados
-
-#### 📁 7.4: Organização do Projeto
-**Status**: ✅ IMPLEMENTADO
-**Script**: `scripts/maintenance/organize_project.sh`
-
-**Funcionalidades:**
-- ✅ Análise completa da estrutura atual
-- ✅ Identificação de documentação desnecessária no GitHub
-- ✅ Movimentação automática para servidor
-- ✅ Limpeza de arquivos temporários
-- ✅ Criação de estrutura organizada
-- ✅ Geração de relatórios de organização
-- ✅ Separação GitHub vs Servidor
-
-#### 🎪 7.5: Demonstração Completa
-**Status**: ✅ IMPLEMENTADO
-**Script**: `demo_complete_system.sh`
-
-**Funcionalidades:**
-- ✅ Menu interativo demonstrando todos os sistemas
-- ✅ Explicação detalhada de cada funcionalidade
-- ✅ Demonstração da integração entre sistemas
-- ✅ Resumo dos benefícios implementados
-- ✅ Interface unificada para exploração
-
-#### 🔗 7.6: Integração dos Sistemas
-**Status**: ✅ IMPLEMENTADO
-**Integração**: Scripts Android atualizados
-
-**Funcionalidades:**
-- ✅ `configure_android_worker_server.sh` integrado com descoberta automática
-- ✅ Menu de configuração expandido
-- ✅ Chamada automática do sistema de descoberta
-- ✅ Compatibilidade backward mantida
-
-### 📱 FASE 6: CONFIGURAÇÃO GUIADA ANDROID (Concluída)
-**Objetivo**: Implementar menu de configuração interativa para workers Android
-
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: Menu de configuração funcional (opção 7) implementado com sucesso
-
-**Ações Realizadas:**
-1. ✅ **Implementação do Menu de Configuração**
-   - ✅ Opção 7 do manager.sh substituída de "Em desenvolvimento" para funcional
-   - ✅ Menu interativo com 2 opções principais:
-     - Gerenciar Workers Remotos (SSH) - Preparado para expansão
-     - Configurar Worker Android (Termux) - Totalmente funcional
-
-2. ✅ **Criação do Script de Configuração do Servidor**
-   - ✅ Criado `scripts/android/configure_android_worker_server.sh`
-   - ✅ Menu completo com 6 opções:
-     1. Verificar/Instalar SSH Server
-     2. Configurar Chave SSH do Servidor
-     3. Criar Arquivo de Configuração
-     4. Adicionar Worker Manualmente
-     5. Descobrir Workers Automaticamente (preparado)
-     6. Mostrar Instruções para Android
-
-3. ✅ **Funcionalidades Implementadas**
-   - ✅ Verificação automática de SSH server
-   - ✅ Geração de chaves SSH para o servidor
-   - ✅ Criação automática de arquivo de configuração
-   - ✅ Adição manual de workers com teste de conectividade
-   - ✅ Instruções claras para configuração do Android
-   - ✅ Tratamento de erros e feedback visual
-
-4. ✅ **Atualização da Documentação**
-   - ✅ README.md atualizado com nova funcionalidade
-   - ✅ Seção de funcionalidades expandida
-   - ✅ Instruções de uso atualizadas
-   - ✅ Sincronização com GitHub realizada
-
-5. ✅ **Testes e Validação**
-   - ✅ Script tornado executável
-   - ✅ Funcionalidades testadas
-   - ✅ Documentação atualizada
-   - ✅ Commit e push realizados com sucesso
+- [x] Fazer backup do volume de dados do OpenWebUI
+- [x] Exportar configurações e personas personalizadas
+- [x] Salvar logs de configuração atual
+- [x] Verificar changelog da v0.6.30
+- [x] Identificar breaking changes
+- [x] Verificar compatibilidade com Ollama
+- [x] `configs/docker/compose-basic.yml` - Atualizar imagem para v0.6.30
+- [x] `config/cluster.conf.example` - Atualizar referência da imagem
+- [x] `scripts/installation/setup_openwebui.sh` - Revisar script de instalação
+- [ ] Testar integração com Ollama
+- [ ] Verificar funcionamento das personas
+- [ ] Testar funcionalidades principais
+- [ ] Preparar script de rollback
+- [ ] Documentar processo de reversão
 
 ---
 
-## 📊 MÉTRICAS DE SUCESSO
+## 📊 MÉTRICAS DA CONSOLIDAÇÃO
 
-### Antes da Consolidação:
-- **Arquivos na raiz**: ~50 arquivos
-- **TODOs**: 9 arquivos separados
-- **Scripts Android**: 5 versões
-- **Documentação**: Fragmentada e duplicada
+### ✅ Resultados:
+- **Arquivos processados**: 8
+- **Backup criado**: /home/dcm/Projetos/cluster-ai/backups/todos_simple_consolidation_20250923_115039
+- **Arquivo consolidado**: TODO_MASTER.md
+- **Status**: ✅ CONSOLIDAÇÃO COMPLETA
 
-### Após Consolidação (Meta):
-- **Arquivos na raiz**: ~20 arquivos principais
-- **TODOs**: 1 arquivo consolidado
-- **Scripts Android**: 2 versões otimizadas
-- **Documentação**: Estrutura unificada
-
-### Benefícios Esperados:
-- ✅ **Manutenibilidade**: Código mais fácil de manter
-- ✅ **Consistência**: Menos duplicação de esforços
-- ✅ **Usabilidade**: Documentação mais clara
-- ✅ **Performance**: Scripts mais eficientes
-- ✅ **Qualidade**: Melhor organização geral
+### 📈 Benefícios:
+- **Organização**: Todas as tarefas em um único local
+- **Manutenibilidade**: Facilita acompanhamento do progresso
+- **Eficiência**: Eliminação de arquivos duplicados
 
 ---
 
-## 🚨 PRECAUÇÕES IMPORTANTES
+**📋 Status**: ✅ CONSOLIDAÇÃO SIMPLES REALIZADA
+**👤 Responsável**: Sistema de consolidação automática
+**📅 Data**: ter 23 set 2025 11:50:39 -03
+**🎯 Resultado**: TODO_MASTER.md atualizado com todas as tarefas
 
-### 🔒 Backup Obrigatório
-- [ ] Criar backup completo antes de qualquer alteração
-- [ ] Testar mudanças em ambiente isolado
-- [ ] Manter versão anterior disponível
-
-### ✅ Validação de Funcionalidade
-- [ ] Testar todas as funcionalidades após mudanças
-- [ ] Verificar referências cruzadas
-- [ ] Validar compatibilidade backward
-
-### 📝 Documentação de Mudanças
-- [ ] Registrar todas as alterações realizadas
-- [ ] Atualizar documentação afetada
-- [ ] Comunicar mudanças aos usuários
-
----
-
-## 📅 CRONOGRAMA EXECUÇÃO
-
-### Semana 1: Preparação
-- [ ] Análise detalhada de conteúdo
-- [ ] Criação de backups
-- [ ] Definição de estratégia de migração
-
-### Semana 2: Execução Fase 1 (TODOs)
-- [ ] Consolidação dos TODOs
-- [ ] Criação do TODO_MASTER.md
-- [ ] Limpeza de arquivos duplicados
-
-### Semana 3: Execução Fase 2 (Scripts Android)
-- [ ] Análise comparativa dos scripts
-- [ ] Otimização e consolidação
-- [ ] Testes de funcionalidade
-
-### Semana 4: Execução Fase 3 (Documentação)
-- [ ] Reorganização da documentação
-- [ ] Criação de estrutura unificada
-- [ ] Atualização de referências
-
-### Semana 5: Validação Final
-- [ ] Testes completos do sistema
-- [ ] Validação de todas as funcionalidades
-- [ ] Documentação final das mudanças
-
----
-
-## 🎯 RESULTADO ESPERADO
-
-Após a consolidação, o projeto terá:
-
-1. **Estrutura Mais Limpa**: Arquivos organizados logicamente
-2. **Manutenção Simplificada**: Menos duplicação de código
-3. **Documentação Unificada**: Guias claros e consistentes
-4. **Scripts Otimizados**: Funcionalidades consolidadas
-5. **Melhor Experiência**: Para desenvolvedores e usuários
-
----
-
-**📋 Status Atual**: Análise concluída, pronto para execução
-**👤 Responsável**: Equipe de desenvolvimento
-**📅 Prazo**: 5 semanas
-**🎯 Prioridade**: ALTA
-
-### 🧪 FASE 8: CORREÇÃO DE TESTES PYTORCH (Nova - Concluída)
-**Objetivo**: Corrigir erros de importação e estrutura dos testes unitários PyTorch
-
-**Status**: ✅ FINALIZADA
-**Data**: $(date)
-**Resultado**: Testes PyTorch corrigidos e funcionando perfeitamente
-
-**Ações Realizadas:**
-1. ✅ **Diagnóstico dos Problemas**
-   - ✅ Identificado erro de importação circular no arquivo `tests/unit/test_pytorch_functionality.py`
-   - ✅ Problema causado por tentativa de importar módulo inexistente na raiz do projeto
-   - ✅ Testes tentando fazer patch de módulos que não existem
-
-2. ✅ **Correção da Estrutura**
-   - ✅ Criado arquivo de testes funcional baseado no `tests/test_pytorch_functionality_converted.py`
-   - ✅ Removido código problemático com mocks desnecessários
-   - ✅ Implementado testes diretos das funcionalidades PyTorch
-
-3. ✅ **Validação dos Testes**
-   - ✅ Todos os 6 testes passando com sucesso
-   - ✅ Cobertura completa das funcionalidades:
-     - Operações básicas com tensores
-     - Rede neural simples
-     - Transformações Torchvision
-     - Operações Torchaudio
-     - Testes de performance
-     - Verificação de disponibilidade GPU
-
-4. ✅ **Limpeza e Organização**
-   - ✅ Arquivo antigo removido e substituído pela versão corrigida
-   - ✅ Arquivo temporário de testes removido
-   - ✅ Compatibilidade mantida com estrutura existente
-
-**Testes Corrigidos:**
-- ✅ `test_basic_tensor_operations` - Operações aritméticas com tensores
-- ✅ `test_neural_network` - Criação e treinamento de rede neural
-- ✅ `test_torchvision_transforms` - Transformações de imagem
-- ✅ `test_torchaudio_basic_ops` - Operações básicas de áudio
-- ✅ `test_performance_matrix_multiplication` - Testes de performance
-- ✅ `test_gpu_availability` - Verificação de GPU disponível
-
-**Métricas de Sucesso:**
-- ✅ **Antes**: 8 testes falhando devido a erros de importação
-- ✅ **Depois**: 6 testes passando (100% de sucesso)
-- ✅ **Tempo de execução**: ~7 segundos
-- ✅ **Compatibilidade**: Mantida com estrutura de testes existente

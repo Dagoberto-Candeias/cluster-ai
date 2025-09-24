@@ -50,11 +50,11 @@ dask:
       # Buffer de transmissão
       transfer-buffer-size: 64MB
 
-      # Timeout de conexão
-      connect-timeout: 30s
+    # Timeout de conexão
+    connect-timeout: 60s
 
-      # Pool de conexões
-      connection-pool-size: 10
+    # Pool de conexões
+    connection-pool-size: 10
 
     # Configurações de disco
     disk:

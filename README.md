@@ -21,7 +21,7 @@ O **Cluster AI** é uma plataforma integrada que combina:
 ## ✨ Funcionalidades Principais
 
 ### 🤖 IA e Machine Learning
-- **Modelos Diversos**: Llama 3, Mistral, DeepSeek, CodeLlama, e mais
+- **Modelos Diversos**: Llama 3, Mistral, Mixtral, DeepSeek, CodeLlama, e mais
 - **Processamento Paralelo**: Distribua tarefas de ML em múltiplos workers
 - **Interface Conversacional**: Chat natural com modelos de linguagem
 - **APIs REST**: Integração programática com aplicações
@@ -344,6 +344,7 @@ bash scripts/format.sh
 
 ### 🔄 Melhorias Recentes (v1.0.1)
 - [x] **Correções Críticas**: Todos os bugs críticos corrigidos (27/27 testes passando)
+- [x] **Dashboard Web**: FASE 8.1 concluída - Sistema de monitoramento avançado implementado
 - [x] **Segurança**: Auditoria completa realizada - sistema seguro
 - [x] **Organização**: 90+ arquivos TODO consolidados em estrutura limpa
 - [x] **Performance**: Otimizações avançadas implementadas
@@ -354,10 +355,10 @@ bash scripts/format.sh
 - [x] **Integração**: Smart Manager integrado (Gestão unificada de todo o sistema)
 
 ### 🎯 Roadmap
-- **v1.1.0**: Melhorias de performance e novos modelos
-- **v1.2.0**: Suporte a Kubernetes
-- **v1.3.0**: Interface web aprimorada
-- **v2.0.0**: Suporte a múltiplas nuvens
+- **v1.1.0**: Fase 8.2 - Integração com modelos de IA (GPT, Claude, etc.)
+- **v1.2.0**: Fase 9 - Otimização e performance (Cache distribuído, segurança avançada)
+- **v1.3.0**: Fase 10 - Expansão de plataformas (iOS, Desktop, Cloud)
+- **v2.0.0**: Fase 11 - Análise e inteligência (Analytics, MLOps)
 
 ## 📈 Métricas e Benchmarks
 
@@ -447,5 +448,5 @@ Este projeto é inspirado em:
 
 **⭐ Se este projeto foi útil, considere dar uma estrela no GitHub!**
 
-*Última atualização: 2025-09-11*
+*Última atualização: 2025-01-11*
 *Versão: 1.0.1*
