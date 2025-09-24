@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 # Configurações
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
+CONFIG_FILE="${PROJECT_ROOT}/config/cluster.conf"
 LOG_DIR="${PROJECT_ROOT}/logs"
 
 # Criar arquivo temporário para log

@@ -202,7 +202,7 @@ fi
 # CONFIGURAÇÃO
 echo -e "\n${BOLD}${BLUE}CONFIGURAÇÃO${NC}"
 
-if [[ -f "$PROJECT_ROOT/cluster.conf" ]]; then
+if [[ -f "$PROJECT_ROOT/config/cluster.conf" ]]; then
     print_status "OK" "Configuração" "Arquivo cluster.conf encontrado"
 else
     print_status "WARN" "Configuração" "Arquivo cluster.conf não encontrado"

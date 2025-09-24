@@ -230,10 +230,10 @@ clone_project() {
 }
 
 # -----------------------------------------------------------------------------
-# FASE 4: CONFIGURAÇÃO FINAL
+# FASE 4: CONFIGURAÇÃO FINAL E REGISTRO AUTOMÁTICO
 # -----------------------------------------------------------------------------
 final_configuration() {
-    section "⚙️ FASE 4: CONFIGURAÇÃO FINAL"
+    section "⚙️ FASE 4: CONFIGURAÇÃO FINAL E REGISTRO AUTOMÁTICO"
 
     # Instalar Dask para o worker
     log "Instalando Dask para o worker..."
@@ -243,10 +243,132 @@ final_configuration() {
         warn "Falha ao instalar Dask, mas continuando..."
     fi
 
+    # Descoberta automática de servidor
+    auto_discover_and_register
+
     # Otimizações de bateria
     optimize_battery_usage
 
     success "Configuração final concluída"
+}
+
+# -----------------------------------------------------------------------------
+# DESCOBERTA AUTOMÁTICA E REGISTRO
+# -----------------------------------------------------------------------------
+auto_discover_and_register() {
+    section "🔍 DESCOBERTA AUTOMÁTICA E REGISTRO"
+
+    log "Iniciando descoberta automática inteligente de servidores..."
+
+    # Função para detectar servidor na rede
+    detect_server() {
+        local server_ip=""
+        local ip=$(ip route get 1 2>/dev/null | awk '{print $7}' | head -1 || echo "")
+        local network_prefix=$(echo "$ip" | cut -d'.' -f1-3)
+
+        log "🔍 Escaneando rede local ($network_prefix.0/24) por servidores..."
+
+        # Escanear portas comuns
+        local common_ports=("22" "8022" "80" "443")
+        for i in {1..254}; do
+            local test_ip="${network_prefix}.${i}"
+            if [ "$test_ip" != "$ip" ]; then
+                for port in "${common_ports[@]}"; do
+                    if timeout 1 bash -c "echo >/dev/tcp/$test_ip/$port" 2>/dev/null; then
+                        # Verificar se é um servidor do cluster-ai
+                        if ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no "dcm@$test_ip" "test -f /home/dcm/Projetos/cluster-ai/manager.sh && test -f /home/dcm/Projetos/cluster-ai/config/cluster.conf" 2>/dev/null; then
+                            server_ip="$test_ip"
+                            success "✅ Servidor Cluster AI encontrado em $server_ip na porta $port"
+                            break 2
+                        fi
+                    fi
+                done
+            fi
+        done
+
+        if [ -n "$server_ip" ]; then
+            echo "$server_ip"
+            return 0
+        else
+            warn "❌ Nenhum servidor Cluster AI encontrado na rede"
+            return 1
+        fi
+    }
+
+    # Função para registrar worker
+    register_worker() {
+        local server_ip="$1"
+        local worker_name="android-$(hostname)-$(date +%s | tail -c 5)"
+        local worker_ip="$ip"
+        local worker_user="$user"
+        local worker_port="$SSH_PORT"
+        local pub_key=$(cat "$HOME/.ssh/id_rsa.pub")
+
+        log "📝 Registrando worker no servidor $server_ip..."
+
+        # Criar arquivo de registro
+        local reg_file="/tmp/worker_registration_${worker_name}.json"
+        cat > "$reg_file" << EOF
+{
+    "worker_name": "$worker_name",
+    "worker_ip": "$worker_ip",
+    "worker_user": "$worker_user",
+    "worker_port": "$worker_port",
+    "public_key": "$pub_key",
+    "registration_type": "zero-touch-android",
+    "auto_discovered": true,
+    "timestamp": $(date +%s),
+    "version": "2.0"
+}
+EOF
+
+        local server_user="dcm"
+
+        # Enviar registro via SCP
+        if scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$reg_file" "${server_user}@${server_ip}:/tmp/"; then
+            local registration_result
+            registration_result=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "${server_user}@${server_ip}" "
+                if [ -f /opt/cluster-ai/scripts/management/worker_registration.sh ]; then
+                    bash /opt/cluster-ai/scripts/management/worker_registration.sh /tmp/worker_registration_${worker_name}.json
+                    echo 'SUCCESS'
+                else
+                    echo 'REGISTRATION_SCRIPT_NOT_FOUND'
+                fi
+            " 2>/dev/null)
+
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${server_user}@${server_ip}" "rm -f /tmp/worker_registration_${worker_name}.json" 2>/dev/null
+
+            if [[ "$registration_result" == "SUCCESS" ]]; then
+                success "✅ Worker registrado com sucesso no servidor!"
+
+                # Iniciar o worker Dask
+                log "🚀 Iniciando worker Dask..."
+                nohup dask-worker "$server_ip":8786 --nthreads 1 --memory-limit 1GB --name "android-$(hostname)" > "${LOG_DIR}/dask-worker.log" 2>&1 &
+                success "✅ Worker Dask iniciado em background! Log em ${LOG_DIR}/dask-worker.log"
+
+                return 0
+            else
+                warn "⚠️ Falha no registro automático. Você pode registrar manualmente."
+                return 1
+            fi
+        else
+            warn "❌ Não foi possível conectar ao servidor para registro automático."
+            return 1
+        fi
+
+        rm -f "$reg_file"
+    }
+
+    # Tentar detecção e registro
+    if server_ip=$(detect_server); then
+        if register_worker "$server_ip"; then
+            success "✅ Worker registrado e iniciado automaticamente!"
+        else
+            warn "⚠️ Registro automático falhou, mas o worker está configurado."
+        fi
+    else
+        warn "⚠️ Nenhum servidor detectado automaticamente."
+    fi
 }
 
 # -----------------------------------------------------------------------------

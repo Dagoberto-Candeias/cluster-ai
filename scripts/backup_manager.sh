@@ -125,7 +125,7 @@ backup_configs() {
     local configs=(
         "config/"
         "configs/"
-        "cluster.conf"
+        "config/cluster.conf"
         "cluster.conf.ini"
         "docker-compose.yml"
         "docker-compose.prod.yml"

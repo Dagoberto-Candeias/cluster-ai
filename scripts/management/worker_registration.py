@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 class WorkerRegistration:
     """Classe para gerenciar registro de workers"""
 
-    def __init__(self, config_file: str = "cluster.conf"):
+    def __init__(self, config_file: str = "configs/cluster_workers.json"):
         self.config_file = config_file
         self.workers = self._load_workers()
 

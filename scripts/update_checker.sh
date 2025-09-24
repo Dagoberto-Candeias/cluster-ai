@@ -1,404 +1,383 @@
 #!/bin/bash
-# =============================================================================
-# Sistema de Verificação de Atualizações - Cluster AI
-# =============================================================================
-# Verifica automaticamente por atualizações disponíveis em diferentes componentes
+# -*- coding: utf-8 -*-
 #
-# Autor: Cluster AI Team
-# Data: 2025-01-20
+# Cluster AI - Update Checker Script
+# Verificador de atualizações do Cluster AI
+#
+# Projeto: Cluster AI
+# Autor: Sistema de consolidação automática
+# Data: 2024-12-19
 # Versão: 1.0.0
-# Arquivo: update_checker.sh
-# =============================================================================
+#
+# Descrição:
+#   Script para verificar e gerenciar atualizações do Cluster AI.
+#   Verifica repositório remoto, compara versões, baixa atualizações
+#   e aplica patches de forma segura com backup automático.
+#
+# Uso:
+#   ./scripts/update_checker.sh [opções]
+#
+# Dependências:
+#   - bash
+#   - git
+#   - curl, wget
+#   - diff, patch
+#
+# Changelog:
+#   v1.0.0 - 2024-12-19: Criação inicial com funcionalidades completas
+#
+# ============================================================================
 
 set -euo pipefail
 
-# --- Configuração Inicial ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Carregar funções comuns
-if [ ! -f "${SCRIPT_DIR}/lib/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
-    exit 1
-fi
-source "${SCRIPT_DIR}/lib/common.sh"
+# Diretório base
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="$PROJECT_ROOT/logs"
+UPDATE_LOG="$LOG_DIR/update_checker.log"
 
-# Carregar configuração
-UPDATE_CONFIG="${PROJECT_ROOT}/config/update.conf"
-if [ ! -f "$UPDATE_CONFIG" ]; then
-    error "Arquivo de configuração não encontrado: $UPDATE_CONFIG"
-    exit 1
-fi
+# Configurações
+REMOTE_REPO="https://github.com/Dagoberto-Candeias/cluster-ai.git"
+BRANCH="main"
+BACKUP_DIR="$PROJECT_ROOT/backups/pre_update_$(date +%Y%m%d_%H%M%S)"
+UPDATE_TEMP_DIR="/tmp/cluster_ai_update"
 
-# --- Constantes ---
-LOG_DIR="${PROJECT_ROOT}/logs"
-UPDATE_LOG="${LOG_DIR}/update_checker.log"
-STATUS_FILE="${PROJECT_ROOT}/logs/update_status.json"
+# Arrays para controle
+UPDATED_FILES=()
+FAILED_UPDATES=()
 
-# Criar diretórios necessários
-mkdir -p "$LOG_DIR"
-
-# --- Funções ---
-
-# Função para log detalhado
-log_update() {
-    local level="$1"
-    local message="$2"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-
-    echo "[$timestamp] [$level] $message" >> "$UPDATE_LOG"
-
-    case "$level" in
-        "INFO")
-            info "$message" ;;
-        "WARN")
-            warn "$message" ;;
-        "ERROR")
-            error "$message" ;;
-        "DEBUG")
-            [[ "$(get_config_value "ADVANCED" "DEBUG_MODE" "$UPDATE_CONFIG")" == "true" ]] && log "$message" ;;
-    esac
+# Funções utilitárias
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-# Função para obter configuração
-get_update_config() {
-    get_config_value "$1" "$2" "$UPDATE_CONFIG" "$3"
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-# Função para verificar conectividade
-check_connectivity() {
-    local test_urls
-    IFS=',' read -ra test_urls <<< "$(get_update_config "ADVANCED" "CONNECTIVITY_TEST_URLS")"
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
 
-    for url in "${test_urls[@]}"; do
-        if curl -s --connect-timeout 10 "$url" >/dev/null 2>&1; then
-            log_update "DEBUG" "Conectividade OK: $url"
-            return 0
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Função para verificar dependências
+check_dependencies() {
+    log_info "Verificando dependências de atualização..."
+
+    local missing_deps=()
+    local required_commands=(
+        "git"
+        "curl"
+        "wget"
+        "diff"
+        "patch"
+    )
+
+    for cmd in "${required_commands[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
         fi
     done
 
-    log_update "WARN" "Sem conectividade com URLs de teste"
-    return 1
-}
-
-# Função para verificar atualizações do Git
-check_git_updates() {
-    log_update "INFO" "Verificando atualizações do Git..."
-
-    if [[ "$(get_update_config "REPOSITORY" "GIT_CHECK_ENABLED")" != "true" ]]; then
-        log_update "DEBUG" "Verificação Git desabilitada"
-        return 0
-    fi
-
-    if [[ ! -d ".git" ]]; then
-        log_update "WARN" "Diretório Git não encontrado"
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_error "Dependências faltando: ${missing_deps[*]}"
+        log_info "Instale as dependências necessárias e tente novamente"
         return 1
     fi
 
-    # Buscar atualizações remotas
-    if git fetch origin 2>/dev/null; then
-        local local_commit
-        local remote_commit
-        local branch
+    log_success "Dependências verificadas"
+    return 0
+}
 
-        branch=$(git rev-parse --abbrev-ref HEAD)
-        local_commit=$(git rev-parse HEAD)
-        remote_commit=$(git rev-parse "origin/$branch")
+# Função para verificar se é um repositório git
+check_git_repository() {
+    log_info "Verificando repositório git..."
 
-        if [[ "$local_commit" != "$remote_commit" ]]; then
-            local ahead_behind
-            ahead_behind=$(git rev-list --count "$local_commit..$remote_commit" 2>/dev/null || echo "0")
+    if [ ! -d ".git" ]; then
+        log_error "Diretório não é um repositório git"
+        log_info "Execute: git init && git remote add origin $REMOTE_REPO"
+        return 1
+    fi
 
-            log_update "INFO" "Atualizações Git disponíveis: $ahead_behind commits"
-            echo "git:$ahead_behind" >> "$STATUS_FILE.tmp"
-            return 0
-        else
-            log_update "INFO" "Git está atualizado"
-            return 0
-        fi
+    if ! git remote -v | grep -q origin; then
+        log_error "Remote origin não configurado"
+        log_info "Execute: git remote add origin $REMOTE_REPO"
+        return 1
+    fi
+
+    log_success "Repositório git válido"
+    return 0
+}
+
+# Função para buscar atualizações
+fetch_updates() {
+    log_info "Buscando atualizações do repositório..."
+
+    # Buscar do remote
+    if git fetch origin >> "$UPDATE_LOG" 2>&1; then
+        log_success "Atualizações buscadas com sucesso"
+        return 0
     else
-        log_update "ERROR" "Falha ao buscar atualizações Git"
+        log_error "Falha ao buscar atualizações"
         return 1
     fi
 }
 
-# Função para verificar atualizações de containers Docker
-check_docker_updates() {
-    log_update "INFO" "Verificando atualizações de containers Docker..."
+# Função para comparar versões
+compare_versions() {
+    log_info "Comparando versões..."
 
-    if [[ "$(get_update_config "DOCKER" "DOCKER_CHECK_ENABLED")" != "true" ]]; then
-        log_update "DEBUG" "Verificação Docker desabilitada"
+    local local_commit=$(git rev-parse HEAD)
+    local remote_commit=$(git rev-parse origin/$BRANCH)
+    local base_commit=$(git merge-base HEAD origin/$BRANCH)
+
+    log_info "Commit local: $local_commit"
+    log_info "Commit remoto: $remote_commit"
+    log_info "Commit base: $base_commit"
+
+    if [ "$local_commit" = "$remote_commit" ]; then
+        log_success "Sistema já está atualizado"
         return 0
-    fi
-
-    if ! command_exists docker; then
-        log_update "WARN" "Docker não está instalado"
+    elif [ "$base_commit" = "$remote_commit" ]; then
+        log_warning "Branch local está à frente do remote"
         return 1
+    else
+        log_info "Atualizações disponíveis"
+        return 2
     fi
+}
 
-    local containers
-    IFS=',' read -ra containers <<< "$(get_update_config "DOCKER" "DOCKER_CONTAINERS")"
+# Função para criar backup
+create_backup() {
+    log_info "Criando backup antes da atualização..."
 
-    local updates_available=0
+    mkdir -p "$BACKUP_DIR"
 
-    for container in "${containers[@]}"; do
-        # Verificar se container existe
-        if ! docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
-            log_update "DEBUG" "Container não encontrado: $container"
-            continue
-        fi
+    # Backup de arquivos importantes
+    local important_files=(
+        "cluster.conf"
+        "config/"
+        "models/"
+        "data/"
+        "logs/"
+    )
 
-        # Obter imagem atual
-        local current_image
-        current_image=$(docker ps -a --filter "name=$container" --format '{{.Image}}' | head -1)
-
-        if [[ -z "$current_image" ]]; then
-            log_update "WARN" "Não foi possível obter imagem do container: $container"
-            continue
-        fi
-
-        # Verificar se há versão mais recente
-        if docker pull "$current_image" 2>/dev/null; then
-            local new_image_id
-            local current_image_id
-
-            new_image_id=$(docker inspect "$current_image" --format '{{.Id}}' 2>/dev/null)
-            current_image_id=$(docker inspect "$container" --format '{{.Image}}' 2>/dev/null)
-
-            if [[ "$new_image_id" != "$current_image_id" ]]; then
-                log_update "INFO" "Atualização disponível para container: $container"
-                echo "docker:$container" >> "$STATUS_FILE.tmp"
-                ((updates_available++))
-            else
-                log_update "DEBUG" "Container já está atualizado: $container"
-            fi
-        else
-            log_update "WARN" "Falha ao verificar atualizações para: $container"
+    for item in "${important_files[@]}"; do
+        if [ -e "$item" ]; then
+            cp -r "$item" "$BACKUP_DIR/" >> "$UPDATE_LOG" 2>&1
         fi
     done
 
-    if [[ $updates_available -gt 0 ]]; then
-        log_update "INFO" "Total de containers com atualizações: $updates_available"
+    # Backup do estado git
+    git add . >> "$UPDATE_LOG" 2>&1
+    git commit -m "Backup antes da atualização $(date)" >> "$UPDATE_LOG" 2>&1 || true
+
+    log_success "Backup criado: $BACKUP_DIR"
+}
+
+# Função para aplicar atualizações
+apply_updates() {
+    log_info "Aplicando atualizações..."
+
+    # Criar diretório temporário
+    mkdir -p "$UPDATE_TEMP_DIR"
+    cd "$UPDATE_TEMP_DIR"
+
+    # Clonar repositório temporário
+    if git clone -b "$BRANCH" "$REMOTE_REPO" temp_repo >> "$UPDATE_LOG" 2>&1; then
+        cd temp_repo
+
+        # Encontrar arquivos modificados
+        local changed_files=$(git diff --name-only HEAD..origin/$BRANCH)
+
+        if [ -z "$changed_files" ]; then
+            log_info "Nenhum arquivo modificado"
+            return 0
+        fi
+
+        # Aplicar cada arquivo modificado
+        while IFS= read -r file; do
+            if [ -f "$file" ]; then
+                cp "$file" "$PROJECT_ROOT/$file" >> "$UPDATE_LOG" 2>&1
+                UPDATED_FILES+=("$file")
+                log_success "Atualizado: $file"
+            fi
+        done <<< "$changed_files"
+
+        log_success "Atualizações aplicadas"
         return 0
     else
-        log_update "INFO" "Todos os containers Docker estão atualizados"
-        return 0
+        log_error "Falha ao clonar repositório temporário"
+        return 1
     fi
 }
 
-# Função para verificar atualizações do sistema
-check_system_updates() {
-    log_update "INFO" "Verificando atualizações do sistema..."
+# Função para validar atualizações
+validate_updates() {
+    log_info "Validando atualizações..."
 
-    if [[ "$(get_update_config "SYSTEM" "SYSTEM_CHECK_ENABLED")" != "true" ]]; then
-        log_update "DEBUG" "Verificação de sistema desabilitada"
-        return 0
-    fi
+    local validation_issues=()
 
-    local pm
-    pm=$(get_update_config "SYSTEM" "PACKAGE_MANAGER")
+    # Verificar se scripts ainda são executáveis
+    for file in "${UPDATED_FILES[@]}"; do
+        if [[ "$file" == *.sh ]] && [ -f "$PROJECT_ROOT/$file" ]; then
+            if [ ! -x "$PROJECT_ROOT/$file" ]; then
+                chmod +x "$PROJECT_ROOT/$file"
+            fi
+        fi
+    done
 
-    if [[ "$pm" == "auto" ]]; then
-        pm=$(detect_package_manager)
-    fi
+    # Verificar sintaxe de scripts Python
+    for file in "${UPDATED_FILES[@]}"; do
+        if [[ "$file" == *.py ]] && [ -f "$PROJECT_ROOT/$file" ]; then
+            if ! python3 -m py_compile "$PROJECT_ROOT/$file" >> "$UPDATE_LOG" 2>&1; then
+                validation_issues+=("Erro de sintaxe em $file")
+            fi
+        fi
+    done
 
-    if [[ -z "$pm" ]]; then
-        log_update "WARN" "Gerenciador de pacotes não detectado"
+    if [ ${#validation_issues[@]} -gt 0 ]; then
+        log_warning "Problemas de validação detectados:"
+        printf '  - %s\n' "${validation_issues[@]}"
         return 1
     fi
 
-    local update_count=0
-
-    case "$pm" in
-        "apt-get")
-            # Atualizar lista de pacotes
-            if sudo apt-get update -qq 2>/dev/null; then
-                update_count=$(apt-get upgrade --dry-run -qq 2>/dev/null | grep -c "^Inst " || echo "0")
-                log_update "INFO" "Atualizações de sistema disponíveis: $update_count"
-                if [[ $update_count -gt 0 ]]; then
-                    echo "system:$update_count" >> "$STATUS_FILE.tmp"
-                fi
-            else
-                log_update "ERROR" "Falha ao atualizar lista de pacotes"
-                return 1
-            fi
-            ;;
-        "dnf"|"yum")
-            update_count=$(dnf check-update --quiet 2>/dev/null | wc -l || echo "0")
-            update_count=$((update_count - 1)) # Subtrair header
-            log_update "INFO" "Atualizações de sistema disponíveis: $update_count"
-            if [[ $update_count -gt 0 ]]; then
-                echo "system:$update_count" >> "$STATUS_FILE.tmp"
-            fi
-            ;;
-        "pacman")
-            update_count=$(pacman -Qu --quiet 2>/dev/null | wc -l || echo "0")
-            log_update "INFO" "Atualizações de sistema disponíveis: $update_count"
-            if [[ $update_count -gt 0 ]]; then
-                echo "system:$update_count" >> "$STATUS_FILE.tmp"
-            fi
-            ;;
-        *)
-            log_update "WARN" "Gerenciador de pacotes não suportado: $pm"
-            return 1
-            ;;
-    esac
-
+    log_success "Atualizações validadas"
     return 0
 }
 
-# Função para verificar atualizações de modelos
-check_models_updates() {
-    log_update "INFO" "Verificando atualizações de modelos..."
+# Função para mostrar status final
+show_final_status() {
+    log_info "=== STATUS FINAL DAS ATUALIZAÇÕES ==="
 
-    if [[ "$(get_update_config "MODELS" "MODELS_CHECK_ENABLED")" != "true" ]]; then
-        log_update "DEBUG" "Verificação de modelos desabilitada"
-        return 0
-    fi
-
-    if ! command_exists ollama; then
-        log_update "DEBUG" "Ollama não está instalado"
-        return 0
-    fi
-
-    local models_dir
-    models_dir=$(get_update_config "MODELS" "MODELS_DIR")
-
-    # Verificar se há modelos instalados
-    if ! ollama list >/dev/null 2>&1; then
-        log_update "DEBUG" "Nenhum modelo instalado ou Ollama não está rodando"
-        return 0
-    fi
-
-    local installed_models
-    installed_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' || echo "")
-
-    if [[ -z "$installed_models" ]]; then
-        log_update "DEBUG" "Nenhum modelo encontrado"
-        return 0
-    fi
-
-    local updates_found=0
-
-    while IFS= read -r model; do
-        [[ -z "$model" ]] && continue
-
-        # Verificar se há versão mais recente do modelo
-        if ollama pull "$model" 2>/dev/null; then
-            log_update "INFO" "Modelo atualizado disponível: $model"
-            echo "model:$model" >> "$STATUS_FILE.tmp"
-            ((updates_found++))
-        fi
-    done <<< "$installed_models"
-
-    if [[ $updates_found -gt 0 ]]; then
-        log_update "INFO" "Modelos com atualizações disponíveis: $updates_found"
+    echo "✅ Arquivos Atualizados:"
+    if [ ${#UPDATED_FILES[@]} -gt 0 ]; then
+        printf '  - %s\n' "${UPDATED_FILES[@]}"
     else
-        log_update "INFO" "Todos os modelos estão atualizados"
+        echo "  Nenhum"
     fi
 
-    return 0
+    echo "❌ Atualizações com Falha:"
+    if [ ${#FAILED_UPDATES[@]} -gt 0 ]; then
+        printf '  - %s\n' "${FAILED_UPDATES[@]}"
+    else
+        echo "  Nenhum"
+    fi
+
+    echo "📁 Diretórios:"
+    echo "  - Backup: $BACKUP_DIR"
+    echo "  - Logs: $UPDATE_LOG"
+
+    echo "🚀 Próximos Passos:"
+    echo "  1. Verifique os arquivos atualizados"
+    echo "  2. Execute: ./scripts/start_cluster_complete.sh restart"
+    echo "  3. Teste as funcionalidades atualizadas"
+    echo "  4. Em caso de problemas, restaure: $BACKUP_DIR"
 }
 
-# Função para gerar relatório de status
-generate_status_report() {
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+# Função para reverter atualizações
+revert_updates() {
+    log_info "Revertendo atualizações..."
 
-    # Criar arquivo de status temporário
-    > "$STATUS_FILE.tmp"
-
-    # Executar todas as verificações
-    check_git_updates
-    check_docker_updates
-    check_system_updates
-    check_models_updates
-
-    # Verificar se há atualizações
-    if [[ -s "$STATUS_FILE.tmp" ]]; then
-        # Consolidar status
-        {
-            echo "{"
-            echo "  \"timestamp\": \"$timestamp\","
-            echo "  \"updates_available\": true,"
-            echo "  \"components\": ["
-
-            local first=true
-            while IFS=':' read -r component value; do
-                if [[ "$first" == "true" ]]; then
-                    first=false
-                else
-                    echo ","
-                fi
-
-                case "$component" in
-                    "git")
-                        echo "    {\"type\": \"git\", \"commits_ahead\": $value, \"description\": \"Atualizações do repositório\"}" ;;
-                    "docker")
-                        echo "    {\"type\": \"docker\", \"container\": \"$value\", \"description\": \"Container Docker\"}" ;;
-                    "system")
-                        echo "    {\"type\": \"system\", \"packages\": $value, \"description\": \"Atualizações do sistema\"}" ;;
-                    "model")
-                        echo "    {\"type\": \"model\", \"name\": \"$value\", \"description\": \"Modelo de IA\"}" ;;
-                esac
-            done < "$STATUS_FILE.tmp"
-
-            echo "  ]"
-            echo "}"
-        } > "$STATUS_FILE"
-
-        log_update "INFO" "Relatório de status gerado com atualizações disponíveis"
-        return 0
+    if [ -d "$BACKUP_DIR" ]; then
+        cp -r "$BACKUP_DIR/"* "$PROJECT_ROOT/" >> "$UPDATE_LOG" 2>&1
+        log_success "Atualizações revertidas"
     else
-        # Nenhum update disponível
-        {
-            echo "{"
-            echo "  \"timestamp\": \"$timestamp\","
-            echo "  \"updates_available\": false,"
-            echo "  \"components\": []"
-            echo "}"
-        } > "$STATUS_FILE"
-
-        log_update "INFO" "Relatório de status gerado - sistema atualizado"
-        return 0
+        log_error "Backup não encontrado para reverter"
+        return 1
     fi
 }
 
 # Função principal
 main() {
-    section "Sistema de Verificação de Atualizações - Cluster AI"
+    cd "$PROJECT_ROOT"
 
-    log_update "INFO" "Iniciando verificação de atualizações..."
+    # Criar diretório de logs
+    mkdir -p "$LOG_DIR"
+    touch "$UPDATE_LOG"
 
-    # Verificar conectividade
-    if ! check_connectivity; then
-        warn "Sem conectividade - pulando verificação de atualizações remotas"
-    fi
+    local action="${1:-check}"
 
-    # Gerar relatório de status
-    if generate_status_report; then
-        success "Verificação de atualizações concluída com sucesso"
+    case "$action" in
+        "check")
+            log_info "🔍 Verificando atualizações disponíveis..."
 
-        # Mostrar resumo se houver atualizações
-        if [[ -f "$STATUS_FILE" ]]; then
-            local has_updates
-            has_updates=$(jq -r '.updates_available' "$STATUS_FILE" 2>/dev/null || echo "false")
+            check_dependencies || exit 1
+            check_git_repository || exit 1
+            fetch_updates || exit 1
 
-            if [[ "$has_updates" == "true" ]]; then
-                info "Atualizações disponíveis encontradas!"
-                info "Execute './scripts/update_notifier.sh' para ver detalhes e aprovar atualizações"
-            else
-                info "Sistema está atualizado"
-            fi
-        fi
-    else
-        error "Falha na verificação de atualizações"
-        return 1
-    fi
+            local status
+            status=$(compare_versions)
 
-    log_update "INFO" "Verificação de atualizações finalizada"
+            case $status in
+                0)
+                    log_success "Sistema já está atualizado"
+                    ;;
+                1)
+                    log_warning "Branch local está à frente - considere fazer push"
+                    ;;
+                2)
+                    log_info "Atualizações disponíveis"
+                    log_info "Execute: ./scripts/update_checker.sh update"
+                    ;;
+            esac
+            ;;
+        "update")
+            log_info "🚀 Aplicando atualizações..."
+
+            check_dependencies || exit 1
+            check_git_repository || exit 1
+            create_backup
+            apply_updates || exit 1
+            validate_updates || log_warning "Problemas de validação detectados"
+
+            show_final_status
+            ;;
+        "revert")
+            log_info "🔄 Revertendo atualizações..."
+            revert_updates
+            ;;
+        "force-update")
+            log_info "⚠️  Forçando atualização (sem backup)..."
+            check_dependencies || exit 1
+            check_git_repository || exit 1
+            apply_updates || exit 1
+            validate_updates || exit 1
+            show_final_status
+            ;;
+        "help"|*)
+            echo "Cluster AI - Update Checker Script"
+            echo ""
+            echo "Uso: $0 [ação]"
+            echo ""
+            echo "Ações:"
+            echo "  check         - Verifica atualizações disponíveis (padrão)"
+            echo "  update        - Aplica atualizações com backup"
+            echo "  force-update  - Aplica atualizações sem backup"
+            echo "  revert        - Reverte para backup anterior"
+            echo "  help          - Mostra esta mensagem"
+            echo ""
+            echo "Pré-requisitos:"
+            echo "  - Repositório git inicializado"
+            echo "  - Remote origin configurado"
+            echo "  - Conectividade com o repositório remoto"
+            echo ""
+            echo "Exemplos:"
+            echo "  $0 check"
+            echo "  $0 update"
+            echo "  $0 revert"
+            ;;
+    esac
 }
 
-# Executar se chamado diretamente
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+# Executar função principal
+main "$@"

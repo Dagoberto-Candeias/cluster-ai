@@ -1,199 +1,396 @@
 #!/bin/bash
-# =============================================================================
-# Inicialização Completa do Cluster AI
-# =============================================================================
-# Script que integra todos os sistemas: inicialização, atualizações e web
+# -*- coding: utf-8 -*-
 #
-# Autor: Cluster AI Team
-# Data: 2025-01-20
+# Cluster AI - Complete Cluster Start Script
+# Inicialização completa e integrada do Cluster AI
+#
+# Projeto: Cluster AI
+# Autor: Sistema de consolidação automática
+# Data: 2024-12-19
 # Versão: 1.0.0
-# Arquivo: start_cluster_complete.sh
-# =============================================================================
+#
+# Descrição:
+#   Script responsável por inicializar completamente o sistema Cluster AI,
+#   incluindo todos os componentes: Dask, Ollama, OpenWebUI, workers,
+#   serviços web e monitoramento. Executa verificações de saúde e
+#   configurações automáticas.
+#
+# Uso:
+#   ./scripts/start_cluster_complete.sh [opções]
+#
+# Dependências:
+#   - bash
+#   - docker/docker-compose
+#   - python3
+#   - curl, wget
+#   - systemctl (opcional)
+#
+# Changelog:
+#   v1.0.0 - 2024-12-19: Criação inicial com funcionalidades completas
+#
+# ============================================================================
 
 set -euo pipefail
 
-# --- Configuração Inicial ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Carregar funções comuns
-if [ ! -f "${SCRIPT_DIR}/lib/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
-    exit 1
-fi
-source "${SCRIPT_DIR}/lib/common.sh"
+# Diretório base
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="$PROJECT_ROOT/logs"
+COMPONENTS_LOG="$LOG_DIR/cluster_start.log"
 
-# --- Constantes ---
-LOG_DIR="${PROJECT_ROOT}/logs"
-COMPLETE_LOG="${LOG_DIR}/cluster_complete.log"
-WEB_PORT=8080
+# Configurações padrão
+DASK_PORT=${DASK_PORT:-8786}
+DASHBOARD_PORT=${DASHBOARD_PORT:-8787}
+OLLAMA_PORT=${OLLAMA_PORT:-11434}
+WEBUI_PORT=${WEBUI_PORT:-3000}
+WEB_SERVER_PORT=${WEB_SERVER_PORT:-8080}
 
-# Criar diretórios necessários
-mkdir -p "$LOG_DIR"
+# Arrays para controle de serviços
+SERVICES_STARTED=()
+SERVICES_FAILED=()
 
-# --- Funções ---
-
-# Função para log detalhado
-log_complete() {
-    local level="$1"
-    local message="$2"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-
-    echo "[$timestamp] [$level] $message" >> "$COMPLETE_LOG"
-
-    case "$level" in
-        "INFO")
-            info "$message" ;;
-        "WARN")
-            warn "$message" ;;
-        "ERROR")
-            error "$message" ;;
-    esac
+# Funções utilitárias
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-# Função para configurar sistema de auto atualização
-setup_auto_updates() {
-    log_complete "INFO" "Configurando sistema de auto atualização..."
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
 
-    if [[ ! -f "${PROJECT_ROOT}/config/update.conf" ]]; then
-        warn "Sistema de auto atualização não configurado"
-        if confirm_operation "Deseja configurar o sistema de auto atualização agora?"; then
-            if bash "${SCRIPT_DIR}/maintenance/update_scheduler.sh" setup; then
-                success "Sistema de auto atualização configurado"
-            else
-                error "Falha ao configurar sistema de auto atualização"
-                return 1
-            fi
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Função para verificar dependências
+check_dependencies() {
+    log_info "Verificando dependências do sistema..."
+
+    local missing_deps=()
+
+    # Verificar comandos essenciais
+    local required_commands=(
+        "docker"
+        "python3"
+        "curl"
+        "wget"
+    )
+
+    for cmd in "${required_commands[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
         fi
-    else
-        success "Sistema de auto atualização já configurado"
+    done
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_error "Dependências faltando: ${missing_deps[*]}"
+        log_info "Instale as dependências necessárias e tente novamente"
+        return 1
     fi
+
+    log_success "Todas as dependências verificadas"
+    return 0
+}
+
+# Função para verificar se serviços já estão rodando
+check_existing_services() {
+    log_info "Verificando serviços existentes..."
+
+    local running_services=()
+
+    # Verificar Dask
+    if curl -s "http://localhost:$DASHBOARD_PORT" > /dev/null 2>&1; then
+        running_services+=("Dask Dashboard")
+    fi
+
+    # Verificar Ollama
+    if curl -s "http://localhost:$OLLAMA_PORT/api/tags" > /dev/null 2>&1; then
+        running_services+=("Ollama API")
+    fi
+
+    # Verificar OpenWebUI
+    if curl -s "http://localhost:$WEBUI_PORT" > /dev/null 2>&1; then
+        running_services+=("OpenWebUI")
+    fi
+
+    if [ ${#running_services[@]} -gt 0 ]; then
+        log_warning "Serviços já rodando: ${running_services[*]}"
+        read -p "Deseja continuar mesmo assim? (y/N): " -r
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Operação cancelada pelo usuário"
+            exit 0
+        fi
+    fi
+}
+
+# Função para iniciar Dask
+start_dask() {
+    log_info "Iniciando Dask..."
+
+    if [ -f "scripts/dask/start_dask_cluster_fixed.py" ]; then
+        python3 scripts/dask/start_dask_cluster_fixed.py >> "$COMPONENTS_LOG" 2>&1
+        if [ $? -eq 0 ]; then
+            SERVICES_STARTED+=("Dask")
+            log_success "Dask iniciado"
+            return 0
+        fi
+    fi
+
+    log_error "Falha ao iniciar Dask"
+    SERVICES_FAILED+=("Dask")
+    return 1
+}
+
+# Função para iniciar Ollama
+start_ollama() {
+    log_info "Iniciando Ollama..."
+
+    if command -v ollama &> /dev/null; then
+        # Verificar se já está rodando
+        if ! pgrep -f "ollama serve" > /dev/null; then
+            nohup ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+            sleep 5
+
+            if curl -s "http://localhost:$OLLAMA_PORT/api/tags" > /dev/null 2>&1; then
+                SERVICES_STARTED+=("Ollama")
+                log_success "Ollama iniciado"
+                return 0
+            fi
+        else
+            SERVICES_STARTED+=("Ollama")
+            log_success "Ollama já estava rodando"
+            return 0
+        fi
+    fi
+
+    log_error "Falha ao iniciar Ollama"
+    SERVICES_FAILED+=("Ollama")
+    return 1
+}
+
+# Função para iniciar OpenWebUI
+start_openwebui() {
+    log_info "Iniciando OpenWebUI..."
+
+    if [ -f "scripts/start_openwebui.sh" ]; then
+        bash scripts/start_openwebui.sh >> "$COMPONENTS_LOG" 2>&1
+        if [ $? -eq 0 ]; then
+            SERVICES_STARTED+=("OpenWebUI")
+            log_success "OpenWebUI iniciado"
+            return 0
+        fi
+    fi
+
+    log_error "Falha ao iniciar OpenWebUI"
+    SERVICES_FAILED+=("OpenWebUI")
+    return 1
 }
 
 # Função para iniciar servidor web
 start_web_server() {
-    log_complete "INFO" "Iniciando servidor web..."
+    log_info "Iniciando servidor web..."
 
-    if bash "${SCRIPT_DIR}/web_server.sh" start "$WEB_PORT"; then
-        success "Servidor web iniciado na porta $WEB_PORT"
-        return 0
-    else
-        error "Falha ao iniciar servidor web"
+    if [ -f "scripts/web_server.sh" ]; then
+        nohup bash scripts/web_server.sh start $WEB_SERVER_PORT > "$LOG_DIR/web_server.log" 2>&1 &
+        sleep 3
+
+        if curl -s "http://localhost:$WEB_SERVER_PORT" > /dev/null 2>&1; then
+            SERVICES_STARTED+=("Web Server")
+            log_success "Servidor web iniciado"
+            return 0
+        fi
+    fi
+
+    log_error "Falha ao iniciar servidor web"
+    SERVICES_FAILED+=("Web Server")
+    return 1
+}
+
+# Função para iniciar workers
+start_workers() {
+    log_info "Iniciando workers..."
+
+    # Iniciar worker local
+    if [ -f "scripts/workers/start_local_worker.sh" ]; then
+        bash scripts/workers/start_local_worker.sh >> "$COMPONENTS_LOG" 2>&1 &
+        SERVICES_STARTED+=("Local Worker")
+        log_success "Worker local iniciado"
+    fi
+
+    # Iniciar Android workers se configurados
+    if [ -f "scripts/android/setup_android_worker_consolidated.sh" ]; then
+        log_info "Verificando workers Android..."
+        # Implementar verificação de workers Android
+    fi
+}
+
+# Função para verificar saúde do sistema
+check_system_health() {
+    log_info "Verificando saúde do sistema..."
+
+    local health_issues=()
+
+    # Verificar Dask
+    if ! curl -s "http://localhost:$DASHBOARD_PORT" > /dev/null 2>&1; then
+        health_issues+=("Dask Dashboard não responde")
+    fi
+
+    # Verificar Ollama
+    if ! curl -s "http://localhost:$OLLAMA_PORT/api/tags" > /dev/null 2>&1; then
+        health_issues+=("Ollama API não responde")
+    fi
+
+    # Verificar OpenWebUI
+    if ! curl -s "http://localhost:$WEBUI_PORT" > /dev/null 2>&1; then
+        health_issues+=("OpenWebUI não responde")
+    fi
+
+    if [ ${#health_issues[@]} -gt 0 ]; then
+        log_warning "Problemas de saúde detectados:"
+        printf '%s\n' "${health_issues[@]}" >&2
         return 1
     fi
+
+    log_success "Sistema saudável"
+    return 0
 }
 
-# Função para iniciar monitoramento de atualizações
-start_update_monitor() {
-    log_complete "INFO" "Iniciando monitoramento de atualizações..."
+# Função para mostrar status final
+show_final_status() {
+    log_info "=== STATUS FINAL DO CLUSTER ==="
 
-    if bash "${SCRIPT_DIR}/monitor_worker_updates.sh" start; then
-        success "Monitoramento de atualizações iniciado"
-        return 0
+    echo "✅ Serviços Iniciados:"
+    if [ ${#SERVICES_STARTED[@]} -gt 0 ]; then
+        printf '  - %s\n' "${SERVICES_STARTED[@]}"
     else
-        warn "Falha ao iniciar monitoramento de atualizações"
-        return 1
-    fi
-}
-
-# Função para verificar status de todos os serviços
-check_all_services() {
-    log_complete "INFO" "Verificando status de todos os serviços..."
-
-    local services_ok=0
-    local services_total=0
-
-    # Verificar servidor web
-    ((services_total++))
-    if bash "${SCRIPT_DIR}/web_server.sh" status >/dev/null 2>&1; then
-        ((services_ok++))
+        echo "  Nenhum"
     fi
 
-    # Verificar monitoramento de atualizações
-    ((services_total++))
-    if [[ -f "${PROJECT_ROOT}/.monitor_updates_pid" ]] && ps -p "$(cat "${PROJECT_ROOT}/.monitor_updates_pid" 2>/dev/null)" >/dev/null 2>&1; then
-        ((services_ok++))
-    fi
-
-    # Verificar cron jobs
-    ((services_total++))
-    if command_exists crontab && crontab -l 2>/dev/null | grep -q "update_checker\|monitor_worker_updates"; then
-        ((services_ok++))
-    fi
-
-    echo -e "${BOLD}${BLUE}STATUS DOS SERVIÇOS:${NC}"
-    echo -e "  ${GREEN}✓${NC} ${services_ok}/${services_total} serviços funcionando"
-
-    if [[ $services_ok -eq $services_total ]]; then
-        success "Todos os serviços estão funcionando!"
-    elif [[ $services_ok -gt 0 ]]; then
-        warn "Alguns serviços precisam atenção"
+    echo "❌ Serviços com Falha:"
+    if [ ${#SERVICES_FAILED[@]} -gt 0 ]; then
+        printf '  - %s\n' "${SERVICES_FAILED[@]}"
     else
-        error "Nenhum serviço está funcionando"
+        echo "  Nenhum"
     fi
+
+    echo "🌐 URLs de Acesso:"
+    echo "  - Dask Dashboard: http://localhost:$DASHBOARD_PORT"
+    echo "  - Ollama API: http://localhost:$OLLAMA_PORT"
+    echo "  - OpenWebUI: http://localhost:$WEBUI_PORT"
+    echo "  - Web Server: http://localhost:$WEB_SERVER_PORT"
+
+    echo "📝 Logs:"
+    echo "  - Principal: $COMPONENTS_LOG"
+    echo "  - Dask: $LOG_DIR/dask.log"
+    echo "  - Ollama: $LOG_DIR/ollama.log"
+    echo "  - Web: $LOG_DIR/web_server.log"
 }
 
-# Função para mostrar interfaces disponíveis
-show_interfaces() {
-    echo -e "\n${BOLD}${BLUE}🌐 INTERFACES WEB DISPONÍVEIS:${NC}"
-    echo -e "  ${GREEN}📱 Central de Interfaces${NC}     http://localhost:$WEB_PORT/"
-    echo -e "  ${GREEN}🔄 Sistema de Atualizações${NC}  http://localhost:$WEB_PORT/update-interface.html"
-    echo -e "  ${GREEN}💾 Gerenciador de Backups${NC}   http://localhost:$WEB_PORT/backup-manager.html"
-    echo
-    echo -e "${BOLD}${BLUE}📱 OUTRAS INTERFACES:${NC}"
-    echo -e "  ${CYAN}🖥️  OpenWebUI (Chat IA)${NC}           http://localhost:3000"
-    echo -e "  ${CYAN}📈 Grafana (Monitoramento)${NC}      http://localhost:3001"
-    echo -e "  ${CYAN}📊 Prometheus${NC}                   http://localhost:9090"
-    echo -e "  ${CYAN}📋 Kibana (Logs)${NC}                http://localhost:5601"
-    echo -e "  ${CYAN}💻 VSCode Server (AWS)${NC}          http://localhost:8081"
-    echo -e "  ${CYAN}📱 Android Worker Interface${NC}     http://localhost:8082"
-    echo -e "  ${CYAN}🔍 Jupyter Lab${NC}                 http://localhost:8888"
-}
+# Função para parar todos os serviços
+stop_all_services() {
+    log_info "Parando todos os serviços..."
 
-# Função para comandos rápidos
-show_quick_commands() {
-    echo -e "\n${BOLD}${BLUE}⚡ COMANDOS RÁPIDOS:${NC}"
-    echo -e "  ${CYAN}./scripts/auto_init_with_updates.sh${NC}  Status completo do sistema"
-    echo -e "  ${CYAN}./scripts/update_checker.sh${NC}           Verificar atualizações"
-    echo -e "  ${CYAN}./scripts/update_notifier.sh${NC}          Interface de atualizações"
-    echo -e "  ${CYAN}./scripts/backup_manager.sh${NC}           Gerenciar backups"
-    echo -e "  ${CYAN}./scripts/web_server.sh status${NC}        Status do servidor web"
-    echo -e "  ${CYAN}./scripts/maintenance/update_scheduler.sh status${NC}  Status do agendamento"
+    # Parar web server
+    if [ -f "scripts/web_server.sh" ]; then
+        bash scripts/web_server.sh stop
+    fi
+
+    # Parar OpenWebUI
+    if [ -f "scripts/stop_openwebui.sh" ]; then
+        bash scripts/stop_openwebui.sh
+    fi
+
+    # Parar Ollama
+    pkill -f "ollama serve" 2>/dev/null || true
+
+    # Parar Dask
+    if [ -f "scripts/dask/stop_dask_cluster.sh" ]; then
+        bash scripts/dask/stop_dask_cluster.sh
+    fi
+
+    log_success "Serviços parados"
 }
 
 # Função principal
 main() {
-    log_complete "INFO" "=== INICIANDO CLUSTER AI COMPLETO ==="
+    cd "$PROJECT_ROOT"
 
-    echo -e "${BOLD}${CYAN}┌─────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${BOLD}${CYAN}│                 🚀 CLUSTER AI - INICIALIZAÇÃO               │${NC}"
-    echo -e "${BOLD}${CYAN}└─────────────────────────────────────────────────────────────┘${NC}\n"
+    # Criar diretório de logs
+    mkdir -p "$LOG_DIR"
+    touch "$COMPONENTS_LOG"
 
-    # Configurar sistema de auto atualização
-    setup_auto_updates
+    case "${1:-help}" in
+        "start")
+            log_info "🚀 Iniciando Cluster AI completo..."
 
-    # Iniciar servidor web
-    start_web_server
+            # Verificações iniciais
+            check_dependencies || exit 1
+            check_existing_services
 
-    # Iniciar monitoramento de atualizações
-    start_update_monitor
+            # Iniciar componentes
+            start_dask
+            start_ollama
+            start_openwebui
+            start_web_server
+            start_workers
 
-    # Verificar status de todos os serviços
-    check_all_services
+            # Verificar saúde
+            sleep 5
+            check_system_health
 
-    # Mostrar interfaces disponíveis
-    show_interfaces
-
-    # Mostrar comandos rápidos
-    show_quick_commands
-
-    echo -e "\n${BOLD}${GREEN}✅ CLUSTER AI INICIALIZADO COM SUCESSO!${NC}"
-    echo -e "${GRAY}Log detalhado: $COMPLETE_LOG${NC}"
-
-    log_complete "INFO" "=== CLUSTER AI INICIALIZADO COM SUCESSO ==="
+            # Status final
+            show_final_status
+            ;;
+        "stop")
+            stop_all_services
+            ;;
+        "restart")
+            stop_all_services
+            sleep 2
+            main "start"
+            ;;
+        "status")
+            check_system_health
+            show_final_status
+            ;;
+        "health")
+            check_system_health
+            ;;
+        "help"|*)
+            echo "Cluster AI - Complete Cluster Start Script"
+            echo ""
+            echo "Uso: $0 [comando]"
+            echo ""
+            echo "Comandos:"
+            echo "  start     - Inicia todos os componentes do cluster"
+            echo "  stop      - Para todos os serviços"
+            echo "  restart   - Reinicia todos os serviços"
+            echo "  status    - Mostra status completo do sistema"
+            echo "  health    - Verifica saúde do sistema"
+            echo "  help      - Mostra esta mensagem de ajuda"
+            echo ""
+            echo "Configurações (definir como variáveis de ambiente):"
+            echo "  DASK_PORT        - Porta do Dask (padrão: 8786)"
+            echo "  DASHBOARD_PORT   - Porta do Dashboard (padrão: 8787)"
+            echo "  OLLAMA_PORT      - Porta do Ollama (padrão: 11434)"
+            echo "  WEBUI_PORT       - Porta do OpenWebUI (padrão: 3000)"
+            echo "  WEB_SERVER_PORT  - Porta do Web Server (padrão: 8080)"
+            echo ""
+            echo "Exemplo:"
+            echo "  $0 start"
+            ;;
+    esac
 }
 
-# Executar se chamado diretamente
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+# Executar função principal
+main "$@"

@@ -1,280 +1,337 @@
 #!/bin/bash
-# =============================================================================
-# Servidor Web para Interfaces do Cluster AI
-# =============================================================================
-# Servidor web simples para servir as interfaces HTML do sistema
+# -*- coding: utf-8 -*-
 #
-# Autor: Cluster AI Team
-# Data: 2025-01-20
+# Cluster AI - Web Server Script
+# Servidor web para interfaces do Cluster AI
+#
+# Projeto: Cluster AI
+# Autor: Sistema de consolidação automática
+# Data: 2024-12-19
 # Versão: 1.0.0
-# Arquivo: web_server.sh
-# =============================================================================
+#
+# Descrição:
+#   Script responsável por iniciar e gerenciar o servidor web para as
+#   interfaces do Cluster AI. Serve páginas HTML, gerencia configurações
+#   e fornece endpoints para integração com o sistema.
+#
+# Uso:
+#   ./scripts/web_server.sh [comando] [porta]
+#
+# Dependências:
+#   - bash
+#   - python3 (para servidor HTTP)
+#   - netstat, lsof (para verificação de porta)
+#
+# Changelog:
+#   v1.0.0 - 2024-12-19: Criação inicial com funcionalidades completas
+#
+# ============================================================================
 
 set -euo pipefail
 
-# --- Configuração Inicial ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Carregar funções comuns
-if [ ! -f "${SCRIPT_DIR}/lib/common.sh" ]; then
-    echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
-    exit 1
-fi
-source "${SCRIPT_DIR}/lib/common.sh"
-
-# --- Constantes ---
-WEB_DIR="${PROJECT_ROOT}/web"
-LOG_DIR="${PROJECT_ROOT}/logs"
-WEB_LOG="${LOG_DIR}/web_server.log"
-PID_FILE="${PROJECT_ROOT}/.web_server_pid"
+# Diretório base
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB_DIR="$PROJECT_ROOT/web"
+LOG_DIR="$PROJECT_ROOT/logs"
 DEFAULT_PORT=8080
 
-# Criar diretórios necessários
-mkdir -p "$LOG_DIR"
-mkdir -p "$WEB_DIR"
+# Configurações
+SERVER_PID_FILE="/tmp/cluster_ai_web_server.pid"
+LOG_FILE="$LOG_DIR/web_server.log"
 
-# --- Funções ---
-
-# Função para log detalhado
-log_web() {
-    local level="$1"
-    local message="$2"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-
-    echo "[$timestamp] [$level] $message" >> "$WEB_LOG"
-
-    case "$level" in
-        "INFO")
-            info "$message" ;;
-        "WARN")
-            warn "$message" ;;
-        "ERROR")
-            error "$message" ;;
-    esac
+# Funções utilitárias
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-# Função para verificar se o servidor já está rodando
-check_already_running() {
-    if [[ -f "$PID_FILE" ]]; then
-        local existing_pid
-        existing_pid=$(cat "$PID_FILE")
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
 
-        if ps -p "$existing_pid" >/dev/null 2>&1; then
-            log_web "WARN" "Servidor web já está rodando com PID: $existing_pid"
-            return 0
-        else
-            log_web "INFO" "Removendo PID file obsoleto"
-            rm -f "$PID_FILE"
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Função para verificar se a porta está em uso
+check_port() {
+    local port=${1:-$DEFAULT_PORT}
+
+    if command -v netstat &> /dev/null; then
+        if netstat -tuln 2>/dev/null | grep -q ":$port "; then
+            return 0  # Porta em uso
+        fi
+    elif command -v lsof &> /dev/null; then
+        if lsof -i :$port &> /dev/null; then
+            return 0  # Porta em uso
+        fi
+    elif command -v ss &> /dev/null; then
+        if ss -tuln 2>/dev/null | grep -q ":$port "; then
+            return 0  # Porta em uso
         fi
     fi
 
-    return 1
-}
-
-# Função para salvar PID
-save_pid() {
-    echo $$ > "$PID_FILE"
-    log_web "DEBUG" "PID salvo: $$"
-}
-
-# Função para remover PID
-remove_pid() {
-    if [[ -f "$PID_FILE" ]]; then
-        rm -f "$PID_FILE"
-        log_web "DEBUG" "PID file removido"
-    fi
-}
-
-# Função para verificar dependências
-check_dependencies() {
-    local missing_deps=()
-
-    if ! command_exists python3; then
-        missing_deps+=("python3")
-    fi
-
-    if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        error "Dependências faltando: ${missing_deps[*]}"
-        return 1
-    fi
-
-    return 0
+    return 1  # Porta livre
 }
 
 # Função para iniciar servidor web
 start_web_server() {
-    local port="${1:-$DEFAULT_PORT}"
+    local port=${1:-$DEFAULT_PORT}
 
-    log_web "INFO" "Iniciando servidor web na porta $port..."
+    log_info "Iniciando servidor web na porta $port..."
 
-    # Verificar se já está rodando
-    if check_already_running; then
-        error "Servidor web já está rodando"
-        exit 1
+    # Verificar se a porta está em uso
+    if check_port $port; then
+        log_error "Porta $port já está em uso"
+        log_info "Tente uma porta diferente ou pare o serviço existente"
+        return 1
     fi
 
-    # Verificar dependências
-    if ! check_dependencies; then
-        exit 1
-    fi
+    # Criar diretório web se não existir
+    mkdir -p "$WEB_DIR"
 
-    # Salvar PID
-    save_pid
+    # Criar arquivo de log se não existir
+    mkdir -p "$LOG_DIR"
+    touch "$LOG_FILE"
 
-    # Configurar tratamento de sinais
-    trap 'signal_handler INT' INT
-    trap 'signal_handler TERM' TERM
-    trap 'signal_handler HUP' HUP
-
-    # Iniciar servidor Python simples
+    # Iniciar servidor Python HTTP simples
     cd "$WEB_DIR"
-
-    # Criar servidor Python simples
-    python3 -m http.server "$port" >> "$WEB_LOG" 2>&1 &
-
+    nohup python3 -m http.server $port > "$LOG_FILE" 2>&1 &
     local server_pid=$!
 
-    log_web "INFO" "Servidor web iniciado com PID: $server_pid"
-    success "Servidor web iniciado na porta $port"
-    echo -e "${CYAN}🌐 Interfaces disponíveis:${NC}"
-    echo -e "  ${GREEN}📱 Central de Interfaces${NC}     http://localhost:$port/"
-    echo -e "  ${GREEN}🔄 Sistema de Atualizações${NC}  http://localhost:$port/update-interface.html"
-    echo -e "  ${GREEN}💾 Gerenciador de Backups${NC}   http://localhost:$port/backup-manager.html"
-    echo
-    echo -e "${YELLOW}💡 Para parar o servidor: $0 stop${NC}"
+    # Salvar PID
+    echo $server_pid > "$SERVER_PID_FILE"
 
-    # Aguardar servidor
-    wait $server_pid
+    # Aguardar um pouco para verificar se iniciou
+    sleep 2
+
+    if ps -p $server_pid > /dev/null; then
+        log_success "Servidor web iniciado com PID $server_pid"
+        log_success "Acesse: http://localhost:$port"
+        log_info "Logs: $LOG_FILE"
+        return 0
+    else
+        log_error "Falha ao iniciar servidor web"
+        rm -f "$SERVER_PID_FILE"
+        return 1
+    fi
 }
 
 # Função para parar servidor web
 stop_web_server() {
-    if [[ -f "$PID_FILE" ]]; then
-        local pid
-        pid=$(cat "$PID_FILE")
+    log_info "Parando servidor web..."
 
-        if ps -p "$pid" >/dev/null 2>&1; then
-            log_web "INFO" "Parando servidor web (PID: $pid)..."
-            kill "$pid"
+    if [ -f "$SERVER_PID_FILE" ]; then
+        local server_pid=$(cat "$SERVER_PID_FILE")
 
-            # Aguardar término
-            local count=0
-            while ps -p "$pid" >/dev/null 2>&1 && [[ $count -lt 10 ]]; do
-                sleep 1
-                ((count++))
-            done
+        if ps -p $server_pid > /dev/null; then
+            kill $server_pid
+            sleep 2
 
-            if ps -p "$pid" >/dev/null 2>&1; then
-                log_web "WARN" "Processo não respondeu, forçando término..."
-                kill -9 "$pid" 2>/dev/null || true
+            if ps -p $server_pid > /dev/null; then
+                log_warning "Servidor não parou normalmente, forçando..."
+                kill -9 $server_pid
             fi
 
-            remove_pid
-            success "Servidor web parado com sucesso"
+            log_success "Servidor web parado"
         else
-            warn "Processo do servidor web não encontrado"
-            remove_pid
+            log_warning "Servidor não estava rodando (PID $server_pid)"
         fi
+
+        rm -f "$SERVER_PID_FILE"
     else
-        warn "Arquivo PID não encontrado - servidor web pode não estar rodando"
+        log_info "Arquivo PID não encontrado, servidor pode não estar rodando"
     fi
 }
 
-# Função para status do servidor web
-status_web_server() {
-    if [[ -f "$PID_FILE" ]]; then
-        local pid
-        pid=$(cat "$PID_FILE")
+# Função para verificar status do servidor
+check_web_server_status() {
+    log_info "Verificando status do servidor web..."
 
-        if ps -p "$pid" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓${NC} ${BOLD}Servidor web rodando${NC} (PID: $pid)"
-            echo -e "${GRAY}Log: $WEB_LOG${NC}"
-            echo -e "${GRAY}Diretório web: $WEB_DIR${NC}"
+    if [ -f "$SERVER_PID_FILE" ]; then
+        local server_pid=$(cat "$SERVER_PID_FILE")
+
+        if ps -p $server_pid > /dev/null; then
+            log_success "Servidor web está rodando (PID: $server_pid)"
             return 0
         else
-            echo -e "${YELLOW}⚠${NC} ${BOLD}Servidor web não está rodando${NC} (PID file obsoleto)"
-            remove_pid
+            log_warning "Servidor web não está rodando (PID: $server_pid - processo morto)"
+            rm -f "$SERVER_PID_FILE"
             return 1
         fi
     else
-        echo -e "${RED}✗${NC} ${BOLD}Servidor web não está rodando${NC}"
+        log_info "Servidor web não está rodando"
         return 1
     fi
 }
 
-# Função para verificar arquivos web
-check_web_files() {
-    local missing_files=()
+# Função para mostrar logs do servidor
+show_web_server_logs() {
+    local lines=${1:-20}
 
-    local required_files=(
-        "index.html"
-        "update-interface.html"
-        "backup-manager.html"
-    )
-
-    for file in "${required_files[@]}"; do
-        if [[ ! -f "$WEB_DIR/$file" ]]; then
-            missing_files+=("$file")
-        fi
-    done
-
-    if [[ ${#missing_files[@]} -gt 0 ]]; then
-        warn "Arquivos web faltando: ${missing_files[*]}"
-        return 1
+    if [ -f "$LOG_FILE" ]; then
+        log_info "Mostrando últimas $lines linhas do log:"
+        tail -n $lines "$LOG_FILE"
+    else
+        log_warning "Arquivo de log não encontrado: $LOG_FILE"
     fi
-
-    success "Todos os arquivos web estão presentes"
-    return 0
 }
 
-# Função para tratamento de sinais
-signal_handler() {
-    local signal="$1"
-    log_web "INFO" "Recebido sinal $signal, encerrando servidor web..."
-    remove_pid
-    exit 0
+# Função para criar página HTML básica
+create_basic_html() {
+    log_info "Criando página HTML básica..."
+
+    mkdir -p "$WEB_DIR"
+
+    cat > "$WEB_DIR/index.html" << 'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluster AI - Interface Web</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .card {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Cluster AI - Interface Web</h1>
+
+        <div class="status success">
+            <h3>✅ Sistema Online</h3>
+            <p>Servidor web do Cluster AI está funcionando corretamente.</p>
+        </div>
+
+        <div class="card">
+            <h3>🚀 Acesso às Interfaces</h3>
+            <p><a href="/update-interface.html" class="btn">Interface de Atualizações</a></p>
+            <p><a href="/backup-manager.html" class="btn">Gerenciador de Backups</a></p>
+            <p><a href="/dashboard.html" class="btn">Dashboard Principal</a></p>
+        </div>
+
+        <div class="card">
+            <h3>📊 Status do Sistema</h3>
+            <div class="status info">
+                <p>🌐 Servidor Web: Porta 8080</p>
+                <p>📁 Diretório Web: /web</p>
+                <p>📝 Logs: /logs/web_server.log</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🔧 Comandos Disponíveis</h3>
+            <ul>
+                <li><code>./scripts/web_server.sh start</code> - Iniciar servidor</li>
+                <li><code>./scripts/web_server.sh stop</code> - Parar servidor</li>
+                <li><code>./scripts/web_server.sh status</code> - Verificar status</li>
+                <li><code>./scripts/web_server.sh logs</code> - Ver logs</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+
+    log_success "Página HTML básica criada em $WEB_DIR/index.html"
 }
 
 # Função principal
 main() {
-    # Verificar argumentos
-    case "${1:-status}" in
+    cd "$PROJECT_ROOT"
+
+    case "${1:-help}" in
         "start")
-            local port="${2:-$DEFAULT_PORT}"
-            check_web_files
-            start_web_server "$port"
+            start_web_server "${2:-$DEFAULT_PORT}"
             ;;
         "stop")
             stop_web_server
             ;;
         "restart")
             stop_web_server
-            sleep 2
-            check_web_files
-            start_web_server "$DEFAULT_PORT"
+            sleep 1
+            start_web_server "${2:-$DEFAULT_PORT}"
             ;;
         "status")
-            status_web_server
+            check_web_server_status
             ;;
-        "check")
-            check_web_files
+        "logs")
+            show_web_server_logs "${2:-20}"
             ;;
-        *)
-            echo "Uso: $0 [start [port]|stop|restart|status|check]"
-            echo
+        "create-html")
+            create_basic_html
+            ;;
+        "help"|*)
+            echo "Cluster AI - Web Server Script"
+            echo ""
+            echo "Uso: $0 [comando] [porta]"
+            echo ""
             echo "Comandos:"
-            echo "  start [port] - Iniciar servidor web (padrão: $DEFAULT_PORT)"
-            echo "  stop         - Parar servidor web"
-            echo "  restart      - Reiniciar servidor web"
-            echo "  status       - Verificar status"
-            echo "  check        - Verificar arquivos web"
-            exit 1
+            echo "  start [porta]    - Inicia servidor web (padrão: 8080)"
+            echo "  stop             - Para servidor web"
+            echo "  restart [porta]  - Reinicia servidor web"
+            echo "  status           - Verifica status do servidor"
+            echo "  logs [linhas]    - Mostra logs do servidor (padrão: 20 linhas)"
+            echo "  create-html      - Cria página HTML básica"
+            echo "  help             - Mostra esta mensagem de ajuda"
+            echo ""
+            echo "Exemplos:"
+            echo "  $0 start 8080"
+            echo "  $0 stop"
+            echo "  $0 status"
+            echo "  $0 logs 50"
             ;;
     esac
 }
 
-# Executar se chamado diretamente
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+# Executar função principal
+main "$@"

@@ -201,7 +201,7 @@ if __name__ == "__main__":
     # Ler configuração do cluster
     config = configparser.ConfigParser()
     config_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "cluster.conf.ini"
+        os.path.dirname(__file__), "..", "..", "config", "cluster.conf"
     )
 
     if os.path.exists(config_path):
