@@ -13,10 +13,8 @@ setup() {
 }
 
 @test "set_cluster_env: deve definir CLUSTER_ENV para 'development' por padrão" {
-    # Executa o script e imprime o valor da variável, tudo dentro do subshell do 'run'.
-    # A saída de diagnóstico do script é redirecionada para /dev/null.
-    # O '\' antes de $CLUSTER_ENV é crucial para que a variável seja expandida dentro do subshell do 'run'.
-    run bash -c "source '$SCRIPT_TO_TEST' >/dev/null && echo \$CLUSTER_ENV"
+    # Carrega o script e chama a função diretamente
+    run bash -c "source '$SCRIPT_TO_TEST' >/dev/null && set_cluster_env"
 
     # Verifica se o comando foi bem-sucedido e se a saída é exatamente o que esperamos.
     assert_success
@@ -25,7 +23,7 @@ setup() {
 
 @test "set_cluster_env: deve definir CLUSTER_ENV para 'production' quando especificado" {
     # A mesma técnica, mas passando o argumento 'production' para o script.
-    run bash -c "source '$SCRIPT_TO_TEST' 'production' >/dev/null && echo \$CLUSTER_ENV"
+    run bash -c "source '$SCRIPT_TO_TEST' >/dev/null && set_cluster_env 'production'"
 
     # Verifica o resultado
     assert_success
@@ -36,5 +34,7 @@ setup() {
     # Este teste prova que a variável CLUSTER_ENV definida nos testes anteriores
     # não "vazou" para este teste. A asserção falhará se a variável existir.
     # Esta verificação continua sendo válida e importante.
-    refute_defined "CLUSTER_ENV"
+    run bash -c 'echo "${CLUSTER_ENV:-NOT_SET}"'
+    assert_success
+    assert_output "NOT_SET"
 }

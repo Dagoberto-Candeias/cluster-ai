@@ -295,6 +295,82 @@ manage_models() {
     bash "$model_manager_script" "${@}"
 }
 
+# =============================================================================
+# FUNÇÕES DE GERENCIAMENTO DE LOGS
+# =============================================================================
+
+archive_logs() {
+    local force_flag=false
+
+    # Processa argumentos
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --force)
+                force_flag=true
+                shift
+                ;;
+            *)
+                error "Argumento desconhecido: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    # Verifica se o usuário está autorizado
+    check_user_authorization || {
+        error "Acesso negado. Execute o script como usuário autorizado."
+        return 1
+    }
+
+    local logs_dir="${PROJECT_ROOT}/logs"
+    local backups_dir="${PROJECT_ROOT}/backups"
+
+    # Verifica se o diretório de logs existe
+    if [ ! -d "$logs_dir" ]; then
+        error "Diretório de logs não encontrado: $logs_dir"
+        return 1
+    fi
+
+    # Cria diretório de backups se não existir
+    mkdir -p "$backups_dir"
+
+    # Verifica se há arquivos de log para arquivar
+    if ! ls "$logs_dir"/*.log >/dev/null 2>&1; then
+        info "Nenhum arquivo de log encontrado para arquivar"
+        return 0
+    fi
+
+    # Gera nome do arquivo de backup com timestamp
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local archive_name="logs_archive_${timestamp}.tar.gz"
+    local archive_path="${backups_dir}/${archive_name}"
+
+    # Confirmação se não for forçado
+    fi
+
+    info "Criando arquivo de backup: $archive_name"
+
+    # Cria o arquivo tar.gz
+    if tar -czf "$archive_path" -C "$logs_dir" ./*.log; then
+        success "Arquivo de backup criado: $archive_path"
+
+        # Limpa os arquivos de log originais (define tamanho para 0)
+        for log_file in "$logs_dir"/*.log; do
+            if [ -f "$log_file" ]; then
+                : > "$log_file"  # Trunca o arquivo
+                info "Log limpo: $(basename "$log_file")"
+            fi
+        done
+
+        success "Logs arquivados e limpos com sucesso"
+        return 0
+    else
+        error "Falha ao criar arquivo de backup"
+        return 1
+    fi
+}
+
 
 # =============================================================================
 # FUNÇÃO PRINCIPAL
