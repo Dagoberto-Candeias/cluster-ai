@@ -39,7 +39,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Diretório base
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG_DIR="$PROJECT_ROOT/logs"
 TEST_LOG="$LOG_DIR/security_test.log"
 
@@ -128,7 +128,7 @@ run_test() {
     local output=""
 
     # Executar teste com timeout
-    if output=$(timeout "$TIMEOUT_SECONDS" bash -c "$test_function" 2>&1); then
+    if output=$(timeout "$TIMEOUT_SECONDS" eval "$test_function" 2>&1); then
         if echo "$output" | grep -q "PASS"; then
             result="PASS"
             PASSED_TESTS+=("$test_name")
@@ -396,6 +396,19 @@ test_security_logging() {
     for log_file in "${log_files[@]}"; do
         if [ -f "$log_file" ]; then
             ((existing_logs++))
+            # Verificar se o log tem conteúdo recente
+            if [ -s "$log_file" ]; then
+                local last_modified
+                last_modified=$(stat -c %Y "$log_file" 2>/dev/null || echo "0")
+                local current_time
+                current_time=$(date +%s)
+                local age=$((current_time - last_modified))
+                if [ "$age" -gt 86400 ]; then  # 24 horas
+                    echo "WARN: Log $log_file não foi atualizado recentemente ($age segundos)"
+                fi
+            else
+                echo "WARN: Log $log_file está vazio"
+            fi
         fi
     done
 
@@ -403,6 +416,42 @@ test_security_logging() {
         echo "PASS: $existing_logs arquivos de log de segurança encontrados"
     else
         echo "WARN: Nenhum arquivo de log de segurança encontrado"
+    fi
+}
+
+# Teste: Integridade de arquivos críticos
+test_file_integrity() {
+    local critical_files=(
+        "manager.sh"
+        "scripts/lib/common.sh"
+        "scripts/security/test_security_improvements.sh"
+        "README.md"
+    )
+
+    local issues=()
+
+    for file in "${critical_files[@]}"; do
+        if [ -f "$PROJECT_ROOT/$file" ]; then
+            # Verificar se o arquivo não está vazio
+            if [ ! -s "$PROJECT_ROOT/$file" ]; then
+                issues+=("Arquivo crítico vazio: $file")
+            fi
+
+            # Verificar permissões (não deve ser world-writable)
+            local perms
+            perms=$(stat -c "%a" "$PROJECT_ROOT/$file" 2>/dev/null || echo "unknown")
+            if [ "$perms" != "unknown" ] && [ "$perms" -gt 755 ]; then
+                issues+=("Permissões inseguras em $file: $perms")
+            fi
+        else
+            issues+=("Arquivo crítico não encontrado: $file")
+        fi
+    done
+
+    if [ ${#issues[@]} -eq 0 ]; then
+        echo "PASS: Integridade de arquivos críticos verificada"
+    else
+        echo "FAIL: Problemas de integridade: ${issues[*]}"
     fi
 }
 
@@ -458,6 +507,15 @@ EOF
 main() {
     cd "$PROJECT_ROOT"
 
+    # Carregar biblioteca comum
+    if [ -f "$PROJECT_ROOT/scripts/lib/common.sh" ]; then
+        # shellcheck disable=SC1091
+        source "$PROJECT_ROOT/scripts/lib/common.sh"
+    else
+        log_error "Biblioteca comum não encontrada: $PROJECT_ROOT/scripts/lib/common.sh"
+        exit 1
+    fi
+
     # Criar diretório de logs
     mkdir -p "$LOG_DIR"
     touch "$TEST_LOG"
@@ -480,6 +538,7 @@ main() {
             run_test "Permissões de Usuário" "test_user_permissions" "true"
             run_test "Variáveis de Ambiente" "test_environment_variables" "false"
             run_test "Logs de Segurança" "test_security_logging" "false"
+            run_test "Integridade de Arquivos" "test_file_integrity" "true"
 
             # Resultado final
             echo

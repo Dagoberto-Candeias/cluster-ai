@@ -163,7 +163,7 @@ echo -e "\n${BOLD}${BLUE}VERIFICAÇÃO DE ATUALIZAÇÕES${NC}"
 # Verificar atualizações do sistema
 if command_exists apt-get && sudo -n apt-get update >/dev/null 2>&1; then
     UPDATES_AVAILABLE=$(apt-get -s upgrade | grep -c "^Inst" 2>/dev/null || echo "0")
-    if [[ "$UPDATES_AVAILABLE" -gt 0 ]]; then
+    if [ "${UPDATES_AVAILABLE:-0}" -gt 0 ] 2>/dev/null; then
         print_status "WARN" "Sistema" "$UPDATES_AVAILABLE pacotes para atualizar"
     else
         print_status "OK" "Sistema" "Atualizado"
@@ -176,7 +176,7 @@ fi
 if [[ -d ".git" ]]; then
     git fetch --quiet >/dev/null 2>&1
     BEHIND_COUNT=$(git rev-list HEAD...origin/main --count 2>/dev/null || git rev-list HEAD...origin/master --count 2>/dev/null || echo "0")
-    if [[ "$BEHIND_COUNT" -gt 0 ]]; then
+    if [ "${BEHIND_COUNT:-0}" -gt 0 ] 2>/dev/null; then
         print_status "WARN" "Git" "$BEHIND_COUNT commits atrás da origem"
     else
         print_status "OK" "Git" "Sincronizado com origem"
@@ -186,7 +186,7 @@ fi
 # Verificar atualizações de containers Docker
 if command_exists docker && docker info >/dev/null 2>&1; then
     DOCKER_UPDATES=$(docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}" | grep -v "<none>" | wc -l 2>/dev/null || echo "0")
-    if [[ "$DOCKER_UPDATES" -gt 0 ]]; then
+    if [ "${DOCKER_UPDATES:-0}" -gt 0 ] 2>/dev/null; then
         print_status "OK" "Docker" "Imagens disponíveis para atualização"
     else
         print_status "OK" "Docker" "Imagens atualizadas"
@@ -198,7 +198,7 @@ fi
 # Verificar atualizações de modelos IA (Ollama)
 if command_exists ollama; then
     MODEL_UPDATES=$(ollama list 2>/dev/null | grep -c "pull" || echo "0")
-    if [[ "$MODEL_UPDATES" -gt 0 ]]; then
+    if [ "${MODEL_UPDATES:-0}" -gt 0 ] 2>/dev/null; then
         print_status "WARN" "Modelos IA" "Atualizações disponíveis"
     else
         print_status "OK" "Modelos IA" "Modelos atualizados"
