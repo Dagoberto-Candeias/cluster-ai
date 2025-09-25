@@ -96,7 +96,7 @@ stop_cluster() {
             info "Parando processo do Cluster Dask (PID: $pid)..."
             # Envia o sinal de término (SIGTERM), permitindo um encerramento gracioso
             kill "$pid"
-            
+
             # Aguarda até 10 segundos para o processo terminar
             local count=0
             while ps -p "$pid" > /dev/null; do
@@ -108,7 +108,7 @@ stop_cluster() {
                 sleep 1
                 ((count++))
             done
-            
+
             success "Cluster Dask parado."
         else
             info "PID do Dask encontrado, mas o processo não está rodando."
@@ -175,7 +175,7 @@ show_help() {
 # =============================================================================
 
 run_health_checks() {
-    local health_checker_script="${PROJECT_ROOT}/scripts/management/health_checker.sh"
+    local health_checker_script="${SCRIPT_DIR}/scripts/management/health_checker.sh"
     if [ ! -f "$health_checker_script" ]; then
         error "Script do verificador de saúde não encontrado em $health_checker_script"
         return 1
@@ -188,7 +188,7 @@ run_health_checks() {
 # =============================================================================
 
 manage_workers() {
-    local worker_manager_script="${PROJECT_ROOT}/scripts/management/worker_manager.sh"
+    local worker_manager_script="${SCRIPT_DIR}/scripts/management/worker_manager.sh"
     if [ ! -f "$worker_manager_script" ]; then
         error "Script do gerenciador de workers não encontrado em $worker_manager_script"
         return 1
@@ -209,12 +209,13 @@ manage_workers() {
     # Passa todos os argumentos (exceto o primeiro 'worker') para o script
     bash "$worker_manager_script" "${@}"
 }
+
 # =============================================================================
 # FUNÇÕES DE GERENCIAMENTO AVANÇADO (VSCODE, UPDATES, ETC.)
 # =============================================================================
 
 manage_system() {
-    local system_manager_script="${PROJECT_ROOT}/scripts/management/system_manager.sh"
+    local system_manager_script="${SCRIPT_DIR}/scripts/management/system_manager.sh"
     if [ ! -f "$system_manager_script" ]; then
         error "Script do gerenciador de sistema não encontrado em $system_manager_script"
         return 1
@@ -237,7 +238,7 @@ manage_system() {
 }
 
 manage_models() {
-    local model_manager_script="${PROJECT_ROOT}/scripts/management/model_manager.sh"
+    local model_manager_script="${SCRIPT_DIR}/scripts/management/model_manager.sh"
     if [ ! -f "$model_manager_script" ]; then
         error "Script do gerenciador de modelos não encontrado em '$model_manager_script'"
         return 1
@@ -332,7 +333,6 @@ archive_logs() {
     fi
 }
 
-
 # =============================================================================
 # FUNÇÃO PRINCIPAL
 # =============================================================================
@@ -344,7 +344,7 @@ show_interactive_menu() {
         exit 1
     fi
 
-    local menu_script="${PROJECT_ROOT}/scripts/ui/interactive_menu.sh"
+    local menu_script="${SCRIPT_DIR}/scripts/ui/interactive_menu.sh"
     if [ ! -f "$menu_script" ]; then
         error "Script do menu interativo não encontrado em '$menu_script'."
         exit 1
