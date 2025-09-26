@@ -225,6 +225,50 @@ cd web-dashboard/backend
 python main_fixed.py &
 ```
 
+### 🔴 Erros de Importação no Pytest (web_dashboard vs web-dashboard)
+
+#### Sintomas
+- Erro: "ModuleNotFoundError: No module named 'web_dashboard'"
+- Pytest falha na coleta de testes em `tests/test_security.py` ou `tests/test_performance.py`
+- Conflito entre diretório `web-dashboard` (com hífen) e import `web_dashboard` (underscore)
+
+#### Soluções
+
+1. **Adicionar sys.path no arquivo de teste:**
+   Edite `tests/test_security.py` e adicione no topo:
+   ```python
+   import sys
+   import os
+   sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'web-dashboard', 'backend'))
+   ```
+
+2. **Usar imports diretos:**
+   Substitua imports como `from web_dashboard.backend.main_fixed import ...` por `from main_fixed import ...`
+
+3. **Criar __init__.py:**
+   ```bash
+   touch web-dashboard/backend/__init__.py
+   ```
+
+4. **Remover arquivos conflitantes:**
+   ```bash
+   rm tests/test_performance.py  # Manter apenas em tests/performance/
+   ```
+
+5. **Limpar cache Python:**
+   ```bash
+   find tests/ -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+   ```
+
+6. **Executar pytest:**
+   ```bash
+   source venv/bin/activate && SECRET_KEY=test-secret-key pytest tests/ -v && deactivate
+   ```
+
+7. **Verificar sucesso:**
+   - Pytest deve coletar ~480 itens sem erros de importação.
+   - Testes em `test_security.py` devem passar.
+
 ### 🟣 Problemas de Android Workers
 
 #### Sintomas

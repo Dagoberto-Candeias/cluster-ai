@@ -4,10 +4,15 @@ Testes de segurança para o sistema Cluster AI
 import pytest
 import jwt
 import time
+import os
+import sys
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
-from web_dashboard.backend.main_fixed import app, create_access_token, verify_password, get_password_hash
-import os
+
+# Add web-dashboard/backend to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'web-dashboard', 'backend'))
+
+from main_fixed import app, create_access_token, verify_password, get_password_hash
 
 class TestAuthenticationSecurity:
     """Testes de segurança da autenticação"""
@@ -64,7 +69,7 @@ class TestAuthenticationSecurity:
 
     def test_sql_injection_prevention(self):
         """Testa prevenção de SQL injection"""
-        from web_dashboard.backend.main_fixed import SessionLocal, UserDB
+        from main_fixed import SessionLocal, UserDB
 
         db = SessionLocal()
         try:
@@ -92,7 +97,7 @@ class TestInputValidationSecurity:
 
     def test_worker_input_validation(self):
         """Testa validação de entrada para workers"""
-        from web_dashboard.backend.main_fixed import WorkerInfo
+        from main_fixed import WorkerInfo
         from pydantic import ValidationError
 
         # Teste com dados válidos
@@ -232,7 +237,7 @@ class TestWebSocketSecurity:
 
     def test_websocket_csrf_protection(self):
         """Testa proteção CSRF no WebSocket"""
-        from web_dashboard.backend.main_fixed import ConnectionManager
+        from main_fixed import ConnectionManager
 
         manager = ConnectionManager()
 
