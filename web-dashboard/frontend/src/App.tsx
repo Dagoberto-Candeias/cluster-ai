@@ -68,22 +68,17 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <DashboardLayout>
-                      <Routes>
-                        <Route path="/" element={<DashboardPage />} />
-                        <Route path="/workers" element={<WorkersPage />} />
-                        <Route path="/metrics" element={<MetricsPage />} />
-                        <Route path="/logs" element={<LogsPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
-                      </Routes>
-                    </DashboardLayout>
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }>
+                <Route index element={<DashboardPage />} />
+                <Route path="workers" element={<WorkersPage />} />
+                <Route path="metrics" element={<MetricsPage />} />
+                <Route path="logs" element={<LogsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
             </Routes>
           </Router>
         </AuthProvider>

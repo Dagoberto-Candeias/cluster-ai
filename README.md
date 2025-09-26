@@ -57,11 +57,50 @@ O **Cluster AI** é uma plataforma integrada que combina:
 
 ## 🚀 Início Rápido
 
+### Instalação de Dependências Python
+Devido a ambientes Python gerenciados externamente em algumas distribuições Linux (ex: Ubuntu 23.10+), use um ambiente virtual para instalar dependências:
+
+1. Crie e ative o ambiente virtual:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. Instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   pip install -r requirements-dev.txt  # Inclui pytest para testes
+   ```
+
+Isso resolve erros como "pytest: comando não encontrado". Para rodar testes:
+```bash
+pytest tests/ -v
+```
+
+### Docker e Docker Compose
+O projeto usa a sintaxe Docker Compose v2 (`docker compose`). Se encontrar "docker-compose: comando não encontrado":
+
+- Instale o plugin Docker Compose:
+  ```bash
+  sudo apt update
+  sudo apt install docker-compose-v2
+  ```
+
+- Ou use a sintaxe moderna diretamente (ex: `docker compose up -d` em vez de `docker-compose up -d`).
+
+Verifique Docker:
+```bash
+docker --version
+docker compose version
+```
+
 ### Instalação Automática (Recomendado)
 ```bash
 # Clone o repositório
 git clone https://github.com/Dagoberto-Candeias/cluster-ai.git
 cd cluster-ai
+
+# Configure o ambiente (veja seções acima)
 
 # Instalação inteligente (detecta hardware automaticamente)
 bash install.sh --auto-role
@@ -70,6 +109,14 @@ bash install.sh --auto-role
 bash install_unified.sh
 ```
 
+### Executar o Demo Web
+Para testar o dashboard web:
+```bash
+python3 web_demo.py
+```
+
+Isso inicia o backend API (http://localhost:8000) e frontend (http://localhost:3000). Documentação da API em http://localhost:8000/docs.
+
 ### Primeiro Uso
 ```bash
 # Acessar o painel de controle principal
@@ -77,14 +124,29 @@ bash install_unified.sh
 # Selecionar: 1. Iniciar Todos os Serviços
 
 # Acesse as interfaces:
-# - 🌐 OpenWebUI (IA Conversacional): http://localhost:3000
+# - 🌐 Dashboard Web (Monitoramento): http://localhost:3000 (login: admin/admin123)
 # - 📊 Dask Dashboard (Computação Distribuída): http://localhost:8787
-# - 🎛️ Web Dashboard Principal (Monitoramento): http://localhost:3000
+# - 🎛️ OpenWebUI (IA Conversacional): http://localhost:3000
 # - 📈 Grafana (Visualização Avançada): http://localhost:3001
 # - 📊 Prometheus (Métricas): http://localhost:9090
 # - 🔍 Kibana (Análise de Logs): http://localhost:5601
 # - 🤖 Ollama API: http://localhost:11434
 ```
+
+## 🧪 Executar Testes
+Após configurar o ambiente virtual:
+```bash
+SECRET_KEY=test-secret-key pytest tests/test_backend.py -v
+pytest tests/ -v  # Todos os testes
+```
+
+## 🚀 Deploy
+Para produção:
+```bash
+docker compose up -d
+```
+
+Veja docs/DEPLOYMENT_PROGRESS.md para guia completo de deploy.
 
 ### Configuração de Workers (Plug-and-Play)
 
