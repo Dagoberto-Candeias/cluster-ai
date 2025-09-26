@@ -16,6 +16,9 @@ Bem-vindo à documentação completa do Cluster AI! Este índice organiza todos 
 
 ### Componentes do Sistema
 -   **[Manual do Ollama](manuals/ollama/)**: Modelos de IA, configuração e otimização.
+-   **[Gerenciamento de Modelos](guides/model-management.md)**: Categorias, instalação, otimização e monitoramento de modelos de IA.
+-   **[Gerenciamento de Workers](guides/worker-management.md)**: Configuração plug-and-play, monitoramento e otimização de workers.
+-   **[Workers Android](ANDROID.md)**: Configuração plug-and-play para dispositivos móveis.
 -   **[OpenWebUI](manuals/openwebui/)**: Interface web para interação com modelos.
 -   **[Dask Cluster](guides/architecture.md)**: Arquitetura de processamento distribuído.
 

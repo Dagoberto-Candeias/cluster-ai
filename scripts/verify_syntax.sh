@@ -83,6 +83,54 @@ check_python_syntax() {
     fi
 }
 
+# Função para verificar sintaxe JavaScript/TypeScript
+check_js_syntax() {
+    local file="$1"
+    local relative_path="${file#$PROJECT_ROOT/}"
+
+    printf "  %-50s" "$relative_path"
+
+    if command -v node >/dev/null 2>&1; then
+        if node -c "$file" 2>/dev/null; then
+            echo -e "${GREEN}✓ OK${NC}"
+            log_syntax "JS_OK: $relative_path"
+            return 0
+        else
+            echo -e "${RED}✗ ERROR${NC}"
+            log_syntax "JS_ERROR: $relative_path"
+            return 1
+        fi
+    else
+        echo -e "${YELLOW}⚠️ Node.js não encontrado${NC}"
+        log_syntax "JS_SKIP: $relative_path (Node.js not found)"
+        return 0
+    fi
+}
+
+# Função para verificar sintaxe YAML
+check_yaml_syntax() {
+    local file="$1"
+    local relative_path="${file#$PROJECT_ROOT/}"
+
+    printf "  %-50s" "$relative_path"
+
+    if command -v python3 >/dev/null 2>&1; then
+        if python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
+            echo -e "${GREEN}✓ OK${NC}"
+            log_syntax "YAML_OK: $relative_path"
+            return 0
+        else
+            echo -e "${RED}✗ ERROR${NC}"
+            log_syntax "YAML_ERROR: $relative_path"
+            return 1
+        fi
+    else
+        echo -e "${YELLOW}⚠️ Python3 não encontrado${NC}"
+        log_syntax "YAML_SKIP: $relative_path (Python3 not found)"
+        return 0
+    fi
+}
+
 # Iniciar log
 log_syntax "=== VERIFICAÇÃO DE SINTAXE INICIADA ==="
 

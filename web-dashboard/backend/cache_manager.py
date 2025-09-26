@@ -52,12 +52,23 @@ class CacheManager:
 
     def _serialize_value(self, value: Any) -> str:
         """Serialize value for Redis storage"""
-        if isinstance(value, (str, int, float, bool)):
-            return json.dumps(value)
-        elif isinstance(value, (list, dict)):
-            return json.dumps(value)
-        else:
-            # For complex objects, use pickle
+        def convert_pydantic(obj):
+            """Recursively convert Pydantic models to dict"""
+            if hasattr(obj, 'model_dump'):
+                return obj.model_dump()
+            elif isinstance(obj, list):
+                return [convert_pydantic(item) for item in obj]
+            elif isinstance(obj, dict):
+                return {k: convert_pydantic(v) for k, v in obj.items()}
+            else:
+                return obj
+
+        try:
+            # Try JSON first with Pydantic conversion
+            converted = convert_pydantic(value)
+            return json.dumps(converted)
+        except (TypeError, ValueError):
+            # Fallback to pickle for complex objects
             return pickle.dumps(value).decode('latin1')
 
     def _deserialize_value(self, value: str, is_pickle: bool = False) -> Any:

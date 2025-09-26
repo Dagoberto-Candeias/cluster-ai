@@ -14,6 +14,7 @@ set -euo pipefail
 # Navega para o diretório raiz do projeto para garantir que os caminhos relativos funcionem
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PID_DIR="${PROJECT_ROOT}/.pids"
 cd "$PROJECT_ROOT"
 
 # Carregar funções comuns

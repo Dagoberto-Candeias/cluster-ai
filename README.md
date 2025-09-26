@@ -86,6 +86,181 @@ bash install_unified.sh
 # - 🤖 Ollama API: http://localhost:11434
 ```
 
+### Configuração de Workers (Plug-and-Play)
+
+#### 🚀 Instalação Automática (Recomendada)
+
+**Para Android/Termux:**
+```bash
+# One-liner para instalação completa
+curl -fsSL https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/termux_worker_setup.sh | bash
+
+# Ou baixar e executar manualmente:
+wget https://raw.githubusercontent.com/Dagoberto-Candeias/cluster-ai/main/termux_worker_setup.sh
+chmod +x termux_worker_setup.sh
+./termux_worker_setup.sh
+```
+
+**Para Linux Nativo:**
+```bash
+# Usar o instalador inteligente
+bash install_unified.sh --component workers
+
+# Ou via menu interativo
+./manager.sh
+# Selecionar: 2. Gerenciar Workers > 1. Adicionar Worker
+# Seguir prompts interativos
+```
+
+#### ⚙️ Configuração Manual Avançada
+
+**Pré-requisitos:**
+- SSH configurado com chaves (sem senha)
+- Python 3.8+ no worker
+- Conectividade de rede com o scheduler
+
+**Passos para Linux:**
+```bash
+# 1. Instalar dependências no worker
+ssh user@worker_ip "sudo apt update && sudo apt install -y python3 python3-pip dask"
+
+# 2. Configurar worker remotamente
+./scripts/deployment/auto_discover_workers.sh --ip worker_ip --user username
+
+# 3. Verificar conexão
+./scripts/management/worker_manager.sh list
+```
+
+**Passos para Android/Termux:**
+```bash
+# 1. Instalar Termux no Android
+# 2. Executar script de setup
+./termux_worker_setup.sh
+
+# 3. O script automaticamente:
+#    - Instala Python e pip
+#    - Configura SSH
+#    - Baixa dependências
+#    - Conecta ao cluster
+#    - Inicia worker em background
+```
+
+#### 📊 Gerenciamento de Workers
+
+```bash
+# Listar todos os workers
+./scripts/management/worker_manager.sh list
+
+# Verificar status de um worker específico
+./scripts/management/worker_manager.sh status worker-001
+
+# Reiniciar worker
+./scripts/management/worker_manager.sh restart worker-001
+
+# Remover worker
+./scripts/management/worker_manager.sh remove worker-001
+
+# Monitorar recursos dos workers
+./scripts/monitoring/worker_monitor.sh
+```
+
+#### 🔧 Solução de Problemas de Workers
+
+**Worker não conecta:**
+```bash
+# Verificar conectividade SSH
+ssh -T user@worker_ip
+
+# Verificar logs
+tail -f logs/worker_monitor.log
+
+# Reiniciar worker manualmente
+ssh user@worker_ip "pkill -f dask-worker"
+ssh user@worker_ip "dask-worker tcp://scheduler_ip:8786 --name worker-name"
+```
+
+**Performance baixa:**
+```bash
+# Otimizar recursos
+./scripts/optimization/worker_optimizer.sh --worker worker-001
+
+# Verificar uso de recursos
+./scripts/monitoring/advanced_dashboard.sh live
+```
+
+### Instalação de Modelos
+
+#### Categorias de Modelos Disponíveis
+
+**🤖 Modelos LLM (Linguagem Natural):**
+- `llama3:8b` - Chat geral e conversação avançada
+- `mistral:7b` - Análise de código e tarefas técnicas
+- `codellama:7b` - Geração e análise de código
+- `deepseek-coder:6.7b` - Desenvolvimento de software
+- `phi3:3.8b` - Modelo leve para tarefas gerais
+
+**👁️ Modelos de Visão (Análise de Imagens):**
+- `llava:7b` - Análise e descrição de imagens
+- `bakllava:7b` - Processamento multimodal avançado
+- `moondream:1.8b` - Análise de imagens leve
+
+**🔄 Modelos Multimodal (Texto + Imagem):**
+- `llava-llama3:8b` - Combinação de visão e linguagem
+- `llava-mistral:7b` - Multimodal com capacidades técnicas
+
+#### Instalação Automática por Categoria
+```bash
+# Instalar modelos LLM
+./scripts/download_models.sh --category llm
+
+# Instalar modelos de visão
+./scripts/download_models.sh --category vision
+
+# Instalar modelos multimodal
+./scripts/download_models.sh --category multimodal
+
+# Instalar todos os modelos recomendados
+./scripts/download_models.sh --category all
+
+# Verificar modelos instalados:
+ollama list
+```
+
+#### Instalação Manual
+```bash
+# Modelos LLM (Linguagem Natural):
+ollama pull llama3:8b    # Chat geral
+ollama pull mistral:7b   # Código e análise
+ollama pull codellama:7b # Geração de código
+
+# Modelos Multimodal (Visão + Texto):
+ollama pull llava:7b     # Análise de imagens
+
+# Verificar instalação:
+ollama run llama3:8b "Olá! Você está funcionando?"
+```
+
+### Solução de Problemas (Troubleshooting)
+```bash
+# Erro: "Error: Got unexpected extra arguments (uvicorn main_fixed:app)"
+# Solução: Verificar docker-compose.override.yml tem entrypoint: [] para backend
+
+# Erro: "service depends on undefined service postgres"
+# Solução: Adicionar profiles: - production ao postgres no docker-compose.yml
+
+# Workers não conectam:
+# Verificar SSH: ssh -T user@worker_ip
+# Logs: tail -f logs/worker_monitor.log
+
+# Modelos não carregam:
+# Verificar espaço: df -h
+# Reiniciar Ollama: systemctl restart ollama
+
+# Performance lenta:
+# Verificar recursos: ./scripts/monitoring/advanced_dashboard.sh live
+# Otimizar: ./scripts/optimization/resource_optimizer.sh
+```
+
 ### Deploy com Docker (Stack Completo)
 ```bash
 # Iniciar todos os serviços de monitoramento

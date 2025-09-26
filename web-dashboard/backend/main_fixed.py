@@ -6,36 +6,78 @@ FastAPI backend for the Cluster AI monitoring dashboard
 import psutil
 import subprocess
 
-from fastapi import FastAPI, HTTPException, Depends, status, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, status, WebSocket, WebSocketDisconnect, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from contextlib import asynccontextmanager
 import uvicorn
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, validator
 import logging
 import asyncio
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional, Set, Union
 from monitoring_data_provider import get_cluster_metrics, get_system_metrics, get_alerts, get_workers_info
 from metrics import router as metrics_router
 from cache_manager import cache_manager, cached_async
+
+# Rate limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# Database
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+Base = declarative_base()
+
+class UserDB(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    email = Column(String)
+    full_name = Column(String)
+    disabled = Column(Boolean, default=False)
+
+# Database setup
+SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Security
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable must be set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
 
 # Pydantic models
 class Token(BaseModel):
@@ -47,9 +89,9 @@ class TokenData(BaseModel):
 
 class User(BaseModel):
     username: str
-    email: str | None = None
-    full_name: str | None = None
-    disabled: bool | None = None
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    disabled: Optional[bool] = None
 
 class UserInDB(User):
     hashed_password: str
@@ -66,6 +108,42 @@ class WorkerInfo(BaseModel):
     cpu_usage: float
     memory_usage: float
     last_seen: datetime
+
+    @validator('id')
+    def validate_id(cls, v):
+        if not v or len(v) < 3 or len(v) > 50:
+            raise ValueError('Worker ID must be 3-50 characters')
+        if not v.replace('-', '').replace('_', '').isalnum():
+            raise ValueError('Worker ID must contain only alphanumeric characters, hyphens, and underscores')
+        return v
+
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v) < 1 or len(v) > 100:
+            raise ValueError('Worker name must be 1-100 characters')
+        return v
+
+    @validator('status')
+    def validate_status(cls, v):
+        valid_statuses = ['active', 'inactive', 'error', 'maintenance']
+        if v not in valid_statuses:
+            raise ValueError(f'Status must be one of: {valid_statuses}')
+        return v
+
+    @validator('ip_address')
+    def validate_ip(cls, v):
+        import ipaddress
+        try:
+            ipaddress.ip_address(v)
+        except ValueError:
+            raise ValueError('Invalid IP address format')
+        return v
+
+    @validator('cpu_usage', 'memory_usage')
+    def validate_usage(cls, v):
+        if not (0 <= v <= 100):
+            raise ValueError('Usage must be between 0 and 100')
+        return v
 
 class SystemMetrics(BaseModel):
     timestamp: datetime
@@ -114,16 +192,6 @@ class DetailedMetrics(BaseModel):
     disk_used: int = 0
     disk_available: int = 0
 
-# Mock data for development
-MOCK_USERS_DB = {
-    "admin": {
-        "username": "admin",
-        "full_name": "Administrator",
-        "email": "admin@cluster-ai.local",
-        "hashed_password": pwd_context.hash("admin123"),
-        "disabled": False,
-    }
-}
 
 MOCK_WORKERS = [
     {
@@ -146,6 +214,49 @@ MOCK_WORKERS = [
     }
 ]
 
+# Database user functions
+def get_user(db: Session, username: str):
+    return db.query(UserDB).filter(UserDB.username == username).first()
+
+def create_user(db: Session, user: UserInDB):
+    db_user = UserDB(
+        username=user.username,
+        hashed_password=user.hashed_password,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=user.disabled
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def authenticate_user(db: Session, username: str, password: str):
+    user = get_user(db, username)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+# Initialize default admin user if not exists
+def init_default_user():
+    db = SessionLocal()
+    try:
+        user = get_user(db, "admin")
+        if not user:
+            admin_user = UserInDB(
+                username="admin",
+                hashed_password=get_password_hash("admin123"),
+                email="admin@example.com",
+                full_name="Administrator",
+                disabled=False
+            )
+            create_user(db, admin_user)
+            logger.info("Default admin user created")
+    finally:
+        db.close()
+
 # Utility functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -153,30 +264,26 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
-def get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
-
-def authenticate_user(fake_db, username: str, password: str):
-    user = get_user(fake_db, username)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
-    return user
-
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+        expire = datetime.now(UTC) + timedelta(minutes=15)
+    to_encode.update({"exp": int(expire.timestamp())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+):
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -190,7 +297,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         token_data = TokenData(username=username)
     except jwt.PyJWTError:
         raise credentials_exception
-    user = get_user(MOCK_USERS_DB, username=token_data.username)
+    user = get_user(db, username=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -200,13 +307,33 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-# WebSocket connection manager
+# WebSocket connection manager with CSRF protection
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.client_data: Dict[str, Dict] = {}
+        self.csrf_tokens: Set[str] = set()
 
-    async def connect(self, websocket: WebSocket, client_id: str):
+    def generate_csrf_token(self) -> str:
+        """Generate a CSRF token for WebSocket connections"""
+        import secrets
+        token = secrets.token_urlsafe(32)
+        self.csrf_tokens.add(token)
+        return token
+
+    def validate_csrf_token(self, token: str) -> bool:
+        """Validate CSRF token"""
+        if token in self.csrf_tokens:
+            self.csrf_tokens.discard(token)  # One-time use
+            return True
+        return False
+
+    async def connect(self, websocket: WebSocket, client_id: str, csrf_token: str = None):
+        # Validate CSRF token for security
+        if csrf_token and not self.validate_csrf_token(csrf_token):
+            await websocket.close(code=1008)  # Policy violation
+            return
+
         await websocket.accept()
         self.active_connections.append(websocket)
         self.client_data[client_id] = {"websocket": websocket, "connected_at": datetime.now()}
@@ -251,6 +378,8 @@ manager = ConnectionManager()
 async def broadcast_realtime_updates():
     """Background task to broadcast real-time updates to all connected clients"""
     last_update_hash = None
+    last_broadcast_time = datetime.now()
+    debounce_interval = 5  # seconds
     # Import hashlib and json here to keep them local to the task
     import hashlib
     import json
@@ -279,14 +408,16 @@ async def broadcast_realtime_updates():
             # Calculate hash of current data to detect changes
             current_hash = hashlib.md5(json.dumps(update_message["data"], sort_keys=True).encode()).hexdigest()
 
-            # Only broadcast if data has changed
-            if manager.active_connections and current_hash != last_update_hash: # This was line 285
+            # Broadcast if data changed and debounce time passed
+            time_since_last_broadcast = (datetime.now() - last_broadcast_time).total_seconds()
+            if manager.active_connections and (current_hash != last_update_hash or time_since_last_broadcast >= debounce_interval):
                 # Broadcast to all connected clients
                 await manager.broadcast(update_message)
                 last_update_hash = current_hash
+                last_broadcast_time = datetime.now()
                 logger.debug("Broadcasted real-time update with new data")
             else:
-                logger.debug("Skipped broadcast - no data changes or no active connections")
+                logger.debug("Skipped broadcast - no significant changes or debounce active")
 
         except Exception as e:
             logger.error(f"Error in realtime updates: {e}")
@@ -299,6 +430,9 @@ async def broadcast_realtime_updates():
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Starting Cluster AI Dashboard API")
+
+    # Initialize default user
+    init_default_user()
 
     # Start background task for real-time updates
     realtime_task = asyncio.create_task(broadcast_realtime_updates())
@@ -324,6 +458,9 @@ app = FastAPI(
 
 app.include_router(metrics_router)
 
+# Rate limiting exception handler
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -348,9 +485,10 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now()}
 
 @app.post("/auth/login", response_model=Token)
-async def login(login_data: LoginRequest):
+@limiter.limit("5/minute")
+async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user and return access token"""
-    user = authenticate_user(MOCK_USERS_DB, login_data.username, login_data.password)
+    user = authenticate_user(db, login_data.username, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -368,11 +506,24 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     """Get current user information"""
     return current_user
 
-@cached_async(ttl_seconds=20, namespace="workers")
+@app.get("/auth/csrf-token")
+async def get_csrf_token(current_user: User = Depends(get_current_active_user)):
+    """Get CSRF token for WebSocket connections"""
+    token = manager.generate_csrf_token()
+    return {"csrf_token": token}
+
+@cached_async(ttl_seconds=30, namespace="workers")
 async def get_workers_cached_data():
-    """Get all workers information"""
+    """Get all workers information with validation"""
     workers_data = get_workers_info()
-    return [WorkerInfo(**worker) for worker in workers_data]
+    validated_workers = []
+    for worker in workers_data:
+        try:
+            validated_workers.append(WorkerInfo(**worker))
+        except Exception as e:
+            logger.warning(f"Invalid worker data: {worker}, error: {e}")
+            continue
+    return validated_workers
 
 @app.get("/workers/{worker_id}", response_model=WorkerInfo)
 async def get_worker(worker_id: str, current_user: User = Depends(get_current_active_user)):
@@ -427,7 +578,7 @@ async def get_system_metrics_endpoint(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get system metrics history with caching"""
-    return await cached_async(get_system_metrics_data, ttl_seconds=15, namespace="metrics")(limit=limit)
+    return await cached_async(ttl_seconds=15, namespace="metrics")(get_system_metrics_data)(limit=limit)
 
 @app.post("/workers/{worker_id}/restart")
 async def restart_worker(worker_id: str, current_user: User = Depends(get_current_active_user)):
@@ -439,15 +590,15 @@ async def restart_worker(worker_id: str, current_user: User = Depends(get_curren
 
     try:
         # Stop the worker first
-        import subprocess
-        import os
-
-        # Find and kill existing worker process
         try:
-            result = subprocess.run(['pkill', '-f', f'dask-worker.*{worker_id}'],
-                                  capture_output=True, text=True, timeout=10)
-            logger.info(f"Stopped worker {worker_id}: {result.stdout}")
-        except subprocess.TimeoutExpired:
+            process = await asyncio.create_subprocess_exec(
+                'pkill', '-f', f'dask-worker.*{worker_id}',
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            await asyncio.wait_for(process.wait(), timeout=10)
+            logger.info(f"Stopped worker {worker_id}")
+        except asyncio.TimeoutError:
             logger.warning(f"Timeout stopping worker {worker_id}")
         except Exception as e:
             logger.error(f"Error stopping worker {worker_id}: {e}")
@@ -465,7 +616,11 @@ async def restart_worker(worker_id: str, current_user: User = Depends(get_curren
         ]
 
         # Start in background
-        process = subprocess.Popen(worker_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        process = await asyncio.create_subprocess_exec(
+            *worker_cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
         logger.info(f"Started worker {worker_id} with PID {process.pid}")
 
         return {"message": f"Worker {worker_id} restart initiated successfully"}
@@ -484,20 +639,22 @@ async def stop_worker(worker_id: str, current_user: User = Depends(get_current_a
         raise HTTPException(status_code=404, detail="Worker not found")
 
     try:
-        import subprocess
-
         # Find and kill the worker process
-        result = subprocess.run(['pkill', '-f', f'dask-worker.*{worker_id}'],
-                              capture_output=True, text=True, timeout=10)
+        process = await asyncio.create_subprocess_exec(
+            'pkill', '-f', f'dask-worker.*{worker_id}',
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+        await asyncio.wait_for(process.wait(), timeout=10)
 
-        if result.returncode == 0:
+        if process.returncode == 0:
             logger.info(f"Successfully stopped worker {worker_id}")
             return {"message": f"Worker {worker_id} stopped successfully"}
         else:
-            logger.warning(f"Worker {worker_id} may not have been running: {result.stderr}")
+            logger.warning(f"Worker {worker_id} may not have been running")
             return {"message": f"Worker {worker_id} was not running or already stopped"}
 
-    except subprocess.TimeoutExpired:
+    except asyncio.TimeoutError:
         logger.error(f"Timeout stopping worker {worker_id}")
         raise HTTPException(status_code=500, detail="Timeout stopping worker")
     except Exception as e:
@@ -514,8 +671,6 @@ async def start_worker(worker_id: str, current_user: User = Depends(get_current_
         raise HTTPException(status_code=404, detail="Worker not found")
 
     try:
-        import subprocess
-
         # Start the worker process
         worker_cmd = [
             'dask-worker',
@@ -525,7 +680,11 @@ async def start_worker(worker_id: str, current_user: User = Depends(get_current_
             '--memory-limit', '1GB'
         ]
 
-        process = subprocess.Popen(worker_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        process = await asyncio.create_subprocess_exec(
+            *worker_cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
         logger.info(f"Started worker {worker_id} with PID {process.pid}")
         return {"message": f"Worker {worker_id} started successfully"}
 
@@ -572,7 +731,7 @@ async def get_alerts_endpoint(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get recent alerts from monitoring system with caching"""
-    return await cached_async(get_alerts_data, ttl_seconds=10, namespace="alerts")(limit=limit)
+    return await cached_async(ttl_seconds=10, namespace="alerts")(get_alerts_data)(limit=limit)
 
 @app.get("/monitoring/status")
 async def get_monitoring_status(current_user: User = Depends(get_current_active_user)):
@@ -860,9 +1019,9 @@ def calculate_health_score(status_data):
 
 # WebSocket endpoints
 @app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    """WebSocket endpoint for real-time updates"""
-    await manager.connect(websocket, client_id)
+async def websocket_endpoint(websocket: WebSocket, client_id: str, csrf_token: str = Query(None)):
+    """WebSocket endpoint for real-time updates with CSRF protection"""
+    await manager.connect(websocket, client_id, csrf_token)
     try:
         while True:
             # Keep connection alive and listen for client messages
