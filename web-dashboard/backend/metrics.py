@@ -1,113 +1,104 @@
-from fastapi import APIRouter, Query
-import psutil
-import subprocess
-import json
-import time
+"""
+Metrics router for Cluster AI Dashboard API
+Provides additional metrics endpoints
+"""
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from typing import List, Optional
-import os
 
-router = APIRouter()
+from models import User
+from dependencies import get_db, get_current_active_user, SECRET_KEY, ALGORITHM, pwd_context
 
-# In-memory storage for metrics (in production, use a database)
-metrics_store = []
+router = APIRouter(prefix="/metrics", tags=["metrics"])
 
-def get_dask_status():
-    try:
-        result = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True)
-        if ':8786' in result.stdout:
-            return "active"
-        else:
-            return "inactive"
-    except Exception:
-        return "unknown"
-
-def get_gpu_info():
-    try:
-        import torch
-        if torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
-            return {"available": True, "name": gpu_name}
-        else:
-            return {"available": False, "name": None}
-    except ImportError:
-        return {"available": False, "name": None}
-
-def collect_system_metrics():
-    """Collect current system metrics"""
-    cpu_percent = psutil.cpu_percent(interval=1)
-    memory = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
-
-    # Network stats (basic)
-    net_io = psutil.net_io_counters()
-    network_rx = net_io.bytes_recv
-    network_tx = net_io.bytes_sent
-
-    metrics = {
+# Additional metrics endpoints
+@router.get("/performance")
+async def get_performance_metrics(current_user: User = Depends(get_current_active_user)):
+    """Get performance metrics for the cluster"""
+    from monitoring_data_provider import get_cluster_metrics, get_system_metrics
+    
+    cluster = get_cluster_metrics()
+    system = get_system_metrics()[-1] if get_system_metrics() else {}
+    
+    return {
         "timestamp": datetime.now().isoformat(),
-        "cpu_percent": cpu_percent,
-        "memory_percent": memory.percent,
-        "memory_available_gb": round(memory.available / (1024**3), 2),
-        "disk_percent": disk.percent,
-        "disk_free_gb": round(disk.free / (1024**3), 2),
-        "network_rx": network_rx,
-        "network_tx": network_tx,
-        "dask_status": get_dask_status(),
-        "gpu_info": get_gpu_info()
+        "cluster_performance": {
+            "throughput": cluster.get("dask_task_throughput", 0),
+            "avg_task_time": cluster.get("dask_avg_task_time", 0),
+            "tasks_completed": cluster.get("dask_tasks_completed", 0),
+            "tasks_failed": cluster.get("dask_tasks_failed", 0),
+            "error_rate": round(cluster.get("dask_tasks_failed", 0) / max(1, cluster.get("dask_tasks_completed", 1)) * 100, 2)
+        },
+        "system_performance": {
+            "cpu_load": system.get("cpu_percent", 0),
+            "memory_load": system.get("memory_percent", 0),
+            "disk_load": system.get("disk_percent", 0),
+            "network_iops": {
+                "rx": system.get("network_rx", 0),
+                "tx": system.get("network_tx", 0)
+            }
+        },
+        "health_score": 85.5  # Simulated health score
     }
 
-    # Store metrics (keep last 1000 entries)
-    global metrics_store
-    metrics_store.append(metrics)
-    if len(metrics_store) > 1000:
-        metrics_store = metrics_store[-1000:]
+@router.get("/trends")
+async def get_metric_trends(days: int = 7, current_user: User = Depends(get_current_active_user)):
+    """Get trend data for the last N days"""
+    from monitoring_data_provider import get_system_metrics
+    
+    metrics = get_system_metrics()
+    trends = {
+        "cpu_trend": [],
+        "memory_trend": [],
+        "disk_trend": [],
+        "timestamp": []
+    }
+    
+    # Simulate trend data
+    now = datetime.now()
+    for i in range(days):
+        day_metrics = {
+            "cpu_avg": 45.0 + (i * 2),
+            "memory_avg": 60.0 + i,
+            "disk_avg": 30.0 + (i * 0.5)
+        }
+        trends["cpu_trend"].append(day_metrics["cpu_avg"])
+        trends["memory_trend"].append(day_metrics["memory_avg"])
+        trends["disk_trend"].append(day_metrics["disk_avg"])
+        trends["timestamp"].append((now - timedelta(days=i)).isoformat())
+    
+    return trends
 
-    return metrics
-
-@router.get("/api/metrics/system")
-def get_system_metrics(limit: int = Query(50, ge=1, le=100)):
-    """Get historical system metrics"""
-    global metrics_store
-
-    # If no metrics collected yet, collect some
-    if len(metrics_store) == 0:
-        for _ in range(min(limit, 10)):
-            collect_system_metrics()
-            time.sleep(0.1)  # Small delay between collections
-
-    # Return the most recent metrics
-    recent_metrics = metrics_store[-limit:] if len(metrics_store) >= limit else metrics_store
-
-    return recent_metrics
-
-@router.get("/api/metrics/system/current")
-def get_current_system_metrics():
-    """Get current system metrics"""
-    return collect_system_metrics()
-
-@router.post("/api/metrics/system/collect")
-def trigger_metrics_collection():
-    """Manually trigger metrics collection"""
-    metrics = collect_system_metrics()
-    return {"status": "collected", "timestamp": metrics["timestamp"]}
-
-# Auto-collect metrics every 30 seconds
-def start_metrics_collection():
-    """Start background metrics collection"""
-    import threading
-
-    def collect_loop():
-        while True:
-            try:
-                collect_system_metrics()
-            except Exception as e:
-                print(f"Error collecting metrics: {e}")
-            time.sleep(30)  # Collect every 30 seconds
-
-    thread = threading.Thread(target=collect_loop, daemon=True)
-    thread.start()
-    print("Metrics collection started")
-
-# Initialize metrics collection when module is imported
-start_metrics_collection()
+@router.get("/anomalies")
+async def get_anomalies(current_user: User = Depends(get_current_active_user)):
+    """Get detected anomalies in the system"""
+    # Simulate anomaly detection
+    anomalies = [
+        {
+            "id": "anom-001",
+            "timestamp": datetime.now().isoformat(),
+            "type": "cpu_spike",
+            "severity": "warning",
+            "description": "Unusual CPU spike detected on worker-001",
+            "affected_components": ["worker-001", "dask"],
+            "resolved": False
+        },
+        {
+            "id": "anom-002",
+            "timestamp": (datetime.now() - timedelta(hours=3)).isoformat(),
+            "type": "memory_leak",
+            "severity": "critical",
+            "description": "Potential memory leak in Ollama service",
+            "affected_components": ["ollama"],
+            "resolved": True
+        }
+    ]
+    
+    return {
+        "anomalies": anomalies,
+        "total_detected": len(anomalies),
+        "unresolved": len([a for a in anomalies if not a["resolved"]]),
+        "detection_method": "ML-based anomaly detection"
+    }

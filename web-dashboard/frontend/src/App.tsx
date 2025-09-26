@@ -63,8 +63,8 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <ApiProvider>
+      <ApiProvider>
+        <AuthProvider>
           <Router>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
@@ -86,8 +86,8 @@ function App() {
               />
             </Routes>
           </Router>
-        </ApiProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </ApiProvider>
     </ThemeProvider>
   );
 }

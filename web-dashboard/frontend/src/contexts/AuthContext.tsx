@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useApi } from './ApiContext';
 
 interface AuthContextType {
   user: string | null;
@@ -10,17 +12,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<string | null>(null);
+  const { api } = useApi();
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    // TODO: Implement real authentication with backend API
-    if (username === 'admin' && password === 'admin123') {
+    try {
+      const response = await api.post('/auth/login', { username, password });
+      const { access_token } = response.data;
+      localStorage.setItem('token', access_token);
       setUser(username);
       return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
+    localStorage.removeItem('token');
     setUser(null);
   };
 
