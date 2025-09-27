@@ -48,9 +48,10 @@ class TestManagerIntegration:
     def test_manager_basic_execution(self):
         """Test basic manager.sh execution"""
         manager_path = PROJECT_ROOT / "manager.sh"
+
+        # Test with help command to avoid interactive menu
         result = subprocess.run(
-            [str(manager_path)],
-            input="0\n",  # Quit immediately with valid option 0
+            [str(manager_path), "help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -63,9 +64,9 @@ class TestManagerIntegration:
 
         # Look for successful execution indicators
         success_indicators = [
-            "Docker: Ativo",  # Docker is active
-            "Finalizando módulo common.sh",  # Script completed successfully
-            "SUCCESS",  # Success messages
+            "CLUSTER AI MANAGER - AJUDA",  # Help output
+            "Uso:",  # Usage information
+            "Comandos disponíveis:",  # Available commands
         ]
 
         has_success_indicator = any(indicator in output_combined for indicator in success_indicators)

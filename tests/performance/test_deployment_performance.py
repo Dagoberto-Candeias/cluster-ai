@@ -21,16 +21,19 @@ class TestDeploymentPerformance:
 
         def run_script():
             try:
-                result = subprocess.run(
+                with subprocess.Popen(
                     [str(script_path)],
-                    capture_output=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
-                    timeout=30,
                     cwd=Path.cwd(),
-                )
-                return result.returncode
-            except subprocess.TimeoutExpired:
-                return -1  # Timeout
+                ) as proc:
+                    try:
+                        stdout, stderr = proc.communicate(timeout=10)
+                        return proc.returncode
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        return -1
             except FileNotFoundError:
                 return -2  # kubectl não encontrado
 

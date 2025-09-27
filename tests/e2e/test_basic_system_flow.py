@@ -56,31 +56,27 @@ class TestBasicSystemFlow:
         assert manager_path.exists()
         assert os.access(manager_path, os.X_OK)
 
-        # Test basic execution (without arguments)
+        # Test help command instead of interactive mode (which requires whiptail)
         result = subprocess.run(
-            [str(manager_path)],
+            [str(manager_path), "help"],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
             timeout=30
         )
 
-        # Should either succeed or fail gracefully with expected error
-        assert result.returncode in [0, 1, 2]
+        # Should succeed and show help output
+        assert result.returncode == 0
 
-        # Check if there's any output or if it's a graceful failure
-        output = result.stdout + result.stderr
-        if len(output.strip()) == 0:
-            # If no output, it might be waiting for input - test with timeout
-            result_with_input = subprocess.run(
-                [str(manager_path)],
-                input="0\n",  # Send quit command
-                capture_output=True,
-                text=True,
-                cwd=PROJECT_ROOT,
-                timeout=10
-            )
-            assert result_with_input.returncode in [0, 1, 2]
+        # Strip ANSI escape codes for reliable matching
+        import re
+        def strip_ansi_codes(text):
+            ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_] | \[ [0-?]* [ -/]* [@-~])')
+            return ansi_escape.sub('', text)
+
+        output = strip_ansi_codes(result.stdout + result.stderr)
+        assert "CLUSTER AI MANAGER" in output
+        assert "Comandos disponíveis" in output or "Available commands" in output
 
     def test_python_environment_setup(self):
         """Test Python environment and dependencies"""

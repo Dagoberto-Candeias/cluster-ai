@@ -30,21 +30,28 @@ class TestPerformance:
             if script_path.exists():
                 start_time = time.time()
                 try:
-                    result = subprocess.run(
+                    with subprocess.Popen(
                         [str(script_path)],
-                        capture_output=True,
-                        text=True,
-                        timeout=max_time + 5  # Add buffer
-                    )
-                    execution_time = time.time() - start_time
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    ) as proc:
+                        try:
+                            stdout, stderr = proc.communicate(timeout=max_time + 5)
+                            execution_time = time.time() - start_time
 
-                    assert execution_time < max_time, \
-                        f"Script {script} took {execution_time:.2f}s (max {max_time}s)"
-                    assert result.returncode == 0, \
-                        f"Script {script} failed with return code {result.returncode}"
+                            assert execution_time < max_time, \
+                                f"Script {script} took {execution_time:.2f}s (max {max_time}s)"
+                            assert proc.returncode == 0, \
+                                f"Script {script} failed with return code {proc.returncode}"
 
-                except subprocess.TimeoutExpired:
-                    pytest.fail(f"Script {script} timed out after {max_time}s")
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            pytest.fail(f"Script {script} timed out after {max_time}s")
+                except FileNotFoundError:
+                    pytest.skip(f"Script {script} not found")
+            else:
+                pytest.skip(f"Script {script} does not exist")
 
     def test_memory_usage(self):
         """Test memory usage stays within limits"""

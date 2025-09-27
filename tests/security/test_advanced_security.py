@@ -104,6 +104,14 @@ class TestAdvancedSecurity:
                 if ".venv" in str(file_path) or "venv" in str(file_path) or "__pycache__" in str(file_path):
                     continue
 
+                # Skip system library files (site-packages, dist-packages, etc.)
+                if "site-packages" in str(file_path) or "dist-packages" in str(file_path):
+                    continue
+
+                # Skip Python standard library
+                if "/usr/lib/python" in str(file_path) or "/lib/python" in str(file_path):
+                    continue
+
                 try:
                     content = file_path.read_text()
                     for pattern in secret_patterns:
