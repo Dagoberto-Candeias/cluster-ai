@@ -1,45 +1,51 @@
-# TODO - Melhorias no Projeto Cluster AI
+# Cluster AI - Technical Review and Improvements TODO
 
-## Documentação (3 dias)
-- [x] README.md: Adicionar seções para workers (plug-and-play steps), models (categories/install), troubleshooting (init errors like uvicorn args)
-- [x] docs/: Criar ANDROID.md (Termux setup), MODELS_GUIDE.md (categories: LLM/CV, install via ollama/dask). Atualizar INDEX.md com links. Melhorar MIGRATION_GUIDE.md para dev/prod
-- [x] CONTRIBUTING.md: Adicionar guidelines de testing/security
+## High Impact (Security, Core Functionality, Maintenance)
 
-## Testes (3 dias)
-- [x] tests/: Adicionar test_workers.py (unit para worker_manager.sh funcs, integration para SSH/add/remove), test_models.py (model load/install via ollama), test_backend.py (pytest para main_fixed.py endpoints: auth, /workers, /alerts; mock subprocess)
-- [ ] tests/: Expandir performance/ para dask benchmarks, security/ para vuln scans (e.g., bandit)
-- [x] scripts/verify_syntax.sh: Estender para checar Python/JS/YAML
-- [ ] Executar pytest --cov para verificar >80%
+### 1. Security Audit and Hardening
+- [ ] Audit all scripts for dangerous commands (rm -rf, sudo, etc.) - FOUND: backup_manager.sh, cleanup_manager.sh (safe usage)
+- [ ] Implement credential management for API keys, tokens
+- [ ] Add integrity checks for downloaded models
+- [ ] Enhance logging and auditing for critical operations
 
-## Segurança (2 dias)
-- [ ] main_fixed.py: Substituir mock users por DB (sqlite), env SECRET_KEY, adicionar rate limiting (slowapi), input validation (pydantic), subprocess com shell=False. Adicionar CSRF para WS
-- [ ] scripts/security/: Melhorar generate_certificates.sh (auto-renew), adicionar security_audit.sh (bandit, safety para deps)
-- [ ] compliance/: Popular reports/ com audit template, scripts/ com vuln scanner (trivy para docker)
-- [ ] Global: Adicionar .env.example, gitignore secrets
+### 2. Script Consolidation and Standardization
+- [ ] Merge update_checker.sh and update_notifier.sh into unified update_manager.sh
+- [ ] Consolidate Ollama model scripts (auto_download_models.sh + install_additional_models.sh)
+- [ ] Standardize all script headers per ShellCheck standards
+- [ ] Add robust input validation and error handling to all scripts
+- [ ] Enhance cleanup/backup script safety with additional checks
 
-## Performance (2 dias)
-- [ ] main_fixed.py: Otimizar broadcast_realtime_updates (debounce changes), adicionar async subprocess
-- [ ] performance/: Adicionar redis-cluster/ config para cache, monitoring/ scripts para profiling (cProfile dask)
-- [ ] scripts/monitoring/: Melhorar advanced_dashboard.sh com Prometheus queries, adicionar autoscaling thresholds
+### 3. Ollama Workers and Models Completion
+- [x] Complete model_manager.sh with full functionality (list, cleanup, optimize)
+- [ ] Add load balancing and failover for Ollama workers
+- [ ] Implement model rollback and version management
+- [ ] Add integrity validation for model downloads
 
-## Verificação/Checagem (2 dias)
-- [ ] Executar full pytest, lint (flake8), docker-compose up -d (check logs/health), manager.sh status
-- [ ] Checar specs: Garantir plug-and-play workers (auto-detect), model categories (LLM/ML), no syntax errors
+## Medium Impact (Documentation, Testing)
 
-## Investigation/Correção de erros (3 dias)
-- [ ] Backend: Corrigir uvicorn args (já via override), subprocess leaks em restart_worker
-- [ ] Workers: Completar termux_worker_setup.sh (install termux deps, SSH, dask-worker)
-- [ ] Models: Corrigir incomplete download_models.sh (add categories/progress)
-- [ ] Init: Garantir no postgres dep em dev (confirm profiles), adicionar health checks em health_checker.sh
-- [ ] Global: Investigar/fixar unbound vars (e.g., em common.sh), dep conflicts (pip check)
+### 4. Documentation Consolidation
+- [ ] Merge all README variants into central README.md
+- [ ] Add comprehensive environment variables documentation
+- [ ] Document all scripts, workflows, and Ollama management
+- [ ] Add system requirements and dependencies section
 
-## Workers (integrado)
-- [ ] Fazer plug-and-play: worker_manager.sh auto-SSH keygen/setup, termux script com one-command install (curl | bash)
+### 5. Testing and Quality Assurance
+- [ ] Implement test coverage reporting
+- [ ] Add CI integration with .gitlab-ci.yml
+- [ ] Create integration tests for Ollama workers
+- [ ] Add automated linting (ShellCheck, flake8)
 
-## Models (integrado)
-- [ ] ai-ml/: Adicionar model_install.py (categorized pull), explanations em metadata/
+## Low Impact (Optimization, Configuration)
 
-## Followup
-- [ ] Installations: pip install -r requirements-dev.txt; apt install yq whiptail (if missing)
-- [ ] Testing: pytest tests/ --cov; docker-compose up -d; ./manager.sh status; curl localhost:8000/health
-- [ ] Verification: Run full system (start_cluster.sh), check logs/metrics, benchmark dask tasks
+### 6. Configuration Optimization
+- [ ] Add rollback automation to docker-compose.yml
+- [ ] Disable telemetry in .vscode/settings.json
+- [ ] Optimize VSCode settings for better performance
+- [ ] Add deploy/rollback scripts for production
+
+## Followup and Validation
+- [ ] Run ShellCheck on all modified scripts
+- [ ] Execute consolidated scripts to verify functionality
+- [ ] Run test suite with coverage reporting
+- [ ] Test Ollama model management flows
+- [ ] Validate security improvements

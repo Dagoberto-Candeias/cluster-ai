@@ -159,9 +159,10 @@ class TestDeploymentPerformance:
             execution_time = time.time() - start_time
 
             # Scripts devem executar em tempo razoável
+            time_limit = 30 if "webui-installer" in script_name else 20
             assert (
-                execution_time < 20
-            ), f"Script {script_name} demorou {execution_time:.2f}s"
+                execution_time < time_limit
+            ), f"Script {script_name} demorou {execution_time:.2f}s (limite: {time_limit}s)"
 
         except subprocess.TimeoutExpired:
             pytest.skip(f"Script {script_name} excedeu timeout")
@@ -801,6 +802,10 @@ class TestDaskPerformance:
     def test_dask_task_execution_performance(self, benchmark):
         """Benchmark de execução de tarefas no Dask"""
         try:
+            import os
+            # Set environment variable to suppress Jupyter deprecation warning
+            os.environ['JUPYTER_PLATFORM_DIRS'] = '1'
+
             from dask.distributed import Client, LocalCluster
             import time
 

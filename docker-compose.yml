@@ -94,7 +94,7 @@ services:
       - "MONITORING_ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
     ports:
       - "5044:5044"  # Beats input
-      - "5000:5000"  # TCP input
+      - "5001:5000"  # TCP input
       - "8083:8083"  # HTTP input
       - "9600:9600"  # Logstash monitoring API
     networks:
@@ -112,6 +112,18 @@ services:
     image: docker.elastic.co/kibana/kibana:8.11.0
     networks:
       - cluster-ai-network
+
+  # Rollback service for emergency recovery
+  rollback:
+    image: alpine:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/deployment/rollback.sh:/rollback.sh
+    command: ["sh", "/rollback.sh"]
+    networks:
+      - cluster-ai-network
+    profiles:
+      - rollback
 
 volumes:
   redis_data:
