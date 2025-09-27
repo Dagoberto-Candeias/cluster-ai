@@ -160,14 +160,19 @@ class TestModelCategories:
 
     def test_model_size_validation(self):
         """Testa validação de tamanhos de modelo"""
+        import re
+
         valid_sizes = ['7b', '8b', '13b', '70b', '8x7b', '2.7b']
         invalid_sizes = ['abc', '123', '']
 
+        # Pattern for valid model sizes: numbers with optional decimal, optional 'x' for mixtures, followed by 'b'
+        size_pattern = re.compile(r'^\d+(\.\d+)?(x\d+)?b$')
+
         for size in valid_sizes:
-            assert size.replace('.', '').replace('x', '').isdigit()
+            assert size_pattern.match(size), f"Size {size} should be valid"
 
         for size in invalid_sizes:
-            assert not size.replace('.', '').replace('x', '').isdigit()
+            assert not size_pattern.match(size), f"Size {size} should be invalid"
 
 class TestModelPerformance:
     """Testes de performance de modelos"""

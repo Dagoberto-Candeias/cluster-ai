@@ -118,7 +118,7 @@ class TestWorkersEndpoints:
         response = client.post("/workers/worker-001/restart", headers=headers)
 
         assert response.status_code == status.HTTP_200_OK
-        assert "restarted" in response.json()["message"].lower()
+        assert "restart initiated successfully" in response.json()["message"].lower()
 
     @patch('main_fixed.get_current_user', new_callable=AsyncMock)
     def test_get_worker_not_found(self, mock_user):
