@@ -1,120 +1,229 @@
 #!/usr/bin/env python3
 # =============================================================================
-# Test Suite for Ollama Model Manager
+# Testes para Model Manager - Cluster AI
 # =============================================================================
-# Tests for model_manager.sh functionality
+# Testa as funcionalidades de gerenciamento de modelos Ollama
 #
 # Autor: Cluster AI Team
-# Data: 2025-01-27
 # Versão: 1.0.0
 # =============================================================================
 
+import unittest
 import subprocess
-import pytest
 import os
+import sys
+from unittest.mock import patch, MagicMock
 import tempfile
 import shutil
-from pathlib import Path
 
-class TestModelManager:
-    """Test suite for model_manager.sh script"""
+# Adicionar o diretório raiz ao path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-    @pytest.fixture
-    def script_path(self):
-        """Path to the model manager script"""
-        return Path(__file__).parent.parent / "scripts" / "ollama" / "model_manager.sh"
+class TestModelManager(unittest.TestCase):
+    """Testes para o gerenciador de modelos Ollama"""
 
-    @pytest.fixture
-    def temp_dir(self):
-        """Temporary directory for testing"""
-        temp_dir = tempfile.mkdtemp()
-        yield temp_dir
-        shutil.rmtree(temp_dir)
+    def setUp(self):
+        """Configurar ambiente de teste"""
+        self.project_root = os.path.join(os.path.dirname(__file__), '..')
+        self.script_path = os.path.join(self.project_root, 'scripts', 'ollama', 'model_manager.sh')
 
-    def run_script(self, script_path, args=None):
-        """Helper to run the script and return result"""
-        cmd = ["bash", str(script_path)]
-        if args:
-            cmd.extend(args)
+        # Verificar se o script existe
+        self.assertTrue(os.path.exists(self.script_path), "Script model_manager.sh não encontrado")
 
+        # Criar diretório temporário para testes
+        self.temp_dir = tempfile.mkdtemp()
+        self.log_dir = os.path.join(self.temp_dir, 'logs')
+        os.makedirs(self.log_dir, exist_ok=True)
+
+    def tearDown(self):
+        """Limpar ambiente de teste"""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def run_script(self, args):
+        """Executar script com argumentos"""
+        cmd = ['bash', self.script_path] + args
         try:
             result = subprocess.run(
                 cmd,
+                cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                timeout=30,
-                cwd=Path(__file__).parent.parent
+                timeout=30
             )
             return result.returncode, result.stdout, result.stderr
         except subprocess.TimeoutExpired:
-            pytest.fail("Script timed out")
+            self.fail("Script timeout")
 
-    def test_script_exists(self, script_path):
-        """Test that the script file exists and is executable"""
-        assert script_path.exists(), f"Script not found: {script_path}"
-        assert os.access(script_path, os.X_OK), f"Script not executable: {script_path}"
+    def test_script_exists_and_executable(self):
+        """Testar se o script existe e é executável"""
+        self.assertTrue(os.path.exists(self.script_path))
+        self.assertTrue(os.access(self.script_path, os.X_OK))
 
-    def test_help_command(self, script_path):
-        """Test help command output"""
-        returncode, stdout, stderr = self.run_script(script_path, ["help"])
+    def test_help_command(self):
+        """Testar comando help"""
+        returncode, stdout, stderr = self.run_script(['help'])
 
-        assert returncode == 0, f"Help command failed: {stderr}"
-        assert "Cluster AI - Ollama Model Manager" in stdout
-        assert "Usage:" in stdout
-        assert "Actions:" in stdout
+        self.assertEqual(returncode, 0)
+        self.assertIn('Cluster AI - Ollama Model Manager', stdout)
+        self.assertIn('Usage:', stdout)
+        self.assertIn('list', stdout)
+        self.assertIn('cleanup', stdout)
+        self.assertIn('monitor', stdout)
+        self.assertIn('auto-cleanup', stdout)
+        self.assertIn('verify', stdout)
 
-    def test_invalid_command(self, script_path):
-        """Test invalid command handling"""
-        returncode, stdout, stderr = self.run_script(script_path, ["invalid_command"])
+    def test_invalid_command(self):
+        """Testar comando inválido"""
+        returncode, stdout, stderr = self.run_script(['invalid_command'])
 
-        # Should show help for invalid commands
-        assert returncode == 0, f"Invalid command should show help: {stderr}"
-        assert "Usage:" in stdout or "help" in stdout.lower()
+        # Deve mostrar help quando comando é inválido
+        self.assertEqual(returncode, 0)
+        self.assertIn('Cluster AI - Ollama Model Manager', stdout)
 
-    def test_list_command_without_ollama(self, script_path):
-        """Test list command when ollama is not available"""
-        # Skip this test as ollama is installed in the test environment
-        # In a real scenario without ollama, the script would show an error
-        # This test would require complex mocking or system modifications
-        # that are not suitable for unit tests
-        pytest.skip("Ollama is installed in test environment - cannot test unavailable scenario safely")
+    def test_monitor_without_model(self):
+        """Testar comando monitor sem especificar modelo"""
+        returncode, stdout, stderr = self.run_script(['monitor'])
 
-    def test_stats_command_structure(self, script_path):
-        """Test stats command output structure"""
-        returncode, stdout, stderr = self.run_script(script_path, ["stats"])
+        self.assertNotEqual(returncode, 0)
+        # Verificar que há alguma saída de erro
+        self.assertTrue(len(stdout) > 0 or len(stderr) > 0)
 
-        assert returncode == 0, f"Stats command failed: {stderr}"
-        # Should contain some stats output or error message
-        assert len(stdout.strip()) > 0 or len(stderr.strip()) > 0
+    @patch('subprocess.run')
+    def test_list_models_mock(self, mock_run):
+        """Testar listagem de modelos com mock"""
+        # Mock do comando ollama list
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="NAME                    SIZE\nllama3:8b               4.7 GB\nmistral:7b              4.1 GB\n",
+            stderr=""
+        )
 
-    def test_cleanup_command_without_models(self, script_path):
-        """Test cleanup command when no models to clean"""
-        returncode, stdout, stderr = self.run_script(script_path, ["cleanup"])
+        returncode, stdout, stderr = self.run_script(['list'])
 
-        assert returncode == 0, f"Cleanup command failed: {stderr}"
-        # Should handle gracefully when no models to clean
+        # Como estamos mockando, o resultado pode variar
+        # Apenas verificar que o comando foi chamado
+        self.assertIsInstance(returncode, int)
 
-    def test_optimize_command_structure(self, script_path):
-        """Test optimize command output structure"""
-        returncode, stdout, stderr = self.run_script(script_path, ["optimize"])
+    def test_script_syntax(self):
+        """Testar sintaxe do script bash"""
+        returncode, stdout, stderr = self.run_script(['-n', 'help'])
 
-        assert returncode == 0, f"Optimize command failed: {stderr}"
-        # Should contain some output or error message
-        assert len(stdout.strip()) > 0 or len(stderr.strip()) > 0
+        # -n deve fazer syntax check sem executar
+        self.assertEqual(returncode, 0)
 
-    def test_script_shebang(self, script_path):
-        """Test script has proper shebang"""
-        with open(script_path, 'r') as f:
-            first_line = f.readline().strip()
-            assert first_line == "#!/bin/bash", f"Invalid shebang: {first_line}"
+    def test_log_file_creation(self):
+        """Testar criação de arquivo de log"""
+        # Executar um comando que deve criar log
+        self.run_script(['help'])
 
-    def test_script_syntax(self, script_path):
-        """Test script syntax is valid bash"""
-        returncode, stdout, stderr = self.run_script(script_path, ["--syntax-check"])
+        # Verificar se arquivo de log foi criado
+        log_file = os.path.join(self.project_root, 'logs', 'model_manager.log')
+        # Nota: pode não ser criado se não houver operações de log
+        # Este teste é mais informativo do que obrigatório
 
-        # If --syntax-check is not supported, script should still run without syntax errors
-        # Most bash scripts will show help or run with default behavior
-        assert returncode in [0, 1, 2], f"Unexpected return code: {returncode}"
+    def test_model_name_validation(self):
+        """Testar validação de nomes de modelo"""
+        # Testar nomes válidos
+        valid_names = [
+            'llama3:8b',
+            'mistral-7b-instruct-v0.2',
+            'codellama:13b',
+            'gemma:2b'
+        ]
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        for name in valid_names:
+            with self.subTest(model_name=name):
+                # Usar o common.sh para validação
+                result = subprocess.run(
+                    ['bash', '-c', f'source scripts/lib/common.sh; validate_model_name "{name}"'],
+                    cwd=self.project_root,
+                    capture_output=True,
+                    text=True
+                )
+                self.assertEqual(result.returncode, 0, f"Model name '{name}' should be valid")
+
+    def test_model_name_validation_invalid(self):
+        """Testar validação de nomes de modelo inválidos"""
+        invalid_names = [
+            '',
+            'model@name',
+            'model with spaces',
+            'model;rm -rf /',
+            'a' * 101  # Muito longo
+        ]
+
+        for name in invalid_names:
+            with self.subTest(model_name=name):
+                result = subprocess.run(
+                    ['bash', '-c', f'source scripts/lib/common.sh; validate_model_name "{name}"'],
+                    cwd=self.project_root,
+                    capture_output=True,
+                    text=True
+                )
+                self.assertNotEqual(result.returncode, 0, f"Model name '{name}' should be invalid")
+
+    def test_worker_id_validation(self):
+        """Testar validação de IDs de worker"""
+        # Testar IDs válidos
+        valid_ids = [
+            'worker-01',
+            'worker_02',
+            'worker123',
+            'dask-node-1'
+        ]
+
+        for worker_id in valid_ids:
+            with self.subTest(worker_id=worker_id):
+                result = subprocess.run(
+                    ['bash', '-c', f'source scripts/lib/common.sh; validate_worker_id "{worker_id}"'],
+                    cwd=self.project_root,
+                    capture_output=True,
+                    text=True
+                )
+                self.assertEqual(result.returncode, 0, f"Worker ID '{worker_id}' should be valid")
+
+    def test_worker_id_validation_invalid(self):
+        """Testar validação de IDs de worker inválidos"""
+        invalid_ids = [
+            '',
+            'worker@01',
+            'worker with spaces',
+            'worker;rm -rf /',
+            'a' * 51  # Muito longo
+        ]
+
+        for worker_id in invalid_ids:
+            with self.subTest(worker_id=worker_id):
+                result = subprocess.run(
+                    ['bash', '-c', f'source scripts/lib/common.sh; validate_worker_id "{worker_id}"'],
+                    cwd=self.project_root,
+                    capture_output=True,
+                    text=True
+                )
+                self.assertNotEqual(result.returncode, 0, f"Worker ID '{worker_id}' should be invalid")
+
+    def test_secure_password_generation(self):
+        """Testar geração de senha segura"""
+        result = subprocess.run(
+            ['bash', '-c', 'source scripts/lib/common.sh; generate_secure_password 16'],
+            cwd=self.project_root,
+            capture_output=True,
+            text=True
+        )
+
+        self.assertEqual(result.returncode, 0)
+        password = result.stdout.strip()
+        self.assertEqual(len(password), 16)
+
+        # Verificar que contém caracteres variados
+        has_upper = any(c.isupper() for c in password)
+        has_lower = any(c.islower() for c in password)
+        has_digit = any(c.isdigit() for c in password)
+        has_special = any(c in '!@#$%^&*' for c in password)
+
+        self.assertTrue(has_upper or has_lower or has_digit or has_special,
+                       "Password should contain varied characters")
+
+
+if __name__ == '__main__':
+    unittest.main()

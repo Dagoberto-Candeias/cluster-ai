@@ -17,11 +17,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Carregar funções comuns
-if [ ! -f "${SCRIPT_DIR}/../lib/common.sh" ]; then
+if [ ! -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
     exit 1
 fi
-source "${SCRIPT_DIR}/../lib/common.sh"
+source "${SCRIPT_DIR}/lib/common.sh"
 
 # Carregar configuração
 UPDATE_CONFIG="${PROJECT_ROOT}/config/update.conf"
@@ -60,7 +60,8 @@ log_monitor() {
 
 # Função para obter configuração
 get_update_config() {
-    get_config_value "$1" "$2" "$UPDATE_CONFIG" "$3"
+    local default="${3:-}"
+    get_config_value "$1" "$2" "$UPDATE_CONFIG" "$default"
 }
 
 # Função para verificar se o monitor já está rodando

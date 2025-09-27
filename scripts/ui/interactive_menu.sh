@@ -23,11 +23,13 @@ run_command() {
     shift
     local cmd_args=("$@")
 
-    # Executa o comando e captura a saída para exibir no final
-    {
-        output=$(./manager.sh "${cmd_args[@]}" 2>&1)
-        exit_code=$?
-    } | whiptail --title "Executando" --gauge "$cmd_description..." 6 78 0
+    # Executa o comando e captura a saída e código de saída
+    local output exit_code
+    output=$(./manager.sh "${cmd_args[@]}" 2>&1)
+    exit_code=$?
+
+    # Mostra barra de progresso enquanto "processa"
+    echo "50" | whiptail --title "Executando" --gauge "$cmd_description..." 6 78 0
 
     if [ $exit_code -eq 0 ]; then
         whiptail --title "Sucesso" --msgbox "Comando executado com sucesso.\n\nSaída:\n$output" 20 78

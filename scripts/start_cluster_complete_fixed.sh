@@ -84,7 +84,7 @@ setup_auto_updates() {
 start_web_server() {
     log_complete "INFO" "Iniciando servidor web..."
 
-    if bash "${SCRIPT_DIR}/web_server.sh" start "$WEB_PORT"; then
+    if bash "${PROJECT_ROOT}/scripts/web_server_fixed.sh" start "$WEB_PORT"; then
         success "Servidor web iniciado na porta $WEB_PORT"
         return 0
     else
@@ -97,12 +97,12 @@ start_web_server() {
 start_update_monitor() {
     log_complete "INFO" "Iniciando monitoramento de atualizações..."
 
-    if bash "${SCRIPT_DIR}/monitor_worker_updates.sh" start; then
+    if bash "${PROJECT_ROOT}/scripts/monitor_worker_updates.sh" start; then
         success "Monitoramento de atualizações iniciado"
         return 0
     else
-        warn "Falha ao iniciar monitoramento de atualizações"
-        return 1
+        warn "Falha ao iniciar monitoramento de atualizações (continuando sem ele)"
+        return 0  # Não falha crítica
     fi
 }
 

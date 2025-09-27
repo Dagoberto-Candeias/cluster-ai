@@ -15,6 +15,7 @@ from pathlib import Path
 
 try:
     from dask.distributed import LocalCluster, Client
+    from distributed.security import Security
 except ImportError:
     print("ERRO: Dask não está instalado. Execute 'pip install dask distributed'.")
     sys.exit(1)
@@ -24,45 +25,53 @@ def main(project_root: Path):
     """Inicia o cluster Dask."""
     print("Iniciando cluster Dask com segurança...")
 
-    # Carregar configurações do cluster.conf
+    # Carregar configurações do cluster.conf (formato shell)
     config_file = project_root / "cluster.conf"
-    config = configparser.ConfigParser()
+    config_vars = {}
+
     if config_file.exists():
-        config.read(config_file)
+        with open(config_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        config_vars[key] = value
 
     # Obter configurações ou usar valores padrão
-    dask_section = config["dask"] if "dask" in config else {}
-    dashboard_port = dask_section.get("dashboard_port", "8787")
-    scheduler_port = dask_section.get("scheduler_port", "8786")
-    auth_token = dask_section.get("auth_token", "default_secure_token")
-    n_workers = int(dask_section.get("n_workers", 2))
-    threads_per_worker = int(dask_section.get("threads_per_worker", 2))
+    dashboard_port = config_vars.get("DASK_DASHBOARD_PORT", "8787")
+    scheduler_port = config_vars.get("DASK_SCHEDULER_PORT", "8786")
+    auth_token = "default_secure_token"  # TODO: implementar token seguro
+    n_workers_str = config_vars.get("DASK_NUM_WORKERS", "auto")
+    threads_per_worker_str = config_vars.get("DASK_NUM_THREADS", "2")
 
-    # Configurações de segurança TLS
-    cert_file = project_root / "certs" / "dask_cert.pem"
-    key_file = project_root / "certs" / "dask_key.pem"
+    # Determinar número de workers
+    if n_workers_str == "auto":
+        import multiprocessing
+        n_workers = max(1, multiprocessing.cpu_count() // 2)
+    else:
+        n_workers = int(n_workers_str)
 
-    if not cert_file.exists() or not key_file.exists():
-        print(
-            f"ERRO: Arquivos de certificado TLS não encontrados em {project_root / 'certs'}"
-        )
-        print("Execute o script de instalação para gerá-los.")
-        sys.exit(1)
+    threads_per_worker = int(threads_per_worker_str)
 
-    security = {
-        "tls": {"cert": str(cert_file), "key": str(key_file)},
-        "require_encryption": True,
-        "auth": {"token": auth_token},
+    # Configurações de segurança TLS (simplificado por enquanto)
+    print("AVISO: Iniciando Dask sem TLS (segurança básica).")
+    security = None
+
+    cluster_kwargs = {
+        "n_workers": n_workers,
+        "threads_per_worker": threads_per_worker,
+        "dashboard_address": f":{dashboard_port}",
+        "scheduler_port": int(scheduler_port),
+        "processes": False,
     }
 
-    cluster = LocalCluster(
-        n_workers=n_workers,
-        threads_per_worker=threads_per_worker,
-        dashboard_address=f":{dashboard_port}",
-        scheduler_port=int(scheduler_port),
-        security=security,
-        processes=False,
-    )
+    if security is not None:
+        cluster_kwargs["security"] = security
+
+    cluster = LocalCluster(**cluster_kwargs)
 
     print(f"Cluster Dask iniciado. Pressione Ctrl+C para parar.")
     print(f"  Dashboard: https://localhost:{dashboard_port}/status")

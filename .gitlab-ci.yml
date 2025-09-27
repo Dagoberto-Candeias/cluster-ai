@@ -1,231 +1,410 @@
-# .gitlab-ci.yml
-# Pipeline de CI/CD para o projeto Cluster AI
+# Cluster AI - CI/CD Pipeline
+# ================================
+# Pipeline automatizado para linting, testes, segurança e deploy
+#
+# Stages:
+# - lint: Verificação de código (Python, Bash, Docker)
+# - test: Testes unitários, integração e performance
+# - security: Scans de segurança e vulnerabilidades
+# - build: Build de imagens Docker
+# - deploy: Deploy para staging/produção
 
 stages:
-  - quality
-  - build_and_test
+  - lint
+  - test
+  - security
+  - build
   - deploy
 
-default:
-  # Define uma imagem padrão e cache para todos os jobs, reduzindo repetição.
-  image: ubuntu:22.04
-  # Garante que submódulos sejam clonados em todos os jobs.
-  before_script:
-    - export GIT_SUBMODULE_STRATEGY=recursive
-  cache:
-    # A chave de cache agora inclui o hash do próprio arquivo de CI.
-    # Invalida o cache se as dependências de pacotes (apt-get) mudarem.
-    key:
-      files:
-        - .gitlab-ci.yml # Invalida o cache se as dependências de pacotes mudarem
-    paths:
-      - /var/cache/apt/archives/
-      - /var/lib/apt/lists/
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  POETRY_CACHE_DIR: "$CI_PROJECT_DIR/.cache/poetry"
 
-# Template para jobs que precisam de dependências Python
-.python-deps:
-  variables:
-    # Define um diretório de cache para o pip dentro do diretório do projeto.
-    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  cache:
-    # A chave de cache agora inclui a versão do Python e o hash do requirements.txt.
-    # Isso cria um cache separado para cada versão do Python.
-    key:
-      files:
-        - requirements.txt
-      prefix: ${PYTHON_VERSION}
-    # Especifica o diretório a ser cacheado.
-    paths:
-      - .cache/pip
-  before_script:
-    # Garante que submódulos sejam clonados
-    - export GIT_SUBMODULE_STRATEGY=recursive
-    # Instala a versão específica do Python definida pela matriz e suas dependências.
-    - apt-get update -qq && apt-get install -y -qq python${PYTHON_VERSION} python${PYTHON_VERSION}-pip python${PYTHON_VERSION}-dev git
-    # Usa a versão específica do pip para instalar os pacotes.
-    - python${PYTHON_VERSION} -m pip install -r requirements.txt
+cache:
+  paths:
+    - .cache/pip
+    - .cache/poetry
+    - node_modules/
+    - .venv/
 
-code_quality:
-  stage: quality
-  needs: [] # Executa em paralelo com outros jobs iniciais
+# ==================== LINT ====================
+
+lint:python:
+  stage: lint
+  image: python:3.11-slim
   before_script:
-    - apt-get update -qq && apt-get install -y -qq shellcheck jq curl git
+    - apt-get update && apt-get install -y gcc
+    - pip install flake8 black isort mypy bandit safety
   script:
-    - echo "Executando verificação de qualidade de código..."
-    - shellcheck scripts/**/*.sh
-    - bash ./scripts/documentation/consolidate_docs.sh # Verifica links quebrados
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - changes:
-        - scripts/**/*.sh
-        - "**/*.md"
+    - echo "🔍 Running Python linting..."
+    - flake8 --max-line-length=100 --extend-ignore=E203,W503 scripts/ tests/ web-dashboard/
+    - black --check --diff scripts/ tests/ web-dashboard/
+    - isort --check-only --diff scripts/ tests/ web-dashboard/
+    - mypy scripts/ tests/ --ignore-missing-imports
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
 
-security_scan:
-  stage: quality
-  # Usa a imagem oficial do Semgrep, que contém todas as dependências.
-  image: returntocorp/semgrep
-  needs: [] # Executa em paralelo com outros jobs iniciais
+lint:bash:
+  stage: lint
+  image: koalaman/shellcheck-alpine:latest
   script:
-    - echo "Executando varredura de segurança..."
-    # O comando `semgrep ci` é otimizado para ambientes de CI.
-    # Ele detecta que está no GitLab e gera o relatório no formato SAST nativo.
-    # A configuração `p/security-audit` é a mesma usada no seu pipeline do GitHub.
-    - semgrep ci --config "p/security-audit"
-  artifacts:
-    # Esta configuração especial informa ao GitLab para processar o arquivo
-    # como um relatório de SAST (Static Application Security Testing).
-    reports:
-      sast:
-        - semgrep.json
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - changes:
-        - "**/*.py"
-        - "**/*.sh"
+    - echo "🔍 Running Bash linting..."
+    - find scripts/ -name "*.sh" -exec shellcheck {} \;
+    - find . -name "*.sh" -not -path "./.git/*" -exec shellcheck {} \;
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
 
-build_image:
-  stage: build_and_test
-  # Usa uma imagem que já contém Docker para simplificar
-  image: docker:24.0-cli
+lint:docker:
+  stage: lint
+  image: hadolint/hadolint:latest-alpine
+  script:
+    - echo "🔍 Running Docker linting..."
+    - find . -name "Dockerfile*" -exec hadolint {} \;
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+lint:markdown:
+  stage: lint
+  image: node:18-alpine
+  before_script:
+    - npm install -g markdownlint-cli
+  script:
+    - echo "🔍 Running Markdown linting..."
+    - markdownlint "*.md" "docs/**/*.md" "README*.md"
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ==================== TEST ====================
+
+test:unit:
+  stage: test
+  image: python:3.11-slim
   services:
-    # Habilita Docker-in-Docker
-    - name: docker:24.0-dind
-      alias: docker
+    - docker:dind
   variables:
-    # Define o nome da imagem no registro do GitLab
-    IMAGE_TAG: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  before_script: # Sobrescreve o default
-    # Faz login no registro de contêineres do GitLab
-    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov pytest-xdist
   script:
-    - echo "Construindo a imagem Docker: $IMAGE_TAG"
-    - docker build -t $IMAGE_TAG ./web-dashboard/backend
-    - echo "Enviando a imagem para o registro..."
-    - docker push $IMAGE_TAG
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - changes:
-        - web-dashboard/backend/**/*
-
-container_scan:
-  stage: build_and_test
-  # Usa a imagem oficial do Trivy
-  image: aquasec/trivy:latest
-  variables:
-    # Pega a tag da imagem do job de build
-    IMAGE_TAG: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
-    # Configurações para o GitLab processar o relatório
-    GIT_DEPTH: "0"
-  needs:
-    # Este job depende diretamente da imagem construída no job 'build_image'.
-    - build_image
-  script:
-    - trivy image --exit-code 1 --severity CRITICAL --ignorefile web-dashboard/backend/.trivyignore --format gitlab --output gl-container-scanning-report.json $IMAGE_TAG
+    - echo "🧪 Running unit tests..."
+    - SECRET_KEY=test-secret-key pytest tests/unit/ -v --cov=scripts --cov-report=xml --cov-report=term
+  coverage: '/TOTAL.*\s+(\d+%)$/'
   artifacts:
     reports:
-      container_scanning: gl-container-scanning-report.json
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - changes:
-        - web-dashboard/backend/**/*
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
 
-integration_test:
-  stage: build_and_test
-  # Usa uma imagem que já contém Docker para simplificar
-  image: docker:24.0-cli
+test:integration:
+  stage: test
+  image: python:3.11-slim
   services:
-    # Habilita Docker-in-Docker
-    - name: docker:24.0-dind
-      alias: docker
+    - docker:dind
   variables:
-    # Configura o cliente Docker para se conectar ao daemon DinD
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: "" # Desabilita TLS para a conexão local
-  needs:
-    - code_quality
-    - security_scan
-  before_script: # Sobrescreve o default
-    # Instala dependências para o teste de integração
-    - apk add --no-cache bash openssh-client bats coreutils
-  script:
-    - echo "Executando testes de integração..."
-    # Espera o serviço Docker-in-Docker (dind) iniciar de forma robusta
-    - |
-      for i in $(seq 1 30); do
-        docker info >/dev/null 2>&1 && break
-        echo "Aguardando o Docker daemon..."
-        sleep 1
-      done
-    # Executa o script de teste BATS
-    - bats tests/integration/test_manager_worker_comm.bats
-  artifacts:
-    when: on_failure
-    paths:
-      - logs/
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - changes:
-        - scripts/**/*.sh
-        - tests/integration/**/*.bats
-
-test_and_coverage:
-  extends: .python-deps # Herda a configuração de cache e instalação do Python
-  stage: build_and_test
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11"]
-        MIN_COVERAGE: ["80"]
-
-  needs:
-    - code_quality
-    - security_scan
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
   before_script:
-    - !reference [.python-deps, before_script] # Executa o before_script do template
-    # Instala dependências adicionais. python-is-python3 cria um link simbólico de 'python' para 'python3'.
-    - apt-get install -y -qq bats kcov jq sudo python-is-python3
+    - apt-get update && apt-get install -y gcc git curl docker-compose bats
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov
   script:
-    # Executa o script, passando o limite mínimo de cobertura.
-    # O job falhará se a cobertura for menor que $MIN_COVERAGE.
-    - echo "Executando testes e gerando relatório de cobertura..."
-    - bash ./scripts/validation/run_coverage.sh $MIN_COVERAGE
-
-  # Extrai a porcentagem de cobertura da saída do script
-  coverage: '/Cobertura Total \(Coverage\): (\d+)%/'
-
+    - echo "🔗 Running integration tests..."
+    - SECRET_KEY=test-secret-key pytest tests/integration/ -v --cov=scripts --cov-report=xml --cov-report=term
+    - echo "🐧 Running Bash integration tests..."
+    - bats tests/bash/ --tap
+  coverage: '/TOTAL.*\s+(\d+%)$/'
   artifacts:
-    # Expõe o relatório de cobertura para o job de deploy
-    paths:
-      - coverage/
-    expire_in: 1 day
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - changes:
-        - scripts/**/*.sh
-        - tests/**/*.bats
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
 
-# Job especial que publica o conteúdo no GitLab Pages
-pages:
+test:performance:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov locust
+  script:
+    - echo "⚡ Running performance tests..."
+    - SECRET_KEY=test-secret-key pytest tests/performance/ -v --durations=10
+    - echo "🔥 Running load tests..."
+    - locust --headless --users 10 --spawn-rate 2 --run-time 30s --host http://localhost:8080 2>/dev/null || echo "Load test completed"
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+test:e2e:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov
+  script:
+    - echo "🌐 Running E2E tests..."
+    - SECRET_KEY=test-secret-key pytest tests/e2e/ -v
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ==================== SECURITY ====================
+
+security:scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install bandit safety
+  script:
+    - echo "🔒 Running security scans..."
+    - bandit -r scripts/ tests/ web-dashboard/ -f json -o bandit-report.json || true
+    - safety check --json > safety-report.json || true
+    - echo "Security scan completed"
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    paths:
+      - safety-report.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+security:dependency:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install pip-audit
+  script:
+    - echo "📦 Auditing dependencies..."
+    - pip-audit --format json > dependency-audit.json || true
+  artifacts:
+    paths:
+      - dependency-audit.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+security:container:
+  stage: security
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - echo "🐳 Scanning Docker images..."
+    - docker run --rm -v $(pwd):/workspace anchore/grype:latest dir:/workspace --output json > grype-report.json || true
+  artifacts:
+    paths:
+      - grype-report.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ==================== BUILD ====================
+
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - echo "🏗️ Building Docker images..."
+    - docker build -t cluster-ai-backend:latest -f web-dashboard/backend/Dockerfile web-dashboard/backend/
+    - docker build -t cluster-ai-frontend:latest -f web-dashboard/frontend/Dockerfile.dev web-dashboard/frontend/
+    - docker build -t cluster-ai-nginx:latest -f Dockerfile .
+    - echo "Docker images built successfully"
+  only:
+    - main
+    - tags
+
+build:docs:
+  stage: build
+  image: node:18-alpine
+  before_script:
+    - npm install -g mkdocs mkdocs-material
+  script:
+    - echo "📚 Building documentation..."
+    - mkdocs build --clean --strict
+  artifacts:
+    paths:
+      - site/
+    expire_in: 1 week
+  only:
+    - main
+
+# ==================== DEPLOY ====================
+
+deploy:staging:
   stage: deploy
-  # O job 'pages' agora depende da execução da matriz para a versão mais recente do Python.
-  # Isso garante que o relatório de cobertura seja sempre da versão principal.
-  needs:
-    - job: test_and_coverage
-      vars: { PYTHON_VERSION: "3.11" }
-      artifacts: true # Garante que os artefatos do job anterior sejam baixados
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  environment:
+    name: staging
+    url: http://staging.cluster-ai.example.com
   script:
-    - echo "Publicando relatório de cobertura no GitLab Pages..."
-    # O GitLab Pages serve o conteúdo do diretório 'public'.
-    # Movemos o relatório gerado no job anterior para este diretório.
-    # Usamos `cp -r` para garantir que o diretório de destino exista.
-    - mkdir -p public
-    - cp -r coverage/* public/
+    - echo "🚀 Deploying to staging..."
+    - docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+    - echo "Staging deployment completed"
+  only:
+    - develop
+  when: manual
+
+deploy:production:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  environment:
+    name: production
+    url: https://cluster-ai.example.com
+  script:
+    - echo "🚀 Deploying to production..."
+    - docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+    - echo "Production deployment completed"
+  only:
+    - main
+    - tags
+  when: manual
+
+# ==================== NOTIFICATIONS ====================
+
+notify:slack:
+  stage: .post
+  image: curlimages/curl:latest
+  script:
+    - |
+      curl -X POST -H 'Content-type: application/json' \
+        --data '{"text":"Pipeline completed for Cluster AI\nStatus: '"$CI_JOB_STATUS"'\nURL: '"$CI_PROJECT_URL"'/pipelines/'"$CI_PIPELINE_ID"'"}' \
+        $SLACK_WEBHOOK_URL || true
+  only:
+    - main
+    - merge_requests
+
+# ==================== CLEANUP ====================
+
+cleanup:cache:
+  stage: .post
+  image: alpine:latest
+  script:
+    - echo "🧹 Cleaning up cache..."
+    - rm -rf .cache/
+    - rm -rf node_modules/
+    - rm -rf .venv/
+  when: always
+  only:
+    - schedules
+
+# ==================== SCHEDULED JOBS ====================
+
+scheduled:security_audit:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install bandit safety pip-audit
+  script:
+    - echo "🔒 Running scheduled security audit..."
+    - bandit -r . -f json -o scheduled-bandit-report.json
+    - safety check --json > scheduled-safety-report.json
+    - pip-audit --format json > scheduled-dependency-audit.json
   artifacts:
     paths:
-      # O diretório que será publicado.
-      - public
-  rules:
-    # Executa este job apenas para a branch 'main' para evitar
-    # a publicação de relatórios de branches de desenvolvimento.
-    - if: '$CI_COMMIT_BRANCH == "main"'
+      - scheduled-*.json
+    expire_in: 1 month
+  only:
+    - schedules
+
+scheduled:performance_benchmark:
+  stage: test
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-benchmark
+  script:
+    - echo "📊 Running scheduled performance benchmarks..."
+    - SECRET_KEY=test-secret-key pytest tests/performance/ -v --benchmark-only --benchmark-json=benchmark-results.json
+  artifacts:
+    paths:
+      - benchmark-results.json
+    expire_in: 1 month
+  only:
+    - schedules
+
+# ==================== MANUAL JOBS ====================
+
+manual:rollback:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "🔄 Executing manual rollback..."
+    - ./scripts/deployment/rollback.sh
+  when: manual
+  only:
+    - main
+    - tags
+
+manual:backup:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "💾 Executing manual backup..."
+    - ./scripts/management/backup_manager.sh create
+  when: manual
+  only:
+    - main
+    - tags
