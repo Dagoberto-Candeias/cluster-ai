@@ -1,0 +1,186 @@
+# Arquivo de Configuração do Cluster AI
+# Este arquivo contém todas as configurações do sistema Cluster AI
+# Copie este arquivo para cluster.conf e ajuste as configurações conforme necessário
+
+# ==================== CONFIGURAÇÕES GERAIS ====================
+
+# Diretório raiz do projeto (não alterar)
+PROJECT_ROOT="/home/dcm/Projetos/cluster-ai"
+
+# Arquivo de configuração (não alterar)
+CONFIG_FILE="${PROJECT_ROOT}/cluster.conf"
+
+# Diretório de logs
+LOG_DIR="${PROJECT_ROOT}/logs"
+
+# Diretório de backups
+BACKUP_DIR="${PROJECT_ROOT}/backups"
+
+# ==================== CONFIGURAÇÕES DO CLUSTER ====================
+
+# Papel desta máquina no cluster
+# Valores possíveis: server, workstation, worker
+CLUSTER_ROLE="server"
+
+# IP do servidor principal do cluster
+# Para servidor: usar IP local da máquina
+# Para workers/estações: usar IP do servidor principal
+CLUSTER_SERVER_IP="192.168.1.100"
+
+# Nome identificador desta máquina no cluster
+CLUSTER_MACHINE_NAME="cluster-node-01"
+
+# ==================== CONFIGURAÇÕES DO OLLAMA ====================
+
+# Host onde o Ollama escutará (0.0.0.0 para todas as interfaces)
+OLLAMA_HOST="0.0.0.0"
+
+# Porta do Ollama
+OLLAMA_PORT="11434"
+
+# Número de camadas GPU para modelos (auto para detecção automática)
+OLLAMA_NUM_GPU_LAYERS="auto"
+
+# Número máximo de modelos carregados simultaneamente
+OLLAMA_MAX_LOADED_MODELS="3"
+
+# Tempo de keep-alive para modelos
+OLLAMA_KEEP_ALIVE="6h"
+
+# Modelos padrão para instalação automática
+OLLAMA_DEFAULT_MODELS=("llama2" "codellama" "mistral" "phi" "gemma")
+
+# ==================== CONFIGURAÇÕES DO DASK ====================
+
+# Porta do scheduler Dask
+DASK_SCHEDULER_PORT="8786"
+
+# Porta do dashboard Dask
+DASK_DASHBOARD_PORT="8787"
+
+# Número de workers (auto para detecção automática baseada em CPU)
+DASK_NUM_WORKERS="auto"
+
+# Número de threads por worker
+DASK_NUM_THREADS="2"
+
+# Limite de memória por worker (ex: "2GB", "4GB")
+DASK_MEMORY_LIMIT="auto"
+
+# ==================== CONFIGURAÇÕES DO AMBIENTE PYTHON ====================
+
+# Diretório do ambiente virtual Python
+VENV_DIR="${PROJECT_ROOT}/.venv"
+
+# Versão do Python (para criação do ambiente)
+PYTHON_VERSION="python3"
+
+# Pacotes Python essenciais (instalados automaticamente)
+PYTHON_PACKAGES=("dask[complete]" "distributed" "numpy" "pandas" "scipy" "mpi4py" 
+                 "jupyterlab" "requests" "dask-ml" "scikit-learn" "torch" "torchvision" 
+                 "torchaudio" "transformers" "fastapi" "uvicorn")
+
+# ==================== CONFIGURAÇÕES DO DOCKER ====================
+
+# Porta do OpenWebUI
+OPENWEBUI_PORT="3000"
+
+# Diretório de dados do OpenWebUI
+OPENWEBUI_DATA_DIR="${PROJECT_ROOT}/data/openwebui"
+
+# Imagem do OpenWebUI
+OPENWEBUI_IMAGE="ghcr.io/open-webui/open-webui:v0.6.30"
+
+# ==================== CONFIGURAÇÕES DE SEGURANÇA ====================
+
+# Portas abertas no firewall
+FIREWALL_PORTS=("22" "80" "443" "8786" "8787" "11434" "3000")
+
+# Usuário do sistema para execução dos serviços
+SERVICE_USER="dcm"
+
+# Grupo do sistema para execução dos serviços
+SERVICE_GROUP="dcm"
+
+# ==================== CONFIGURAÇÕES DE MONITORAMENTO ====================
+
+# Intervalo de verificação de recursos (segundos)
+MONITOR_CHECK_INTERVAL="60"
+
+# Limite de CPU para alertas (porcentagem)
+CPU_ALERT_THRESHOLD="90"
+
+# Limite de memória para alertas (porcentagem)
+MEMORY_ALERT_THRESHOLD="85"
+
+# Limite de disco para alertas (porcentagem)
+DISK_ALERT_THRESHOLD="90"
+
+# Email para receber alertas (deixe vazio para desativar)
+ALERT_EMAIL=""
+
+# ==================== CONFIGURAÇÕES DE BACKUP ====================
+
+# Intervalo de backup automático (dias)
+BACKUP_INTERVAL_DAYS="7"
+
+# Número de backups a manter
+BACKUP_RETENTION_COUNT="5"
+
+# Incluir dados do Ollama nos backups
+BACKUP_INCLUDE_OLLAMA="true"
+
+# Incluir dados do OpenWebUI nos backups
+BACKUP_INCLUDE_OPENWEBUI="true"
+
+# Incluir ambiente virtual nos backups
+BACKUP_INCLUDE_VENV="false"
+
+# ==================== CONFIGURAÇÕES DE REDE ====================
+
+# Interface de rede preferida (deixe vazio para auto-detecção)
+PREFERRED_NETWORK_INTERFACE=""
+
+# MTU da rede (0 para padrão do sistema)
+NETWORK_MTU="0"
+
+# Timeout de conexão (segundos)
+NETWORK_TIMEOUT="30"
+
+# ==================== CONFIGURAÇÕES DE PERFORMANCE ====================
+
+# Swappiness do sistema (0-100)
+SYS_SWAPPINESS="10"
+
+# Limite de arquivos abertos
+SYS_FILE_MAX="2097152"
+
+# Limite de conexões simultâneas
+SYS_SOMAXCONN="65535"
+
+# Backlog TCP máximo
+SYS_TCP_MAX_SYN_BACKLOG="65535"
+
+# ==================== CONFIGURAÇÕES DE LOG ====================
+
+# Nível de log (debug, info, warn, error)
+LOG_LEVEL="info"
+
+# Rotação de logs (dias)
+LOG_RETENTION_DAYS="30"
+
+# Tamanho máximo do arquivo de log (MB)
+LOG_MAX_SIZE_MB="100"
+
+# Compactar logs antigos
+LOG_COMPRESS_OLD="true"
+
+# ==================== INSTRUÇÕES ====================
+
+# 1. Copie este arquivo: cp cluster.conf.example cluster.conf
+# 2. Edite o cluster.conf com suas configurações específicas
+# 3. Execute o instalador: ./install.sh
+# 4. Gerencie o cluster: ./manager.sh
+
+# Nota: Este arquivo é carregado automaticamente por todos os scripts do Cluster AI
+# As variáveis aqui definidas estão disponíveis globalmente após executar load_config()

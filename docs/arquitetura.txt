@@ -1,0 +1,137 @@
+# 🏗️ Arquitetura do Cluster AI
+
+## Visão Geral
+
+O Cluster AI é um sistema distribuído de processamento de IA que utiliza Dask para computação paralela, Ollama para execução local de modelos de IA, e OpenWebUI para interface web. O sistema é projetado para ser modular, escalável e fácil de usar.
+
+## Componentes Principais
+
+### 1. Servidor Principal
+- **Dask Scheduler**: Coordena tarefas distribuídas entre workers
+- **Ollama Server**: Hospeda modelos de IA localmente
+- **OpenWebUI**: Interface web para interação com modelos
+- **Nginx Proxy**: Balanceamento de carga e proxy reverso
+- **Manager Script**: Orquestração e gerenciamento de todos os serviços
+
+### 2. Workers
+- **Workers Locais**: Máquinas na mesma rede executando dask-worker
+- **Workers Remotos**: Máquinas remotas acessíveis via SSH
+- **Workers Android**: Dispositivos Android via Termux
+- **Workers GPU**: Otimizados para aceleração de IA
+
+### 3. Modelos de IA
+- **Ollama Models**: Modelos executados localmente
+- **Categorização**: Por tamanho, tipo e especialidade
+- **Instalação Automática**: Scripts para download e configuração
+
+## Fluxo de Dados
+
+```
+Usuário → OpenWebUI → Ollama API → Modelo de IA → Resposta
+                    ↓
+            Dask Scheduler → Workers → Processamento Paralelo
+```
+
+## Arquitetura de Rede
+
+```
+Internet
+    ↓
+[Nginx Proxy] (porta 80/443)
+    ↓
+[OpenWebUI] (porta 3000) ← Interface Web
+[Ollama API] (porta 11434) ← Modelos de IA
+[Dask Dashboard] (porta 8787) ← Monitoramento
+[Dask Scheduler] (porta 8786) ← Coordenação
+    ↓
+[Workers] ← Processamento Distribuído
+```
+
+## Segurança
+
+- **Autenticação SSH**: Chaves RSA para acesso remoto
+- **Validação de Entrada**: Sanitização de dados
+- **Auditoria**: Logs detalhados de operações
+- **Controle de Acesso**: Baseado em roles e usuários
+
+## Escalabilidade
+
+- **Horizontal**: Adicionar mais workers conforme necessidade
+- **Vertical**: Otimizar recursos dos workers existentes
+- **Geográfica**: Workers em diferentes locais via VPN
+- **Heterogênea**: Mistura de CPUs, GPUs e dispositivos móveis
+
+## Persistência de Dados
+
+- **Modelos**: Armazenados em /opt/ollama ou ~/.ollama
+- **Configurações**: Arquivos .conf e .json
+- **Logs**: Rotação automática e backup
+- **Backups**: Sistema completo de backup e restauração
+
+## Monitoramento
+
+- **Dask Dashboard**: Status em tempo real do cluster
+- **Resource Monitor**: Uso de CPU, memória e disco
+- **Health Checks**: Verificação automática de serviços
+- **Alertas**: Notificações por email e desktop
+
+## Instalação Plug-and-Play
+
+### Workers Android
+1. Instalar Termux no dispositivo
+2. Executar script de instalação automática
+3. Worker se registra automaticamente no cluster
+
+### Workers Linux
+1. Executar script de descoberta automática
+2. Configuração SSH automática
+3. Registro no cluster principal
+
+## Categorias de Modelos
+
+### Por Tamanho
+- **Pequenos** (< 2GB): Llama 2 7B, Mistral 7B
+- **Médios** (2-7GB): Llama 2 13B, CodeLlama 7B
+- **Grandes** (7-15GB): Llama 2 70B, Mixtral 8x7B
+- **Enormes** (> 15GB): Modelos especializados
+
+### Por Tipo
+- **Texto**: Geração e compreensão de texto
+- **Código**: Programação e desenvolvimento
+- **Multimodal**: Texto + imagens
+- **Especializados**: Matemática, medicina, etc.
+
+### Por Especialidade
+- **Geral**: Uso cotidiano
+- **Programação**: Desenvolvimento de software
+- **Criativo**: Arte e escrita
+- **Analítico**: Análise de dados
+- **Educacional**: Ensino e aprendizado
+
+## Otimização de Recursos
+
+### CPU Workers
+- Foco em tarefas paralelas leves
+- Otimização para múltiplos núcleos
+- Eficiência energética
+
+### GPU Workers
+- Aceleração de modelos de IA
+- Processamento de dados grandes
+- Treinamento de modelos
+
+### Android Workers
+- Expansão do cluster móvel
+- Processamento distribuído
+- Backup de recursos
+
+## Backup e Recuperação
+
+- **Configurações**: Backup automático diário
+- **Modelos**: Sincronização entre workers
+- **Dados**: Persistência em volumes Docker
+- **Restauração**: Scripts automatizados
+
+## Conclusão
+
+A arquitetura do Cluster AI foi projetada para ser flexível, escalável e fácil de manter. Cada componente tem responsabilidades claras e se integra perfeitamente com os outros, permitindo expansão e otimização conforme as necessidades do usuário.

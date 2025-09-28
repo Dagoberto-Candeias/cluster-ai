@@ -1,0 +1,24 @@
+RELATÓRIO COMPLETO DE ANÁLISE - CLUSTER AI
+============================================
+
+Data: dom 31 ago 2025 01:17:52 -03
+Hostname: note-dago
+Uptime: up 18 hours, 40 minutes
+
+RESUMO EXECUTIVO:
+================
+Sistema:
+  CPU: %
+  Memória: 47% (8690616MB / 18357436MB)
+  Disco: 25%
+
+Serviços:
+  Ollama: ATIVO
+  Dask: INATIVO
+  WebUI: INATIVO
+
+Para relatórios detalhados, execute:
+  ./log_analyzer.sh alerts    - Análise de alertas
+  ./log_analyzer.sh performance - Análise de performance
+  ./log_analyzer.sh errors    - Análise de erros
+  ./log_analyzer.sh resources - Análise de recursos

@@ -1,0 +1,206 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-gpu-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: gpu-config
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  nvidia-container-runtime: |
+    {
+      "runtimes": {
+        "nvidia": {
+          "path": "nvidia-container-runtime",
+          "runtimeArgs": []
+        }
+      },
+      "default-runtime": "nvidia"
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-cuda-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: cuda-config
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  cuda-env.sh: |
+    #!/bin/bash
+    export CUDA_HOME=/usr/local/cuda
+    export PATH=$CUDA_HOME/bin:$PATH
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+    export CUDA_VISIBLE_DEVICES=0,1,2,3
+    export NVIDIA_VISIBLE_DEVICES=all
+    export NVIDIA_DRIVER_CAPABILITIES=compute,utility
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cluster-ai-nvidia-device-plugin
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: nvidia-device-plugin
+    app.kubernetes.io/component: gpu
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nvidia-device-plugin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nvidia-device-plugin
+        app.kubernetes.io/component: gpu
+    spec:
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        accelerator: nvidia-tesla-k80
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: nvidia-device-plugin
+        image: nvcr.io/nvidia/k8s-device-plugin:v0.14.1
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: device-plugin
+          mountPath: /var/lib/kubelet/device-plugins
+        - name: dev
+          mountPath: /dev
+      volumes:
+      - name: device-plugin
+        hostPath:
+          path: /var/lib/kubelet/device-plugins
+      - name: dev
+        hostPath:
+          path: /dev
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-ai-gpu-monitor
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: gpu-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-ai-gpu-monitor
+  labels:
+    app.kubernetes.io/name: gpu-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-ai-gpu-monitor
+  labels:
+    app.kubernetes.io/name: gpu-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-ai-gpu-monitor
+subjects:
+- kind: ServiceAccount
+  name: cluster-ai-gpu-monitor
+  namespace: cluster-ai
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-gpu-monitor
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: gpu-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gpu-monitor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gpu-monitor
+        app.kubernetes.io/component: monitoring
+    spec:
+      serviceAccountName: cluster-ai-gpu-monitor
+      containers:
+      - name: dcgm-exporter
+        image: nvcr.io/nvidia/k8s/dcgm-exporter:3.1.7-1-ubuntu20.04
+        ports:
+        - containerPort: 9400
+          name: metrics
+        env:
+        - name: DCGM_EXPORTER_LISTEN
+          value: ":9400"
+        - name: DCGM_EXPORTER_KUBERNETES
+          value: "true"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - name: pod-gpu-resources
+          mountPath: /var/lib/kubelet/pod-resources
+          readOnly: true
+      volumes:
+      - name: pod-gpu-resources
+        hostPath:
+          path: /var/lib/kubelet/pod-resources
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-gpu-monitor
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: gpu-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  ports:
+  - name: metrics
+    port: 9400
+    targetPort: 9400
+  selector:
+    app.kubernetes.io/name: gpu-monitor
+  type: ClusterIP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cluster-ai-gpu-monitor
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: gpu-monitor
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gpu-monitor
+  endpoints:
+  - port: metrics
+    interval: 15s

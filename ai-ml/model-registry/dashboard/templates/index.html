@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="fas fa-tachometer-alt"></i> Dashboard do Model Registry</h1>
+                <p class="text-muted">Visão geral dos modelos registrados no sistema</p>
+            </div>
+            <div>
+                <a href="/register" class="btn btn-primary btn-lg">
+                    <i class="fas fa-plus"></i> Registrar Novo Modelo
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title"><i class="fas fa-brain"></i> Total de Modelos</h5>
+                        <h2 class="mb-0">{{ stats.total_models or 0 }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-brain fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title"><i class="fas fa-code-branch"></i> Frameworks</h5>
+                        <h2 class="mb-0">{{ stats.frameworks|length or 0 }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-code-branch fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title"><i class="fas fa-hdd"></i> Espaço Usado</h5>
+                        <h4 class="mb-0">{{ stats.total_size|default(0)|format_size }}</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-hdd fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title"><i class="fas fa-clock"></i> Último Registro</h5>
+                        <h6 class="mb-0">{{ stats.last_updated|default('Nunca')|format_datetime }}</h6>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modelos Recentes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-clock"></i> Modelos Recentes</h5>
+            </div>
+            <div class="card-body">
+                {% if models %}
+                    <div class="row">
+                        {% for model in models[:6] %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card model-card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0">{{ model.name }}</h6>
+                                        <span class="badge bg-primary framework-badge">{{ model.framework }}</span>
+                                    </div>
+                                    <p class="card-text small text-muted">
+                                        <i class="fas fa-tag"></i> v{{ model.version }}<br>
+                                        <i class="fas fa-calendar"></i> {{ model.created_at|format_datetime }}<br>
+                                        <i class="fas fa-hdd"></i> {{ model.size|format_size }}
+                                    </p>
+                                    <div class="d-flex justify-content-between">
+                                        <a href="/model/{{ model.name }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> Ver Detalhes
+                                        </a>
+                                        <small class="text-muted">{{ model.description|truncate(30) or 'Sem descrição' }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if models|length > 6 %}
+                    <div class="text-center mt-3">
+                        <a href="/models" class="btn btn-outline-primary">
+                            <i class="fas fa-list"></i> Ver Todos os Modelos ({{ models|length }})
+                        </a>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-brain fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhum modelo registrado</h5>
+                        <p class="text-muted">Comece registrando seu primeiro modelo de ML</p>
+                        <a href="/register" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Registrar Primeiro Modelo
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bolt"></i> Ações Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="/register" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="fas fa-plus"></i><br>Registrar Modelo
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/models" class="btn btn-outline-secondary w-100 mb-2">
+                            <i class="fas fa-list"></i><br>Listar Modelos
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-outline-info w-100 mb-2" onclick="refreshStats()">
+                            <i class="fas fa-sync"></i><br>Atualizar Stats
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="https://github.com/Dagoberto-Candeias/cluster-ai/tree/main/ai-ml/model-registry" target="_blank" class="btn btn-outline-dark w-100 mb-2">
+                            <i class="fab fa-github"></i><br>Ver no GitHub
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Uso da API -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-code"></i> Uso Programático</h5>
+            </div>
+            <div class="card-body">
+                <p>Use a API do Model Registry em seu código Python:</p>
+                <div class="code-snippet">
+from ai_ml.model_registry import ModelRegistry
+
+# Inicializar registry
+registry = ModelRegistry()
+
+# Registrar modelo
+registry.register_model(
+    model_path="/path/to/model.pth",
+    name="meu_modelo",
+    framework="pytorch",
+    version="1.0.0"
+)
+
+# Carregar modelo
+model = registry.load_model("meu_modelo")
+
+# Listar modelos
+models = registry.list_models()
+                </div>
+                <div class="mt-3">
+                    <a href="/api/models" target="_blank" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-external-link-alt"></i> Ver API JSON
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshStats() {
+    location.reload();
+}
+</script>
+{% endblock %}

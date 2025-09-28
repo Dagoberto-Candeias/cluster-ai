@@ -1,0 +1,132 @@
+# Storage Replication Configuration for Cross-Cluster PVC
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: storage-replication-config
+  namespace: default
+data:
+  config.yaml: |
+    # Storage replication configuration
+    replication:
+      enabled: true
+      sync_interval: "30s"
+      max_sync_retries: 3
+      compression: "gzip"
+      encryption: "aes256"
+    clusters:
+      - name: aws-cluster
+        storage_class: "local-storage"
+        backup_path: "/data/backups/aws"
+      - name: gcp-cluster
+        storage_class: "local-storage"
+        backup_path: "/data/backups/gcp"
+      - name: azure-cluster
+        storage_class: "local-storage"
+        backup_path: "/data/backups/azure"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-data-pvc
+  namespace: default
+  annotations:
+    replication.storage.kubernetes.io/replicate-to: "gcp-cluster,azure-cluster"
+    replication.storage.kubernetes.io/sync-interval: "30s"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-storage
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storage-replicator
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storage-replicator
+  template:
+    metadata:
+      labels:
+        app: storage-replicator
+    spec:
+      containers:
+      - name: replicator
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            echo "🔄 Syncing storage data..."
+            # Simulate storage sync
+            date > /data/sync.log
+            echo "Storage sync completed at $(date)" >> /data/sync.log
+            sleep 30
+          done
+        volumeMounts:
+        - name: shared-data
+          mountPath: /data
+        - name: config
+          mountPath: /etc/replication
+      volumes:
+      - name: shared-data
+        persistentVolumeClaim:
+          claimName: shared-data-pvc
+      - name: config
+        configMap:
+          name: storage-replication-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storage-replicator-service
+  namespace: default
+spec:
+  selector:
+    app: storage-replicator
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: storage-backup-job
+  namespace: default
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: busybox:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "📦 Creating storage backup..."
+              tar -czf /backup/storage-backup-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
+              echo "✅ Backup completed"
+            volumeMounts:
+            - name: shared-data
+              mountPath: /data
+            - name: backup-volume
+              mountPath: /backup
+          volumes:
+          - name: shared-data
+            persistentVolumeClaim:
+              claimName: shared-data-pvc
+          - name: backup-volume
+            hostPath:
+              path: /tmp/backups
+              type: DirectoryOrCreate
+          restartPolicy: OnFailure

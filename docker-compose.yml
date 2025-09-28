@@ -1,0 +1,154 @@
+services:
+  # O serviço do frontend é definido no override para desenvolvimento
+  # e no de produção (via Nginx) para produção.
+
+  frontend:
+    build:
+      context: ./web-dashboard/frontend
+      dockerfile: Dockerfile.dev
+    networks:
+      - cluster-ai-network
+
+  backend:
+    build:
+      context: ./web-dashboard/backend
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cluster-ai-network
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - cluster-ai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cluster_ai_db}
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_postgres_password_change_me}
+      POSTGRES_HOST_AUTH_METHOD: trust # Permite conexões sem senha dentro da rede Docker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cluster-ai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-cluster_ai_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - cluster-ai-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - cluster-ai-network
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - cluster-ai-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - cluster-ai-network
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    volumes:
+      - ./monitoring/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      - ./monitoring/pipeline.yml:/usr/share/logstash/config/pipeline.yml:ro
+      - ./monitoring/jvm.options:/usr/share/logstash/config/jvm.options:ro
+      - logstash_data:/usr/share/logstash/data
+    environment:
+      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "LOGSTASH_JAVA_OPTS=-Dls.cgroup.cpuacct.path.override=/ -Dls.cgroup.cpuset.path.override=/"
+      - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+      - "MONITORING_ENABLED=true"
+      - "MONITORING_ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+    ports:
+      - "5044:5044"  # Beats input
+      - "5001:5000"  # TCP input
+      - "8083:8083"  # HTTP input
+      - "9600:9600"  # Logstash monitoring API
+    networks:
+      - cluster-ai-network
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600/_node/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    networks:
+      - cluster-ai-network
+
+  # Rollback service for emergency recovery
+  rollback:
+    image: alpine:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/deployment/rollback.sh:/rollback.sh
+    command: ["sh", "/rollback.sh"]
+    networks:
+      - cluster-ai-network
+    profiles:
+      - rollback
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+  logstash_data:
+  certbot_certs:
+
+networks:
+  cluster-ai-network:
+    driver: bridge

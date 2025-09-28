@@ -1,0 +1,10 @@
+# Dependências para a suíte de testes do Cluster AI
+
+pytest
+pytest-cov  # Para cobertura de código
+pytest-html # Para relatórios HTML
+pytest-xdist # Para execução paralela
+pytest-timeout # Para definir tempo limite nos testes
+pytest-benchmark # Para testes de performance
+flake8 # Para linting
+black # Para formatação de código

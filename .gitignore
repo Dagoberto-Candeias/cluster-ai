@@ -1,0 +1,153 @@
+# Cluster AI specific
+cluster_env/
+cluster_backups/
+cluster_docs/
+.cluster_role
+cluster_swap/
+cluster_cache/
+
+# Ollama
+.olloma/models/
+.olloma/tmp/
+.olloma/cache/
+
+# Docker
+open-webui/
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+*.log.*
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+cluster-ai-env/
+demo_venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+*.tmproj
+*.tmproject
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Test files
+test_results/
+coverage.xml
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Development
+.devcontainer/
+
+# SSH public key (local worker)
+worker_id_rsa.pub
+
+# Security and sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+certs/
+keys/
+secrets/
+.env
+.env.local
+.env.*.local
+
+# Private keys and certificates
+*_key.pem
+*_key.key
+ssl/
+tls/
+
+# Logs específicos do ambiente local
+logs/dask_scheduler.log
+logs/install_*.log
+
+# Backups de configuração
+cluster.conf.backup
+config/cluster.conf.backup
+
+# Run directory (process IDs, sockets, etc.)
+run/
+*.pid
+*.sock
+
+# Additional security
+*.p8
+*.jks
+*.keystore
+*.pyc

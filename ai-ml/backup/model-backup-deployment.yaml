@@ -1,0 +1,247 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-ai-model-backup
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-backup
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: model-backup
+            image: python:3.11-slim
+            command:
+            - python
+            - /scripts/backup_models.py
+            env:
+            - name: BACKUP_BUCKET
+              value: "cluster-ai-models-backup"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-ai-backup-secret
+                  key: aws_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-ai-backup-secret
+                  key: aws_secret_access_key
+            volumeMounts:
+            - name: model-storage
+              mountPath: /models
+            - name: backup-script
+              mountPath: /scripts
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: cluster-ai-models-pvc
+          - name: backup-script
+            configMap:
+              name: cluster-ai-model-backup-config
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-model-backup-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-backup
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  backup_models.py: |
+    #!/usr/bin/env python3
+    import boto3
+    import os
+    import tarfile
+    import hashlib
+    from datetime import datetime
+    import logging
+    import redis
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    class ModelBackup:
+        def __init__(self):
+            self.s3_client = boto3.client('s3')
+            self.bucket_name = os.getenv('BACKUP_BUCKET', 'cluster-ai-models-backup')
+            self.model_dir = "/models"
+
+            # Redis connection for registry
+            self.redis = redis.Redis(
+                host='cluster-ai-model-cache',
+                password=os.getenv('REDIS_PASSWORD', ''),
+                decode_responses=True
+            )
+
+        def calculate_checksum(self, file_path):
+            """Calculate SHA256 checksum of file"""
+            sha256 = hashlib.sha256()
+            with open(file_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    sha256.update(chunk)
+            return sha256.hexdigest()
+
+        def create_backup_archive(self, model_files):
+            """Create compressed archive of model files"""
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            archive_name = f"models_backup_{timestamp}.tar.gz"
+            archive_path = f"/tmp/{archive_name}"
+
+            try:
+                with tarfile.open(archive_path, "w:gz") as tar:
+                    for model_file in model_files:
+                        if os.path.exists(model_file):
+                            tar.add(model_file, arcname=os.path.basename(model_file))
+                            logger.info(f"Added {model_file} to backup")
+
+                return archive_path, archive_name
+
+            except Exception as e:
+                logger.error(f"Error creating backup archive: {e}")
+                return None, None
+
+        def upload_to_s3(self, file_path, s3_key):
+            """Upload file to S3"""
+            try:
+                self.s3_client.upload_file(file_path, self.bucket_name, s3_key)
+                logger.info(f"Uploaded {s3_key} to S3")
+                return True
+
+            except Exception as e:
+                logger.error(f"Error uploading to S3: {e}")
+                return False
+
+        def get_model_files(self):
+            """Get list of model files to backup"""
+            model_files = []
+
+            # Get model files from directory
+            for filename in os.listdir(self.model_dir):
+                if filename.endswith(('.pt', '.pth', '.onnx', '.mar', '.pb')):
+                    model_files.append(os.path.join(self.model_dir, filename))
+
+            # Get registered models from Redis
+            try:
+                keys = self.redis.keys('model_registry:*:*')
+                for key in keys:
+                    if not key.endswith(':latest'):
+                        import json
+                        model_data = self.redis.get(key)
+                        if model_data:
+                            model_info = json.loads(model_data)
+                            model_path = model_info.get('path')
+                            if model_path and os.path.exists(model_path):
+                                model_files.append(model_path)
+
+            except Exception as e:
+                logger.error(f"Error getting registered models: {e}")
+
+            return list(set(model_files))  # Remove duplicates
+
+        def cleanup_old_backups(self, keep_days=30):
+            """Clean up old backups from S3"""
+            try:
+                # List objects in bucket
+                response = self.s3_client.list_objects_v2(Bucket=self.bucket_name)
+
+                if 'Contents' in response:
+                    current_time = datetime.now()
+
+                    for obj in response['Contents']:
+                        # Check if backup is older than keep_days
+                        if (current_time - obj['LastModified']).days > keep_days:
+                            self.s3_client.delete_object(
+                                Bucket=self.bucket_name,
+                                Key=obj['Key']
+                            )
+                            logger.info(f"Deleted old backup: {obj['Key']}")
+
+            except Exception as e:
+                logger.error(f"Error cleaning up old backups: {e}")
+
+        def backup_models(self):
+            """Main backup function"""
+            try:
+                logger.info("Starting model backup process")
+
+                # Get model files
+                model_files = self.get_model_files()
+                if not model_files:
+                    logger.info("No model files found to backup")
+                    return
+
+                logger.info(f"Found {len(model_files)} model files to backup")
+
+                # Create backup archive
+                archive_path, archive_name = self.create_backup_archive(model_files)
+                if not archive_path:
+                    return
+
+                # Upload to S3
+                s3_key = f"backups/{archive_name}"
+                if self.upload_to_s3(archive_path, s3_key):
+                    logger.info("Backup completed successfully")
+
+                    # Create backup metadata
+                    metadata = {
+                        'timestamp': datetime.now().isoformat(),
+                        'files': len(model_files),
+                        'size': os.path.getsize(archive_path),
+                        'checksum': self.calculate_checksum(archive_path)
+                    }
+
+                    # Upload metadata
+                    metadata_key = f"backups/{archive_name}.metadata.json"
+                    import json
+                    self.s3_client.put_object(
+                        Bucket=self.bucket_name,
+                        Key=metadata_key,
+                        Body=json.dumps(metadata)
+                    )
+
+                # Cleanup local archive
+                if os.path.exists(archive_path):
+                    os.remove(archive_path)
+
+                # Cleanup old backups
+                self.cleanup_old_backups()
+
+                logger.info("Model backup process completed")
+
+            except Exception as e:
+                logger.error(f"Error in backup process: {e}")
+
+    if __name__ == '__main__':
+        backup = ModelBackup()
+        backup.backup_models()
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-ai-backup-secret
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: model-backup
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+type: Opaque
+data:
+  aws_access_key_id: QVdTX0FDQ0VTU19LRVlfSURfSEVSRQ==  # Placeholder - replace with actual key
+  aws_secret_access_key: QVdTX1NFQ1JFVF9BQ0NFU1NfS0VZX0hFUkU=  # Placeholder - replace with actual key

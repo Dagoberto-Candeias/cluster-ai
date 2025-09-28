@@ -1,0 +1,27 @@
+# Dockerfile para criar um worker simulado com um servidor SSH
+# Usado exclusivamente para testes de integração no pipeline de CI/CD.
+
+# Usa uma imagem base muito menor para acelerar o download no CI.
+FROM debian:bullseye-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Combina todos os comandos em uma única instrução RUN para reduzir o número de camadas da imagem.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssh-server sudo && \
+    \
+    # Cria o usuário de teste
+    useradd -m -s /bin/bash testuser && \
+    echo "testuser:testpassword" | chpasswd && \
+    adduser testuser sudo && \
+    \
+    # Configura o servidor SSH
+    mkdir -p /var/run/sshd && \
+    sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
+    \
+    # Limpa o cache do apt para manter a imagem final pequena
+    rm -rf /var/lib/apt/lists/*
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]

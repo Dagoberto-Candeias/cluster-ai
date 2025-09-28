@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-config
+  namespace: cluster-ai
+  labels:
+    app: cluster-ai
+data:
+  # Application Configuration
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  TZ: "UTC"
+
+  # Redis Configuration
+  REDIS_MAX_MEMORY: "512mb"
+  REDIS_MAX_MEMORY_POLICY: "allkeys-lru"
+
+  # Monitoring Configuration
+  PROMETHEUS_RETENTION: "30d"
+  ELASTICSEARCH_JAVA_OPTS: "-Xms1g -Xmx1g"
+
+  # Nginx Configuration
+  NGINX_WORKER_PROCESSES: "auto"
+  NGINX_WORKER_CONNECTIONS: "1024"
+  NGINX_CLIENT_MAX_BODY_SIZE: "50M"
+
+  # Application URLs
+  FRONTEND_URL: "https://cluster-ai.example.com"
+  BACKEND_URL: "https://api.cluster-ai.example.com"

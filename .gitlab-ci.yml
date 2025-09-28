@@ -1,0 +1,427 @@
+# Cluster AI - CI/CD Pipeline
+# ================================
+# Pipeline automatizado para linting, testes, segurança e deploy
+#
+# Stages:
+# - lint: Verificação de código (Python, Bash, Docker)
+# - test: Testes unitários, integração e performance
+# - security: Scans de segurança e vulnerabilidades
+# - build: Build de imagens Docker
+# - deploy: Deploy para staging/produção
+
+stages:
+  - lint
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  POETRY_CACHE_DIR: "$CI_PROJECT_DIR/.cache/poetry"
+
+cache:
+  paths:
+    - .cache/pip
+    - .cache/poetry
+    - node_modules/
+    - .venv/
+
+# ==================== LINT ====================
+
+lint:python:
+  stage: lint
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install flake8 black isort mypy bandit safety
+  script:
+    - echo "🔍 Running Python linting..."
+    - flake8 --max-line-length=100 --extend-ignore=E203,W503 scripts/ tests/ web-dashboard/
+    - black --check --diff scripts/ tests/ web-dashboard/
+    - isort --check-only --diff scripts/ tests/ web-dashboard/
+    - mypy scripts/ tests/ --ignore-missing-imports
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+lint:bash:
+  stage: lint
+  image: koalaman/shellcheck-alpine:latest
+  script:
+    - echo "🔍 Running Bash linting..."
+    - find scripts/ -name "*.sh" -exec shellcheck {} \;
+    - find . -name "*.sh" -not -path "./.git/*" -exec shellcheck {} \;
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+lint:docker:
+  stage: lint
+  image: hadolint/hadolint:latest-alpine
+  script:
+    - echo "🔍 Running Docker linting..."
+    - find . -name "Dockerfile*" -exec hadolint {} \;
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+lint:markdown:
+  stage: lint
+  image: node:18-alpine
+  before_script:
+    - npm install -g markdownlint-cli
+  script:
+    - echo "🔍 Running Markdown linting..."
+    - markdownlint "*.md" "docs/**/*.md" "README*.md"
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ==================== TEST ====================
+
+test:unit:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov pytest-xdist
+  script:
+    - echo "🧪 Running unit tests..."
+    - SECRET_KEY=test-secret-key pytest tests/unit/ -v --cov=scripts --cov-report=xml --cov-report=term
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+
+test:integration:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose bats
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov
+  script:
+    - echo "🔗 Running integration tests..."
+    - SECRET_KEY=test-secret-key pytest tests/integration/ -v --cov=scripts --cov-report=xml --cov-report=term
+    - echo "🐧 Running Bash integration tests..."
+    - bats tests/bash/ --tap
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+
+test:performance:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov locust
+  script:
+    - echo "⚡ Running performance tests..."
+    - SECRET_KEY=test-secret-key pytest tests/performance/ -v --durations=10
+    - echo "🔥 Running load tests..."
+    - locust --headless --users 10 --spawn-rate 2 --run-time 30s --host http://localhost:8080 2>/dev/null || echo "Load test completed"
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+test:e2e:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-cov
+  script:
+    - echo "🌐 Running E2E tests..."
+    - SECRET_KEY=test-secret-key pytest tests/e2e/ -v
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ==================== SECURITY ====================
+
+security:scan:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install bandit safety
+  script:
+    - echo "🔒 Running security scans..."
+    - bandit -r scripts/ tests/ web-dashboard/ -f json -o bandit-report.json || true
+    - safety check --json > safety-report.json || true
+    - echo "Security scan completed"
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    paths:
+      - safety-report.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+security:dependency:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install pip-audit
+  script:
+    - echo "📦 Auditing dependencies..."
+    - pip-audit --format json > dependency-audit.json || true
+  artifacts:
+    paths:
+      - dependency-audit.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+security:container:
+  stage: security
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - echo "🐳 Scanning Docker images..."
+    - docker run --rm -v $(pwd):/workspace anchore/grype:latest dir:/workspace --output json > grype-report.json || true
+  artifacts:
+    paths:
+      - grype-report.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ==================== BUILD ====================
+
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - echo "🏗️ Building Docker images..."
+    - docker build -t cluster-ai-backend:latest -f web-dashboard/backend/Dockerfile web-dashboard/backend/
+    - docker build -t cluster-ai-frontend:latest -f web-dashboard/frontend/Dockerfile.dev web-dashboard/frontend/
+    - docker build -t cluster-ai-nginx:latest -f Dockerfile .
+    - echo "Docker images built successfully"
+  only:
+    - main
+    - tags
+
+build:docs:
+  stage: build
+  image: node:18-alpine
+  before_script:
+    - npm install -g mkdocs mkdocs-material
+  script:
+    - echo "📚 Building documentation..."
+    - mkdocs build --clean --strict
+  artifacts:
+    paths:
+      - site/
+    expire_in: 1 week
+  only:
+    - main
+
+# ==================== DEPLOY ====================
+
+deploy:staging:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  environment:
+    name: staging
+    url: http://staging.cluster-ai.example.com
+  script:
+    - echo "🚀 Deploying to staging..."
+    - docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+    - echo "Staging deployment completed"
+  only:
+    - develop
+  when: manual
+
+deploy:production:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  environment:
+    name: production
+    url: https://cluster-ai.example.com
+  script:
+    - echo "🚀 Deploying to production..."
+    - docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+    - echo "Production deployment completed"
+  only:
+    - main
+    - tags
+  when: manual
+
+# ==================== NOTIFICATIONS ====================
+
+notify:slack:
+  stage: .post
+  image: curlimages/curl:latest
+  script:
+    - |
+      curl -X POST -H 'Content-type: application/json' \
+        --data '{"text":"Pipeline completed for Cluster AI\nStatus: '"$CI_JOB_STATUS"'\nURL: '"$CI_PROJECT_URL"'/pipelines/'"$CI_PIPELINE_ID"'"}' \
+        $SLACK_WEBHOOK_URL || true
+  only:
+    - main
+    - merge_requests
+
+# ==================== CLEANUP ====================
+
+cleanup:cache:
+  stage: .post
+  image: alpine:latest
+  script:
+    - echo "🧹 Cleaning up cache..."
+    - rm -rf .cache/
+    - rm -rf node_modules/
+    - rm -rf .venv/
+  when: always
+  only:
+    - schedules
+
+# Scheduled JSON Health Check (non-blocking)
+scheduled:health_check_json:
+  stage: test
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache bash coreutils grep sed gawk iputils curl openssh-client
+  script:
+    - echo "🩺 Running scheduled JSON health check..."
+    - bash scripts/utils/health_check.sh --json | tee health-check.json || true
+  artifacts:
+    paths:
+      - health-check.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - schedules
+
+# ==================== SCHEDULED JOBS ====================
+
+scheduled:security_audit:
+  stage: security
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc
+    - pip install bandit safety pip-audit
+  script:
+    - echo "🔒 Running scheduled security audit..."
+    - bandit -r . -f json -o scheduled-bandit-report.json
+    - safety check --json > scheduled-safety-report.json
+    - pip-audit --format json > scheduled-dependency-audit.json
+  artifacts:
+    paths:
+      - scheduled-*.json
+    expire_in: 1 month
+  only:
+    - schedules
+
+scheduled:performance_benchmark:
+  stage: test
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc git curl docker-compose
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pip install pytest pytest-benchmark
+  script:
+    - echo "📊 Running scheduled performance benchmarks..."
+    - SECRET_KEY=test-secret-key pytest tests/performance/ -v --benchmark-only --benchmark-json=benchmark-results.json
+  artifacts:
+    paths:
+      - benchmark-results.json
+    expire_in: 1 month
+  only:
+    - schedules
+
+# ==================== MANUAL JOBS ====================
+
+manual:rollback:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "🔄 Executing manual rollback..."
+    - ./scripts/deployment/rollback.sh
+  when: manual
+  only:
+    - main
+    - tags
+
+manual:backup:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "💾 Executing manual backup..."
+    - ./scripts/management/backup_manager.sh create
+  when: manual
+  only:
+    - main
+    - tags

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Modelo {{ model.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/models">Modelos</a></li>
+                <li class="breadcrumb-item active">{{ model.name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Informações Principais -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-brain text-primary"></i> {{ model.name }}
+                    </h4>
+                    <span class="badge bg-primary fs-6">{{ model.framework }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-tag"></i> Versão</h6>
+                        <p class="mb-3">{{ model.version }}</p>
+
+                        <h6><i class="fas fa-calendar"></i> Criado em</h6>
+                        <p class="mb-3">{{ model.created_at|format_datetime }}</p>
+
+                        <h6><i class="fas fa-hdd"></i> Tamanho</h6>
+                        <p class="mb-3">{{ model.size|format_size }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-folder"></i> Caminho</h6>
+                        <p class="mb-3 small font-monospace">{{ model.path }}</p>
+
+                        <h6><i class="fas fa-hashtag"></i> Hash</h6>
+                        <p class="mb-3 small font-monospace">{{ model.hash[:16] }}...</p>
+
+                        <h6><i class="fas fa-file"></i> Tipo de Arquivo</h6>
+                        <p class="mb-3">{{ model.path|split('.')|last|upper }}</p>
+                    </div>
+                </div>
+
+                {% if model.description %}
+                <div class="mt-3">
+                    <h6><i class="fas fa-align-left"></i> Descrição</h6>
+                    <p class="mb-0">{{ model.description }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Metadados Técnicos -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cogs"></i> Metadados Técnicos</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Framework</h6>
+                        <p class="text-muted">{{ model.framework|title }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Formato</h6>
+                        <p class="text-muted">{{ model.path|split('.')|last|upper }}</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Última Modificação</h6>
+                        <p class="text-muted">{{ model.created_at|format_datetime }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Status</h6>
+                        <span class="badge bg-success">Ativo</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Uso Programático -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-code"></i> Como Usar</h5>
+            </div>
+            <div class="card-body">
+                <p>Copie e cole este código para usar o modelo em seu projeto:</p>
+
+                <div class="code-snippet">
+# Carregar o modelo
+from ai_ml.model_registry import ModelRegistry
+
+registry = ModelRegistry()
+model = registry.load_model("{{ model.name }}")
+
+# Usar o modelo (exemplo genérico)
+# input_data = prepare_your_input_data()
+# output = model(input_data)
+                </div>
+
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard()">
+                        <i class="fas fa-copy"></i> Copiar Código
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Ações Rápidas -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bolt"></i> Ações</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="testModel()">
+                        <i class="fas fa-play"></i> Testar Modelo
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="downloadModel()">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="editModel()">
+                        <i class="fas fa-edit"></i> Editar Metadados
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteModel()">
+                        <i class="fas fa-trash"></i> Deletar Modelo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Estatísticas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-primary mb-0">{{ model.size|format_size }}</h4>
+                            <small class="text-muted">Tamanho</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success mb-0">{{ model.version }}</h4>
+                        <small class="text-muted">Versão</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informações do Sistema -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> Sistema</h5>
+            </div>
+            <div class="card-body small">
+                <div class="mb-2">
+                    <strong>Cluster AI:</strong> Model Registry v1.0.0
+                </div>
+                <div class="mb-2">
+                    <strong>Framework:</strong> {{ model.framework|title }}
+                </div>
+                <div class="mb-2">
+                    <strong>Armazenamento:</strong> Local Filesystem
+                </div>
+                <div>
+                    <strong>Última Verificação:</strong> {{ model.created_at|format_datetime }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Delete -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-trash text-danger"></i> Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja deletar o modelo <strong>{{ model.name }}</strong>?</p>
+                <p class="text-danger small">Esta ação não pode ser desfeita e o arquivo será removido permanentemente.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="/delete/{{ model.name }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Deletar Modelo</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyToClipboard() {
+    const code = `# Carregar o modelo
+from ai_ml.model_registry import ModelRegistry
+
+registry = ModelRegistry()
+model = registry.load_model("{{ model.name }}")
+
+# Usar o modelo (exemplo genérico)
+# input_data = prepare_your_input_data()
+# output = model(input_data)`;
+
+    navigator.clipboard.writeText(code).then(() => {
+        // Feedback visual poderia ser adicionado aqui
+        alert('Código copiado para a área de transferência!');
+    });
+}
+
+function testModel() {
+    alert('Funcionalidade de teste será implementada em breve!');
+}
+
+function downloadModel() {
+    window.location.href = '/api/model/{{ model.name }}/download';
+}
+
+function editModel() {
+    alert('Funcionalidade de edição será implementada em breve!');
+}
+
+function deleteModel() {
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

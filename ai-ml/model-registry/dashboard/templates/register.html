@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Modelo{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                <li class="breadcrumb-item active">Registrar Modelo</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-plus text-primary"></i> Registrar Novo Modelo
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="model_path" class="form-label">
+                                    <i class="fas fa-file"></i> Caminho do Modelo *
+                                </label>
+                                <input type="text" class="form-control" id="model_path" name="model_path"
+                                       placeholder="/caminho/para/modelo.pth" required>
+                                <div class="form-text">
+                                    Caminho completo para o arquivo do modelo
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">
+                                    <i class="fas fa-tag"></i> Nome do Modelo *
+                                </label>
+                                <input type="text" class="form-control" id="name" name="name"
+                                       placeholder="meu_modelo_ml" required>
+                                <div class="form-text">
+                                    Nome único para identificar o modelo
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="framework" class="form-label">
+                                    <i class="fas fa-code-branch"></i> Framework *
+                                </label>
+                                <select class="form-select" id="framework" name="framework" required>
+                                    <option value="">Selecione o framework</option>
+                                    <option value="pytorch">PyTorch</option>
+                                    <option value="tensorflow">TensorFlow</option>
+                                    <option value="onnx">ONNX</option>
+                                    <option value="sklearn">Scikit-learn</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="version" class="form-label">
+                                    <i class="fas fa-code-branch"></i> Versão
+                                </label>
+                                <input type="text" class="form-control" id="version" name="version"
+                                       value="1.0.0" placeholder="1.0.0">
+                                <div class="form-text">
+                                    Versão semântica (ex: 1.0.0, 2.1.3)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">
+                            <i class="fas fa-align-left"></i> Descrição
+                        </label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                                  placeholder="Descreva o modelo, seus objetivos, métricas de performance, etc."></textarea>
+                        <div class="form-text">
+                            Descrição opcional do modelo e suas características
+                        </div>
+                    </div>
+
+                    <!-- Metadados Avançados -->
+                    <div class="mb-3">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions">
+                            <i class="fas fa-cogs"></i> Opções Avançadas
+                        </button>
+                    </div>
+
+                    <div class="collapse" id="advancedOptions">
+                        <div class="card card-body bg-light">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="author" class="form-label">
+                                            <i class="fas fa-user"></i> Autor
+                                        </label>
+                                        <input type="text" class="form-control" id="author" name="author"
+                                               placeholder="Nome do autor">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="license" class="form-label">
+                                            <i class="fas fa-balance-scale"></i> Licença
+                                        </label>
+                                        <input type="text" class="form-control" id="license" name="license"
+                                               placeholder="MIT, Apache-2.0, etc.">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="tags" class="form-label">
+                                    <i class="fas fa-tags"></i> Tags
+                                </label>
+                                <input type="text" class="form-control" id="tags" name="tags"
+                                       placeholder="classificação, regressão, visão, nlp (separadas por vírgula)">
+                                <div class="form-text">
+                                    Palavras-chave separadas por vírgula
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="accuracy" class="form-label">
+                                            <i class="fas fa-chart-line"></i> Acurácia (%)
+                                        </label>
+                                        <input type="number" class="form-control" id="accuracy" name="accuracy"
+                                               min="0" max="100" step="0.01" placeholder="95.5">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="dataset" class="form-label">
+                                            <i class="fas fa-database"></i> Dataset
+                                        </label>
+                                        <input type="text" class="form-control" id="dataset" name="dataset"
+                                               placeholder="MNIST, CIFAR-10, etc.">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between">
+                                <a href="/" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left"></i> Voltar
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Registrar Modelo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dicas de Uso -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Dicas para Registro</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check text-success"></i> Formatos Suportados</h6>
+                        <ul class="small">
+                            <li>PyTorch: .pth, .pt</li>
+                            <li>TensorFlow: .h5, .pb</li>
+                            <li>ONNX: .onnx</li>
+                            <li>Scikit-learn: .pkl, .joblib</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-info-circle text-info"></i> Boas Práticas</h6>
+                        <ul class="small">
+                            <li>Use nomes descritivos</li>
+                            <li>Mantenha controle de versão</li>
+                            <li>Documente o propósito</li>
+                            <li>Inclua métricas de performance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Validação do formulário
+document.querySelector('form').addEventListener('submit', function(e) {
+    const modelPath = document.getElementById('model_path').value;
+    const name = document.getElementById('name').value;
+    const framework = document.getElementById('framework').value;
+
+    if (!modelPath || !name || !framework) {
+        e.preventDefault();
+        alert('Por favor, preencha todos os campos obrigatórios.');
+        return;
+    }
+
+    // Validação básica do nome
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+        e.preventDefault();
+        alert('Nome do modelo deve conter apenas letras, números, underscores e hífens.');
+        return;
+    }
+});
+
+// Auto-preenchimento baseado no caminho
+document.getElementById('model_path').addEventListener('input', function() {
+    const path = this.value;
+    if (path && !document.getElementById('name').value) {
+        // Sugerir nome baseado no arquivo
+        const filename = path.split('/').pop().split('.')[0];
+        document.getElementById('name').value = filename.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    // Detectar framework baseado na extensão
+    const ext = path.split('.').pop().toLowerCase();
+    const frameworkSelect = document.getElementById('framework');
+
+    if (['pth', 'pt'].includes(ext) && !frameworkSelect.value) {
+        frameworkSelect.value = 'pytorch';
+    } else if (['h5', 'pb'].includes(ext) && !frameworkSelect.value) {
+        frameworkSelect.value = 'tensorflow';
+    } else if (ext === 'onnx' && !frameworkSelect.value) {
+        frameworkSelect.value = 'onnx';
+    } else if (['pkl', 'joblib'].includes(ext) && !frameworkSelect.value) {
+        frameworkSelect.value = 'sklearn';
+    }
+});
+</script>
+{% endblock %}

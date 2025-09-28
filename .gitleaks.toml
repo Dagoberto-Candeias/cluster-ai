@@ -1,0 +1,73 @@
+# Gitleaks configuration for Cluster AI project
+# Prevents committing secrets and sensitive information
+
+title = "Cluster AI Gitleaks Config"
+version = "2.4.0"
+
+[[rules]]
+id = "api-key"
+description = "API Key"
+regex = '''(?i)(?:api[_-]?key|apikey)[a-z0-9_ .\-,]{0,25}[=:][a-z0-9]{32,45}'''
+tags = ["key", "API"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'''
+tags = ["key", "AWS"]
+
+[[rules]]
+id = "aws-secret-key"
+description = "AWS Secret Key"
+regex = '''(?i)aws(.{0,20})?['\"][0-9a-zA-Z\/+]{40}['\"]'''
+tags = ["key", "AWS"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''-----BEGIN[ A-Z0-9_-]{0,10}PRIVATE KEY( BLOCK)?-----'''
+tags = ["key", "AsymmetricPrivateKey"]
+
+[[rules]]
+id = "slack-webhook"
+description = "Slack Webhook"
+regex = '''https://hooks.slack.com/services/[A-Za-z0-9]{9}/[A-Za-z0-9]{9}/[A-Za-z0-9]{24}'''
+tags = ["slack", "webhook"]
+
+[[rules]]
+id = "password-in-url"
+description = "Password in URL"
+regex = '''[a-zA-Z]{3,10}://[^/\\s:@]{3,20}:[^/\\s:@]{3,40}@.{1,100}['\"\\s]'''
+tags = ["password", "URL"]
+
+[[rules]]
+id = "email"
+description = "Email address"
+regex = '''(?i)([A-Za-z0-9]+[_\\-\\+\\.])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*(\\.[A-Za-z]{2,})'''
+tags = ["personal", "contact"]
+
+# Allow these patterns (false positives we want to allow)
+[allowlist]
+regexes = [
+    '''@example\\.com''',
+    '''http://localhost''',
+    '''(?:test|demo|example)[_-]?(?:api[_-]?key|token)'''
+]
+
+# Files to exclude from scanning
+files = [
+    "package-lock.json",
+    "yarn.lock"
+]
+
+# Paths to exclude from scanning
+paths = [
+    "node_modules/",
+    "vendor/",
+    "dist/",
+    "build/",
+    "docs/history/",
+    "backups/",
+    "certs/",
+    "tests/security/"
+]

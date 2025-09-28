@@ -1,0 +1,336 @@
+# PostgreSQL replication configuration for multi-cluster setup
+# This creates a PostgreSQL cluster with streaming replication across clusters
+
+# ConfigMap for PostgreSQL configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  labels:
+    app: postgres
+data:
+  postgresql.conf: |
+    # Basic settings
+    listen_addresses = '*'
+    port = 5432
+    max_connections = 100
+
+    # Replication settings
+    wal_level = replica
+    max_wal_senders = 10
+    wal_keep_size = 64MB
+    synchronous_commit = on
+    synchronous_standby_names = 'FIRST 1 (postgres-replica-*)'
+
+    # Logging
+    log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    log_statement = 'ddl'
+    log_min_duration_statement = 1000
+
+    # Performance tuning
+    shared_buffers = 128MB
+    effective_cache_size = 256MB
+    maintenance_work_mem = 32MB
+    checkpoint_completion_target = 0.9
+    wal_buffers = 16MB
+    default_statistics_target = 100
+
+  pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+    local   all             postgres                                trust
+    local   all             all                                     trust
+    host    all             postgres        127.0.0.1/32            trust
+    host    all             postgres        ::1/128                 trust
+    host    replication     postgres        0.0.0.0/0               md5
+    host    all             all             0.0.0.0/0               md5
+
+---
+# Secret for PostgreSQL passwords
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  labels:
+    app: postgres
+type: Opaque
+data:
+  # Base64 encoded passwords
+  postgres-password: cG9zdGdyZXM=  # postgres
+  replication-password: cmVwbGljYXRpb24=  # replication
+
+---
+# PostgreSQL Primary StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-primary
+  labels:
+    app: postgres
+    role: primary
+spec:
+  serviceName: postgres-primary
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: primary
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: primary
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: "cluster_ai"
+        - name: POSTGRES_USER
+          value: "cluster_ai"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-password
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        - name: POSTGRES_INITDB_ARGS
+          value: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-config
+          mountPath: /etc/postgresql
+        - name: backup-data
+          mountPath: /backup
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U cluster_ai -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U cluster_ai -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+      volumes:
+      - name: postgres-config
+        configMap:
+          name: postgres-config
+      - name: backup-data
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+    name: postgres-data
+    labels:
+      app: postgres
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+
+---
+# PostgreSQL Replica StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-replica
+  labels:
+    app: postgres
+    role: replica
+spec:
+  serviceName: postgres-replica
+  replicas: 2
+  selector:
+    matchLabels:
+      app: postgres
+      role: replica
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: replica
+    spec:
+      initContainers:
+      - name: init-replica
+        image: postgres:15-alpine
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          # Wait for primary to be ready
+          until pg_isready -h postgres-primary-0.postgres-primary -U cluster_ai -p 5432; do
+            echo "Waiting for primary..."
+            sleep 2
+          done
+
+          # Create replication slot if it doesn't exist
+          PGPASSWORD=replication psql -h postgres-primary-0.postgres-primary -U postgres -c "SELECT pg_create_physical_replication_slot('${HOSTNAME}');" || true
+
+          # Take base backup
+          PGPASSWORD=replication pg_basebackup -h postgres-primary-0.postgres-primary -U postgres -D /var/lib/postgresql/data -Fp -Xs -P -R
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: replication-password
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-config
+          mountPath: /etc/postgresql
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U cluster_ai -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U cluster_ai -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+      volumes:
+      - name: postgres-config
+        configMap:
+          name: postgres-config
+  volumeClaimTemplates:
+  - metadata:
+    name: postgres-data
+    labels:
+      app: postgres
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+
+---
+# Services for PostgreSQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  labels:
+    app: postgres
+    role: primary
+spec:
+  selector:
+    app: postgres
+    role: primary
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica
+  labels:
+    app: postgres
+    role: replica
+spec:
+  selector:
+    app: postgres
+    role: replica
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+# LoadBalancer service for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+    role: primary
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: LoadBalancer
+
+---
+# ConfigMap for replication monitoring
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-monitor
+  labels:
+    app: postgres
+data:
+  check-replication.sh: |
+    #!/bin/bash
+    # Script to check PostgreSQL replication status
+
+    PRIMARY_HOST="postgres-primary-0.postgres-primary"
+    REPLICA_HOSTS=("postgres-replica-0.postgres-replica" "postgres-replica-1.postgres-replica")
+
+    echo "=== PostgreSQL Replication Status ==="
+
+    # Check primary
+    echo "Primary ($PRIMARY_HOST):"
+    PGPASSWORD=postgres psql -h $PRIMARY_HOST -U postgres -d cluster_ai -c "SELECT * FROM pg_stat_replication;" || echo "Failed to connect to primary"
+
+    # Check replicas
+    for replica in "${REPLICA_HOSTS[@]}"; do
+      echo ""
+      echo "Replica ($replica):"
+      PGPASSWORD=postgres psql -h $replica -U postgres -d cluster_ai -c "SELECT * FROM pg_stat_wal_receiver;" || echo "Failed to connect to replica"
+    done
+
+    echo ""
+    echo "=== Replication Lag Check ==="
+    for replica in "${REPLICA_HOSTS[@]}"; do
+      echo "Lag for $replica:"
+      PGPASSWORD=postgres psql -h $replica -U postgres -d cluster_ai -c "SELECT now() - pg_last_xact_replay_timestamp() AS replication_lag;" || echo "Failed to check lag"
+    done

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-09-10T22:56:53.645046",
+  "total_suites": 1,
+  "passed_suites": 0,
+  "failed_suites": 1,
+  "total_time": 142.04224753379822,
+  "results": [
+    {
+      "type": "linting",
+      "success": false,
+      "duration": 142.04198384284973
+    }
+  ]
+}

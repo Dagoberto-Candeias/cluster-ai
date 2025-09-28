@@ -1,0 +1,372 @@
+version: '3.8'
+
+services:
+  # Backend - FastAPI Application
+  backend:
+    build:
+      context: ./web-dashboard/backend
+      dockerfile: Dockerfile
+    container_name: cluster-ai-backend-prod
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379
+      # A URL do banco de dados agora usa o usuário e nome do banco, mas não a senha.
+      # A senha será lida pelo driver do PostgreSQL a partir do arquivo de segredo.
+      - DATABASE_URL=postgresql://cluster_ai@postgres:5432/cluster_ai
+      # A aplicação precisará ser ajustada para ler estas chaves dos arquivos de segredo.
+      - SECRET_KEY_FILE=/run/secrets/app_secret_key
+      - JWT_SECRET_KEY_FILE=/run/secrets/app_jwt_secret_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    networks:
+      - cluster-ai-network
+    secrets:
+      - postgres_password
+      - app_secret_key
+      - app_jwt_secret_key
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      replicas: 2
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: cluster-ai-postgres-prod
+    environment:
+      POSTGRES_DB: cluster_ai
+      POSTGRES_USER: cluster_ai
+      # Aponta para o arquivo onde o Docker montará o segredo.
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - cluster-ai-network
+    secrets:
+      - postgres_password
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cluster_ai"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: cluster-ai-redis-prod
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: |
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 300
+    networks:
+      - cluster-ai-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Nginx Load Balancer
+  nginx:
+    # Agora o Nginx é construído a partir de um Dockerfile.
+    # O contexto é a raiz do projeto para que ele possa acessar tanto a pasta 'nginx' quanto 'web-dashboard'.
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+    container_name: cluster-ai-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+      - certbot_certs:/etc/letsencrypt
+    depends_on:
+      - backend
+    networks:
+      - cluster-ai-network
+    restart: always
+    healthcheck:
+      # O healthcheck agora verifica a raiz, que deve retornar o index.html.
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # Certbot para certificados SSL
+  certbot:
+    image: certbot/certbot
+    container_name: cluster-ai-certbot-prod
+    # O comando 'renew' será executado periodicamente para renovar os certificados.
+    # O entrypoint é sobrescrito para que o contêiner permaneça em execução.
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    volumes:
+      # Compartilha os mesmos volumes do Nginx
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - certbot_certs:/etc/letsencrypt
+    networks:
+      - cluster-ai-network
+    restart: always
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cluster-ai-prometheus-prod
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules.yml:/etc/prometheus/rules.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - cluster-ai-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cluster-ai-grafana-prod
+    ports:
+      - "3001:3000"
+    environment:
+      # Aponta para o arquivo onde o Docker montará o segredo.
+      - GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_password
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - cluster-ai-network
+    secrets:
+      - grafana_password
+    restart: always
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ELK Stack for Logging
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: cluster-ai-elasticsearch-prod
+    environment:
+      - discovery.type=single-node
+      # Habilita a segurança para que as senhas sejam utilizadas.
+      - xpack.security.enabled=true
+      # A senha do usuário 'elastic' é definida via secret.
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - cluster-ai-network
+    secrets:
+      - elastic_password
+    restart: always
+    healthcheck:
+      # O comando agora lê a senha do arquivo de secret e usa HTTPS,
+      # pois a segurança habilitada exige comunicação criptografada.
+      test: ["CMD-SHELL", "curl -f -u elastic:$(cat /run/secrets/elastic_password) --cacert /usr/share/elasticsearch/config/certs/http_ca.crt https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: cluster-ai-logstash-prod
+    volumes:
+      - ./monitoring/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5044:5044"
+    networks:
+      - cluster-ai-network
+    restart: always
+    depends_on:
+      - elasticsearch
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: cluster-ai-kibana-prod
+    ports:
+      - "5601:5601"
+    environment:
+      # Kibana se conectará ao Elasticsearch usando o usuário e a senha do secret.
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD_FILE=/run/secrets/elastic_password
+    networks:
+      - cluster-ai-network
+    secrets:
+      - elastic_password
+    restart: always
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Backup Service
+  backup:
+    build:
+      context: ./scripts/backup
+      dockerfile: Dockerfile
+    container_name: cluster-ai-backup-prod
+    environment:
+      - BACKUP_INTERVAL=${BACKUP_INTERVAL_HOURS:-24}
+      - RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./backups:/app/backups
+      - postgres_data:/var/lib/postgresql/data:ro
+      - redis_data:/data/redis:ro
+    secrets:
+      - postgres_password
+    networks:
+      - cluster-ai-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+secrets:
+  postgres_password:
+    external: true
+  grafana_password:
+    external: true
+  elastic_password:
+    external: true
+  app_secret_key:
+    external: true
+  app_jwt_secret_key:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+  certbot_certs: # Novo volume para os certificados
+    driver: local
+
+networks:
+  cluster-ai-network:
+    driver: bridge

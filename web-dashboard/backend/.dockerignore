@@ -1,0 +1,32 @@
+# Ignora o próprio Dockerfile e o arquivo .dockerignore
+Dockerfile
+.dockerignore
+
+# Ignora arquivos e diretórios do Git
+.git
+.gitignore
+
+# Ignora arquivos de ambiente virtual Python
+.venv
+venv
+env
+
+# Ignora cache e arquivos compilados do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignora arquivos de pacotes e distribuição
+*.egg-info/
+
+# Ignora arquivos de teste e cobertura
+.pytest_cache/
+coverage/
+
+# Ignora arquivos de configuração local e logs
+.env
+*.log
+
+# Ignora documentação e outros arquivos não essenciais
+README.md

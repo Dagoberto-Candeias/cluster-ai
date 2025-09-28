@@ -1,0 +1,196 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 1 * * *'  # Daily at 1 AM
+
+jobs:
+  trivy-scan:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker images
+      run: |
+        docker build -t cluster-ai-frontend ./web-dashboard/frontend
+        docker build -t cluster-ai-backend ./web-dashboard/backend
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'image'
+        scan-ref: 'cluster-ai-frontend,cluster-ai-backend'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-fs-results.sarif'
+
+    - name: Upload filesystem scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-fs-results.sarif'
+
+  snyk-scan:
+    name: Snyk Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/python@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --file=requirements.txt
+
+    - name: Run Snyk for Node.js dependencies
+      uses: snyk/actions/node@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --file=web-dashboard/package.json
+
+  clair-scan:
+    name: Clair Container Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build and push to local registry
+      run: |
+        docker build -t localhost:5000/cluster-ai-frontend ./web-dashboard/frontend
+        docker build -t localhost:5000/cluster-ai-backend ./web-dashboard/backend
+
+    - name: Run Clair scanner
+      run: |
+        # Install Clair scanner
+        curl -L https://github.com/quay/clair/releases/download/v4.3.6/clairctl-linux-amd64 -o clairctl
+        chmod +x clairctl
+
+        # Build and scan frontend image
+        docker build -t cluster-ai-frontend ./web-dashboard/frontend
+        ./clairctl report cluster-ai-frontend > clair-frontend-report.json
+
+    - name: Run Clair scanner for backend
+      run: |
+        # Build and scan backend image
+        docker build -t cluster-ai-backend ./web-dashboard/backend
+        ./clairctl report cluster-ai-backend > clair-backend-report.json
+
+    - name: Upload Clair reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: clair-reports
+        path: |
+          clair-frontend-report.json
+          clair-backend-report.json
+
+  security-gate:
+    name: Security Gate Check
+    runs-on: ubuntu-latest
+    needs: [trivy-scan, snyk-scan, clair-scan]
+    if: always()
+    steps:
+    - name: Check security scan results
+      run: |
+        # Check if any security scans failed
+        if [ "${{ needs.trivy-scan.result }}" = "failure" ] || \
+           [ "${{ needs.snyk-scan.result }}" = "failure" ] || \
+           [ "${{ needs.clair-scan.result }}" = "failure" ]; then
+          echo "❌ Security scans detected vulnerabilities"
+          echo "Please review the security scan results above"
+          exit 1
+        else
+          echo "✅ All security scans passed"
+        fi
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run TruffleHog OSS
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  compliance-check:
+    name: Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run compliance checks
+      run: |
+        echo "🔍 Running compliance checks..."
+
+        # Check for GDPR compliance markers
+        if grep -r "gdpr\|GDPR\|privacy\|Privacy" --include="*.py" --include="*.js" --include="*.md" .; then
+          echo "✅ GDPR compliance markers found"
+        else
+          echo "⚠️  No GDPR compliance markers found"
+        fi
+
+        # Check for security headers in nginx config
+        if grep -A 10 "add_header" web-dashboard/nginx.conf; then
+          echo "✅ Security headers configured in nginx"
+        else
+          echo "⚠️  Security headers not found in nginx config"
+        fi
+
+        # Check for encrypted secrets in Kubernetes manifests
+        if grep -r "secretKeyRef\|Secret" deployments/k8s/ deployments/helm/; then
+          echo "✅ Secrets management configured"
+        else
+          echo "⚠️  No secrets management found"
+        fi
+
+  notify-security:
+    name: Notify Security Results
+    runs-on: ubuntu-latest
+    needs: [trivy-scan, snyk-scan, clair-scan, secrets-scan, compliance-check]
+    if: always()
+    steps:
+    - name: Send security notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#security'
+        text: 'Security Scan Results for Cluster AI'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK }}
+
+env:
+  DOCKER_BUILDKIT: 1

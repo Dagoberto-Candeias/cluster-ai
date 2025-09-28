@@ -1,0 +1,285 @@
+# =============================================================================
+# CLUSTER AI - DASK PERFORMANCE CONFIGURATION
+# =============================================================================
+#
+# Configurações otimizadas para performance máxima do Dask
+# Baseado em benchmarks e melhores práticas para diferentes workloads
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES GERAIS DE PERFORMANCE
+# -----------------------------------------------------------------------------
+dask:
+  # Configurações de scheduler
+  scheduler:
+    # Pool de threads para operações I/O
+    pool-size: 20
+
+    # Timeout para workers (segundos)
+    worker-ttl: 300
+
+    # Limite de tarefas por worker
+    task-per-worker-limit: 100
+
+    # Estratégia de balanceamento
+    work-stealing: true
+
+    # Compressão de dados
+    compression: lz4
+
+    # Cache de tarefas
+    task-cache-size: 1000
+
+  # Configurações de worker
+  worker:
+    # Memória por worker (bytes)
+    memory-limit: 4GB
+
+    # Threads por worker
+    threads: 4
+
+    # Pool de threads para computação
+    compute-pool-size: 8
+
+    # Diretório local para spill
+    local-directory: "/tmp/dask-worker-space"
+
+    # Configurações de rede
+    network:
+      # Buffer de transmissão
+      transfer-buffer-size: 64MB
+
+    # Timeout de conexão
+    connect-timeout: 60s
+
+    # Pool de conexões
+    connection-pool-size: 10
+
+    # Configurações de disco
+    disk:
+      # Compressão de spill
+      spill-compression: zstd
+
+      # Limite de spill
+      spill-threshold: 0.8
+
+      # Buffer de I/O
+      io-buffer-size: 64MB
+
+  # Configurações de cliente
+  client:
+    # Timeout padrão
+    default-timeout: 60s
+
+    # Pool de conexões
+    connection-pool-size: 20
+
+    # Compressão automática
+    auto-compress: true
+
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES ESPECÍFICAS POR WORKLOAD
+# -----------------------------------------------------------------------------
+workloads:
+  # Para processamento de texto e IA
+  ai_inference:
+    worker:
+      memory-limit: 8GB
+      threads: 2
+      compute-pool-size: 4
+    scheduler:
+      task-per-worker-limit: 50
+      compression: zstd
+
+  # Para processamento de dados científicos
+  data_science:
+    worker:
+      memory-limit: 16GB
+      threads: 8
+      compute-pool-size: 16
+    scheduler:
+      task-per-worker-limit: 200
+      work-stealing: false
+
+  # Para processamento de imagens
+  image_processing:
+    worker:
+      memory-limit: 12GB
+      threads: 6
+      compute-pool-size: 12
+    scheduler:
+      task-per-worker-limit: 100
+      compression: lz4
+
+  # Para workloads mistos
+  mixed:
+    worker:
+      memory-limit: 6GB
+      threads: 4
+      compute-pool-size: 8
+    scheduler:
+      task-per-worker-limit: 150
+      work-stealing: true
+
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES DE MONITORAMENTO E DIAGNÓSTICO
+# -----------------------------------------------------------------------------
+monitoring:
+  # Métricas de performance
+  metrics:
+    enable: true
+    interval: 10s
+    retention: 1h
+
+  # Profiling
+  profiling:
+    enable: false
+    output-directory: "/tmp/dask-profiles"
+    frequency: 1000  # Hz
+
+  # Logging de performance
+  logging:
+    level: INFO
+    performance-events: true
+    slow-task-threshold: 1s
+
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES DE OTIMIZAÇÃO AUTOMÁTICA
+# -----------------------------------------------------------------------------
+optimization:
+  # Auto-scaling
+  auto-scaling:
+    enable: true
+    min-workers: 1
+    max-workers: 8
+    scale-up-threshold: 0.8  # 80% utilização
+    scale-down-threshold: 0.3  # 30% utilização
+    cooldown-period: 60s
+
+  # Memory management
+  memory:
+    # Limpeza automática de cache
+    cache-cleanup-interval: 300s
+
+    # Spill automático
+    auto-spill: true
+    spill-target: 0.7
+
+    # Memory monitoring
+    monitor-interval: 30s
+
+  # Task scheduling
+  scheduling:
+    # Algoritmo de scheduling
+    algorithm: work-stealing
+
+    # Priorização de tarefas
+    priority-based: true
+
+    # Load balancing
+    load-balancing: true
+
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES DE SEGURANÇA COM PERFORMANCE
+# -----------------------------------------------------------------------------
+security:
+  # TLS otimizado
+  tls:
+    enable: true
+    cert-file: "certs/dask_cert.pem"
+    key-file: "certs/dask_key.pem"
+    # Otimizações de performance
+    session-cache-size: 1000
+    session-timeout: 300s
+
+  # Autenticação
+  auth:
+    enable: true
+    token-ttl: 3600s
+    refresh-threshold: 300s
+
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÕES DE DEPLOYMENT
+# -----------------------------------------------------------------------------
+deployment:
+  # Configurações por ambiente
+  environments:
+    development:
+      worker:
+        memory-limit: 2GB
+        threads: 2
+      monitoring:
+        enable: false
+
+    staging:
+      worker:
+        memory-limit: 4GB
+        threads: 4
+      monitoring:
+        enable: true
+
+    production:
+      worker:
+        memory-limit: 8GB
+        threads: 8
+      monitoring:
+        enable: true
+      security:
+        tls:
+          enable: true
+
+  # Configurações de container
+  container:
+    # Imagem base otimizada
+    image: "daskdev/dask:latest"
+
+    # Recursos do container
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "2"
+      limits:
+        memory: "8Gi"
+        cpu: "4"
+
+    # Volumes
+    volumes:
+      - name: dask-spill
+        hostPath:
+          path: /tmp/dask-spill
+      - name: dask-cache
+        hostPath:
+          path: /tmp/dask-cache
+
+# -----------------------------------------------------------------------------
+# BENCHMARKS E MÉTRICAS DE REFERÊNCIA
+# -----------------------------------------------------------------------------
+benchmarks:
+  # Performance esperada por configuração
+  performance_targets:
+    ai_inference:
+      tasks_per_second: 50
+      latency_p95: 200ms
+      memory_efficiency: 0.85
+
+    data_science:
+      tasks_per_second: 100
+      latency_p95: 100ms
+      memory_efficiency: 0.90
+
+    image_processing:
+      tasks_per_second: 30
+      latency_p95: 500ms
+      memory_efficiency: 0.80
+
+  # Limites de alerta
+  alerts:
+    high_latency_threshold: 1000ms
+    high_memory_usage_threshold: 0.9
+    high_cpu_usage_threshold: 0.85
+    task_failure_rate_threshold: 0.05
+
+# =============================================================================
+# FIM DA CONFIGURAÇÃO DE PERFORMANCE
+# =============================================================================

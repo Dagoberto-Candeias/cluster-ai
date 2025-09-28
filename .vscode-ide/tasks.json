@@ -1,0 +1,45 @@
+{
+  // VSCode Tasks for Cluster AI
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cluster AI: Dashboard de Status",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/utils/system_status_dashboard.sh",
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    },
+    {
+      "label": "Cluster AI: Health Check",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/utils/health_check.sh status",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cluster AI: Diagnóstico Detalhado",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/utils/health_check.sh diag",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cluster AI: Testes",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/pytest tests/ -v --cov",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cluster AI: Lint Bash (ShellCheck)",
+      "type": "shell",
+      "command": "find scripts -name '*.sh' -not -path '*/node_modules/*' -exec shellcheck {} \\;",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cluster AI: Setup Venv (Dev)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/utils/ensure_venv.sh --dev",
+      "problemMatcher": []
+    }
+  ]
+}

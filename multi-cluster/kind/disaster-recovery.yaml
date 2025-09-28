@@ -1,0 +1,190 @@
+# Disaster Recovery Configuration for Local Multi-Cluster
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: disaster-recovery-config
+  namespace: default
+data:
+  recovery.yaml: |
+    # Disaster recovery configuration
+    recovery:
+      enabled: true
+      backup_interval: "1h"
+      retention_period: "7d"
+      max_recovery_time: "300s"
+      auto_failover: true
+    clusters:
+      aws-cluster:
+        priority: 1
+        backup_location: "/backups/aws"
+        recovery_scripts: "/scripts/aws/recovery.sh"
+      gcp-cluster:
+        priority: 2
+        backup_location: "/backups/gcp"
+        recovery_scripts: "/scripts/gcp/recovery.sh"
+      azure-cluster:
+        priority: 3
+        backup_location: "/backups/azure"
+        recovery_scripts: "/scripts/azure/recovery.sh"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: failover-scripts
+  namespace: default
+data:
+  failover.sh: |
+    #!/bin/bash
+    echo "🔄 Executing failover procedure..."
+
+    # Check cluster health
+    check_cluster_health() {
+      local cluster=$1
+      kubectl config use-context "kind-$cluster"
+      if kubectl get nodes >/dev/null 2>&1; then
+        return 0
+      else
+        return 1
+      fi
+    }
+
+    # Find healthy cluster
+    find_healthy_cluster() {
+      for cluster in aws-cluster gcp-cluster azure-cluster; do
+        if check_cluster_health "$cluster"; then
+          echo "$cluster"
+          return 0
+        fi
+      done
+      echo "No healthy clusters found"
+      return 1
+    }
+
+    # Execute failover
+    healthy_cluster=$(find_healthy_cluster)
+    if [ -n "$healthy_cluster" ]; then
+      echo "✅ Failing over to: $healthy_cluster"
+      kubectl config use-context "kind-$healthy_cluster"
+      # Scale up applications on healthy cluster
+      kubectl scale deployment cluster-ai-demo --replicas=3
+      echo "✅ Failover completed"
+    else
+      echo "❌ No healthy clusters available"
+      exit 1
+    fi
+  recovery.sh: |
+    #!/bin/bash
+    echo "🔄 Executing recovery procedure..."
+
+    # Restore from backup
+    restore_from_backup() {
+      local cluster=$1
+      echo "📦 Restoring $cluster from backup..."
+      # Simulate backup restoration
+      kubectl config use-context "kind-$cluster"
+      kubectl apply -f /backups/$cluster/latest-backup.yaml
+      echo "✅ Restoration completed for $cluster"
+    }
+
+    # Health check after recovery
+    health_check() {
+      local cluster=$1
+      echo "🏥 Running health check for $cluster..."
+      kubectl config use-context "kind-$cluster"
+      kubectl wait --for=condition=ready pod --all --timeout=300s
+      echo "✅ Health check passed for $cluster"
+    }
+
+    # Execute recovery for all clusters
+    for cluster in aws-cluster gcp-cluster azure-cluster; do
+      restore_from_backup "$cluster"
+      health_check "$cluster"
+    done
+
+    echo "✅ Recovery procedure completed"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: disaster-recovery-backup
+  namespace: default
+spec:
+  schedule: "0 */1 * * *"  # Every hour
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: busybox:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "📦 Creating disaster recovery backup..."
+              mkdir -p /backup/$(date +%Y%m%d)
+              # Backup cluster configurations
+              kubectl get all -o yaml > /backup/$(date +%Y%m%d)/cluster-state.yaml
+              kubectl get pvc -o yaml > /backup/$(date +%Y%m%d)/pvc-state.yaml
+              # Backup application data
+              kubectl exec $(kubectl get pods -l app=storage-replicator -o jsonpath='{.items[0].metadata.name}') -- tar -czf /tmp/app-data.tar.gz -C /data .
+              kubectl cp $(kubectl get pods -l app=storage-replicator -o jsonpath='{.items[0].metadata.name}'):/tmp/app-data.tar.gz /backup/$(date +%Y%m%d)/
+              echo "✅ Backup completed at $(date)"
+            volumeMounts:
+            - name: backup-volume
+              mountPath: /backup
+          volumes:
+          - name: backup-volume
+            hostPath:
+              path: /tmp/disaster-recovery-backups
+              type: DirectoryOrCreate
+          restartPolicy: OnFailure
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: disaster-recovery-monitor
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: disaster-recovery-monitor
+  template:
+    metadata:
+      labels:
+        app: disaster-recovery-monitor
+    spec:
+      containers:
+      - name: monitor
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            echo "🔍 Monitoring cluster health..."
+            # Check all clusters
+            for cluster in aws-cluster gcp-cluster azure-cluster; do
+              if kubectl config use-context "kind-$cluster" 2>/dev/null; then
+                node_count=$(kubectl get nodes --no-headers | wc -l)
+                pod_count=$(kubectl get pods --no-headers | wc -l)
+                echo "✅ $cluster: $node_count nodes, $pod_count pods"
+              else
+                echo "❌ $cluster: unreachable"
+                # Trigger failover if primary cluster fails
+                if [ "$cluster" = "aws-cluster" ]; then
+                  echo "🚨 Primary cluster failed! Triggering failover..."
+                  /scripts/failover.sh
+                fi
+              fi
+            done
+            sleep 60
+          done
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: scripts
+        configMap:
+          name: failover-scripts

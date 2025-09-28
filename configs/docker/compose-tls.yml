@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  open-webui:
+    image: dyrnq/open-webui
+    container_name: open-webui
+    ports:
+      - "3000:3000"
+    environment:
+      # This points the UI inside the container to the Ollama API running on the host.
+      # On Linux, you may need to adjust extra_hosts instead of host.docker.internal.
+      - OLLAMA_API_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - web
+
+  nginx:
+    image: nginx:stable
+    container_name: openwebui-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./letsencrypt:/etc/letsencrypt
+      - ./html:/var/www/certbot:ro
+    depends_on:
+      - open-webui
+    restart: unless-stopped
+    networks:
+      - web
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./letsencrypt:/etc/letsencrypt
+      - ./html:/var/www/certbot
+    entrypoint: ""
+    command: ["sleep", "5"]
+    networks:
+      - web
+    restart: "no"
+
+networks:
+  web:
+    driver: bridge
+
+# NOTES:
+# 1) Replace 'host.docker.internal' usage if your Docker setup doesn't support it (common on older Linux setups).
+#    On Linux you can add an extra_hosts mapping or replace OLLAMA_API_URL with http://<your-host-ip>:11434
+# 2) Initial certificate issuance is performed manually with the certbot container command below (see README).

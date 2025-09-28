@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-torchserve
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: torchserve
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: torchserve
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: torchserve
+        app.kubernetes.io/component: ml-serving
+    spec:
+      containers:
+      - name: torchserve
+        image: pytorch/torchserve:0.8.2-gpu
+        ports:
+        - containerPort: 8080
+          name: inference-api
+        - containerPort: 8081
+          name: management-api
+        - containerPort: 8082
+          name: metrics
+        env:
+        - name: INFERENCE_ADDRESS
+          value: "http://0.0.0.0:8080"
+        - name: MANAGEMENT_ADDRESS
+          value: "http://0.0.0.0:8081"
+        - name: METRICS_ADDRESS
+          value: "http://0.0.0.0:8082"
+        command:
+        - torchserve
+        - --start
+        - --model-store=/home/model-server/model-store
+        - --models=cluster_ai_model.mar
+        - --ts-config=/home/model-server/config.properties
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+            nvidia.com/gpu: 1
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: model-storage
+          mountPath: /home/model-server/model-store
+        - name: config-storage
+          mountPath: /home/model-server/config
+        livenessProbe:
+          httpGet:
+            path: "/ping"
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: "/ping"
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: cluster-ai-models-pvc
+      - name: config-storage
+        configMap:
+          name: cluster-ai-torchserve-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-torchserve
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: torchserve
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  ports:
+  - name: inference-api
+    port: 8080
+    targetPort: 8080
+  - name: management-api
+    port: 8080
+    targetPort: 8081
+  - name: metrics
+    port: 8082
+    targetPort: 8082
+  selector:
+    app.kubernetes.io/name: torchserve
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-torchserve-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: torchserve
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  config.properties: |
+    inference_address=http://0.0.0.0:8080
+    management_address=http://0.0.0.0:8081
+    metrics_address=http://0.0.0.0:8082
+    number_of_netty_threads=32
+    job_queue_size=1000
+    model_store=/home/model-server/model-store
+    load_models=cluster_ai_model.mar
+    max_response_size=65535000
+    max_request_size=65535000
+    enable_envvars_config=true
+    install_py_dep_per_model=true
+    enable_metrics_api=true
+    metrics_format=prometheus
+    enable_auth=false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cluster-ai-torchserve-model-setup
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: torchserve-setup
+    app.kubernetes.io/component: ml-serving
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: model-setup
+        image: pytorch/torchserve:0.8.2-cpu
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Wait for model storage to be available
+          while [ ! -f /models/cluster_ai_model.pt ]; do
+            echo "Waiting for model file..."
+            sleep 10
+          done
+
+          # Create model archive
+          torch-model-archiver \
+            --model-name cluster_ai_model \
+            --version 1.0 \
+            --model-file /models/cluster_ai_model.py \
+            --serialized-file /models/cluster_ai_model.pt \
+            --handler /models/handler.py \
+            --export-path /models \
+            --force
+
+          echo "Model archive created successfully"
+        volumeMounts:
+        - name: model-storage
+          mountPath: /models
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: cluster-ai-models-pvc

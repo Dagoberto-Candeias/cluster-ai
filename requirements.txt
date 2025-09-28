@@ -1,0 +1,48 @@
+# Cluster AI - Dependências Python
+# ================================
+
+# Cluster AI - Dependências Python (Atualizado 2025)
+# ================================
+
+# Framework principal - Computação Distribuída
+dask[complete]>=2024.12.0
+distributed>=2024.12.0
+
+# API e Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+httpx>=0.27.0
+requests>=2.32.0
+websockets>=13.0.0
+
+# Segurança e Autenticação
+slowapi>=0.1.9
+sqlalchemy>=2.0.0
+aiosqlite>=0.20.0
+bcrypt>=4.1.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+pydantic[email]>=2.0.0
+pyjwt>=2.9.0
+paramiko>=3.5.0
+
+# Processamento de dados e ML
+numpy>=1.26.0
+pandas>=2.2.0
+scikit-learn>=1.5.0
+scipy>=1.14.0
+torch>=2.4.0
+torchvision>=0.19.0
+transformers>=4.45.0
+
+# Integração com Ollama e IA
+ollama>=0.3.0
+openai>=1.50.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+
+# Utilitários de sistema
+psutil>=6.0.0
+py-cpuinfo>=9.0.0
+netifaces>=0.11.0
+python-dotenv>=1.0.0

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-redis
+  namespace: cluster-ai
+  labels:
+    app: cluster-ai
+    component: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-ai
+      component: cache
+  template:
+    metadata:
+      labels:
+        app: cluster-ai
+        component: cache
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        command: ["redis-server"]
+        args:
+          - "--appendonly"
+          - "yes"
+          - "--maxmemory"
+          - "512mb"
+          - "--maxmemory-policy"
+          - "allkeys-lru"
+          - "--tcp-keepalive"
+          - "300"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        readinessProbe:
+          exec:
+            command:
+              - redis-cli
+              - ping
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+              - redis-cli
+              - ping
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        resources:
+          limits:
+            cpu: "0.5"
+            memory: "512Mi"
+          requests:
+            cpu: "0.25"
+            memory: "256Mi"
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-data
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-redis
+  namespace: cluster-ai
+  labels:
+    app: cluster-ai
+    component: cache
+spec:
+  type: ClusterIP
+  selector:
+    app: cluster-ai
+    component: cache
+  ports:
+  - protocol: TCP
+    port: 6379
+    targetPort: 6379

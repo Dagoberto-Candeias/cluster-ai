@@ -1,0 +1,80 @@
+{
+    "folders": [
+        {
+            "name": "Cluster AI",
+            "path": "."
+        }
+    ],
+    "settings": {
+        // Configurações específicas do workspace
+        "files.exclude": {
+            "**/.git": true,
+            "**/node_modules": true,
+            "**/venv": true,
+            "**/__pycache__": true,
+            "**/*.pyc": true,
+            "**/.pytest_cache": true,
+            "**/logs": true,
+            "**/temp": true,
+            "**/test_logs": true,
+            "**/backups": true,
+            "**/reports": true,
+            "**/metrics": true,
+            "**/models": true
+        },
+        "search.exclude": {
+            "**/node_modules": true,
+            "**/venv": true,
+            "**/__pycache__": true,
+            "**/*.pyc": true,
+            "**/.pytest_cache": true,
+            "**/logs": true,
+            "**/temp": true,
+            "**/test_logs": true,
+            "**/backups": true
+        },
+        // Limitar abas abertas
+        "workbench.editor.limit.enabled": true,
+        "workbench.editor.limit.value": 15,
+        "workbench.editor.limit.perEditorGroup": true,
+        // Use the project local virtual environment
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.venvPath": "${workspaceFolder}",
+        "python.terminal.activateEnvironment": true
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-python.python",
+            "ms-python.black-formatter",
+            "ms-python.flake8",
+            "ms-vscode.vscode-json",
+            "redhat.vscode-yaml",
+            "ms-vscode-remote.remote-ssh",
+            "ms-vscode.vscode-docker",
+            "ms-vscode.vscode-git-graph",
+            "gruntfuggly.todo-tree",
+            "christian-kohler.path-intellisense"
+        ]
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: Demo Cluster",
+                "type": "python",
+                "request": "launch",
+                "program": "${workspaceFolder}/demo_cluster.py",
+                "console": "integratedTerminal",
+                "justMyCode": true
+            },
+            {
+                "name": "Python: Test Installation",
+                "type": "python",
+                "request": "launch",
+                "program": "${workspaceFolder}/test_installation.py",
+                "console": "integratedTerminal",
+                "justMyCode": true
+            }
+        ]
+    }
+}

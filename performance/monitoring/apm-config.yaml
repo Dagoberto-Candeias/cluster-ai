@@ -1,0 +1,234 @@
+# Application Performance Monitoring (APM) Configuration
+# Using OpenTelemetry for distributed tracing and metrics
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ai-otel-config
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: opentelemetry
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      # Collect metrics from Kubernetes
+      kubeletstats:
+        collection_interval: 30s
+        endpoint: "https://${env:K8S_NODE_NAME}:10250"
+        insecure_skip_verify: true
+
+      # Collect host metrics
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu:
+          memory:
+          disk:
+          network:
+
+    processors:
+      batch:
+        send_batch_size: 1024
+        timeout: 1s
+
+      # Add service name and version
+      resource:
+        attributes:
+        - key: service.name
+          value: "cluster-ai"
+        - key: service.version
+          value: "1.0.0"
+
+      # Filter out health check spans
+      filter:
+        spans:
+          exclude:
+            match_type: strict
+            span_names:
+              - "GET /health"
+              - "GET /metrics"
+
+    exporters:
+      # Export to Jaeger for tracing
+      jaeger:
+        endpoint: "cluster-ai-jaeger-collector:14268/api/traces"
+        tls:
+          insecure: true
+
+      # Export metrics to Prometheus
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+
+      # Export to logging
+      logging:
+        loglevel: debug
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, filter, resource]
+          exporters: [jaeger, logging]
+
+        metrics:
+          receivers: [otlp, kubeletstats, hostmetrics]
+          processors: [batch, resource]
+          exporters: [prometheus, logging]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-ai-otel-collector
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opentelemetry-collector
+        app.kubernetes.io/component: monitoring
+    spec:
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector-contrib:0.88.0
+        command:
+        - /otelcol-contrib
+        - --config=/conf/otel-collector-config.yaml
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 8889
+          name: metrics
+        volumeMounts:
+        - name: otel-config
+          mountPath: /conf
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 13133
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 13133
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: otel-config
+        configMap:
+          name: cluster-ai-otel-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-otel-collector
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+  - name: metrics
+    port: 8889
+    targetPort: 8889
+  selector:
+    app.kubernetes.io/name: opentelemetry-collector
+  type: ClusterIP
+---
+# Jaeger for distributed tracing
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: cluster-ai-jaeger
+  namespace: cluster-ai
+spec:
+  strategy: allInOne
+  allInOne:
+    image: jaegertracing/all-in-one:latest
+    options:
+      log-level: info
+      query:
+        base-path: /jaeger
+  ui:
+    options:
+      dependencies:
+        menuEnabled: false
+      tracking:
+        gaID: ""
+  storage:
+    type: memory
+    options:
+      memory:
+        max-traces: 100000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-jaeger-query
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: tracing
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  ports:
+  - name: query-http
+    port: 16686
+    targetPort: 16686
+  selector:
+    app.kubernetes.io/name: jaeger
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-ai-jaeger-collector
+  namespace: cluster-ai
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: tracing
+    app.kubernetes.io/part-of: cluster-ai
+spec:
+  ports:
+  - name: jaeger-grpc
+    port: 14250
+    targetPort: 14250
+  - name: jaeger-http
+    port: 14268
+    targetPort: 14268
+  selector:
+    app.kubernetes.io/name: jaeger
+  type: ClusterIP

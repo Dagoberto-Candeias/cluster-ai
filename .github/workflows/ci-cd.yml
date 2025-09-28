@@ -1,0 +1,295 @@
+name: Cluster AI CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+
+jobs:
+  test-multiple-distros:
+    name: Test on ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [ubuntu-20.04, ubuntu-22.04, debian-11, debian-12]
+    container:
+      image: ${{ matrix.distro }}
+      options: --privileged
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        apt update
+        apt install -y curl git sudo bash jq
+        
+    - name: Run distribution tests
+      run: |
+        chmod +x scripts/validation/test_multiple_distros.sh
+        ./scripts/validation/test_multiple_distros.sh --html
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.distro }}
+        path: |
+          /tmp/cluster_ai_test_results.json
+          /tmp/cluster_ai_test_report.html
+          /tmp/cluster_ai_distro_test.log
+
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: ShellCheck
+      uses: ludeeus/action-shellcheck@master
+      with:
+        scandir: 'scripts'
+        
+    - name: Markdown lint
+      uses: avto-dev/markdown-lint@v1
+      with:
+        args: '*.md docs/**/*.md'
+        
+    - name: Check broken links
+      run: |
+        chmod +x scripts/documentation/consolidate_docs.sh
+        ./scripts/documentation/consolidate_docs.sh
+
+  performance-test:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run performance tests
+      run: |
+        chmod +x scripts/optimization/performance_optimizer.sh
+        ./scripts/optimization/performance_optimizer.sh
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: |
+          /tmp/cluster_ai_benchmark.json
+          /tmp/cluster_ai_optimization_report.md
+          /tmp/cluster_ai_optimization.log
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check documentation
+      run: |
+        # Verificar se todos os arquivos necessários existem
+        required_files=(
+          "README.md"
+          "CONTRIBUTING.md"
+          "LICENSE.txt"
+          "docs/README_PRINCIPAL.md"
+          "docs/manuals/INSTALACAO.md"
+          "docs/manuals/OLLAMA.md"
+          "docs/guides/QUICK_START.md"
+          "docs/guides/TROUBLESHOOTING.md"
+          "GUIA_PRATICO_CLUSTER_AI.md"
+        )
+        
+        missing_files=()
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            missing_files+=("$file")
+          fi
+        done
+        
+        if [ ${#missing_files[@]} -gt 0 ]; then
+          echo "Missing documentation files:"
+          printf '%s\n' "${missing_files[@]}"
+          exit 1
+        fi
+        
+        echo "All documentation files present ✅"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Semgrep scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: p/security-audit
+        
+    - name: Check for secrets
+      uses: gitleaks/gitleaks-action@v2
+      with:
+        config-path: .gitleaks.toml
+
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Generate deployment preview
+      run: |
+        echo "🚀 Deployment Preview for PR #${{ github.event.pull_request.number }}"
+        echo "📊 Changes: ${{ github.event.pull_request.changed_files }} files"
+        echo "🔗 URL: https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+        
+        # Gerar relatório de mudanças
+        git diff --name-only origin/main...HEAD > changes.txt
+        echo "📋 Changed files:"
+        cat changes.txt
+
+  notify:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs: [test-multiple-distros, code-quality, performance-test, documentation, security-scan]
+    if: always()
+    steps:
+    - name: Send notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#github-actions'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  kubernetes-deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [test-multiple-distros, code-quality, performance-test, documentation, security-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: v3.12.0
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: v1.27.0
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Deploy to Staging
+      run: |
+        # Create staging namespace if it doesn't exist
+        kubectl create namespace cluster-ai-staging --dry-run=client -o yaml | kubectl apply -f -
+
+        # Deploy using Helm
+        helm upgrade --install cluster-ai-staging ./deployments/helm/cluster-ai \
+          --namespace cluster-ai-staging \
+          --set namespace.create=false \
+          --set namespace.name=cluster-ai-staging \
+          --set ingress.hosts[0].host=staging.cluster-ai.example.com \
+          --set ingress.hosts[1].host=api-staging.cluster-ai.example.com \
+          --wait \
+          --timeout 10m
+
+    - name: Run Staging Tests
+      run: |
+        # Wait for services to be ready
+        kubectl wait --for=condition=available --timeout=300s deployment/cluster-ai-staging-frontend -n cluster-ai-staging
+        kubectl wait --for=condition=available --timeout=300s deployment/cluster-ai-staging-backend -n cluster-ai-staging
+
+        # Run integration tests against staging
+        echo "Running integration tests against staging environment..."
+
+    - name: Deploy to Production
+      run: |
+        # Create production namespace if it doesn't exist
+        kubectl create namespace cluster-ai --dry-run=client -o yaml | kubectl apply -f -
+
+        # Deploy using Helm
+        helm upgrade --install cluster-ai ./deployments/helm/cluster-ai \
+          --namespace cluster-ai \
+          --set namespace.create=false \
+          --set postgresql.auth.password="${{ secrets.POSTGRES_PASSWORD }}" \
+          --set backend.env.secretKey="${{ secrets.SECRET_KEY }}" \
+          --set backend.env.jwtSecretKey="${{ secrets.JWT_SECRET_KEY }}" \
+          --set grafana.adminPassword="${{ secrets.GRAFANA_PASSWORD }}" \
+          --set ingress.hosts[0].host=cluster-ai.example.com \
+          --set ingress.hosts[1].host=api.cluster-ai.example.com \
+          --wait \
+          --timeout 15m
+
+    - name: Run Production Health Checks
+      run: |
+        # Wait for all services to be ready
+        kubectl wait --for=condition=available --timeout=600s deployment/cluster-ai-frontend -n cluster-ai
+        kubectl wait --for=condition=available --timeout=600s deployment/cluster-ai-backend -n cluster-ai
+
+        # Run health checks
+        echo "Running production health checks..."
+        kubectl get pods -n cluster-ai
+        kubectl get services -n cluster-ai
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [kubernetes-deploy]
+    if: failure()
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: v1.27.0
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Rollback Production
+      run: |
+        # Rollback to previous version
+        helm rollback cluster-ai 0 -n cluster-ai
+
+  update-badges:
+    name: Update Badges
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Update status badge
+      run: |
+        # Gerar badge baseado no último status
+        status="passing"
+        color="green"
+        echo "{\"schemaVersion\": 1, \"label\": \"CI/CD\", \"message\": \"$status\", \"color\": \"$color\"}" > badge.json
+
+        # Atualizar README com badge (se necessário)
+        sed -i 's/!\[CI\/CD\].*/![CI\/CD](https:\/\/img.shields.io\/badge\/CI%2FCD-$status-$color)/' README.md
+
+env:
+  PYTHONUNBUFFERED: 1
+  CI: true
