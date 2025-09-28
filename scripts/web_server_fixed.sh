@@ -13,9 +13,11 @@
 set -euo pipefail
 
 # --- Cores e Estilos ---
+# shellcheck disable=SC2034  # Algumas cores podem não ser usadas diretamente neste script
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+# shellcheck disable=SC2034  # Pode não ser usada diretamente
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 GRAY='\033[0;37m'
@@ -27,6 +29,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Carregar funções comuns
+# shellcheck source=lib/common.sh
+# shellcheck disable=SC1091  # O ShellCheck não segue includes sem -x
 if [ ! -f "${SCRIPT_DIR}/lib/common.sh" ]; then
     echo "ERRO CRÍTICO: Script de funções comuns não encontrado."
     exit 1
@@ -50,7 +54,8 @@ mkdir -p "$WEB_DIR"
 log_web() {
     local level="$1"
     local message="$2"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
     echo "[$timestamp] [$level] $message" >> "$WEB_LOG"
 
@@ -179,8 +184,7 @@ start_web_server() {
     fi
 
     # Encontrar porta livre
-    port=$(find_free_port "$preferred_port")
-    if [[ $? -ne 0 ]]; then
+    if ! port=$(find_free_port "$preferred_port"); then
         error "Não foi possível encontrar uma porta livre"
         exit 1
     fi

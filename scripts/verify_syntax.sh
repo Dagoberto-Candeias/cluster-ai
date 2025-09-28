@@ -43,14 +43,16 @@ mkdir -p "$LOG_DIR"
 # Função para log
 log_syntax() {
     local message="$1"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     echo "[$timestamp] $message" >> "$SYNTAX_LOG"
 }
 
 # Função para verificar sintaxe bash
 check_bash_syntax() {
     local file="$1"
-    local relative_path="${file#$PROJECT_ROOT/}"
+    local relative_path
+    relative_path="${file#"$PROJECT_ROOT"/}"
 
     printf "  %-50s" "$relative_path"
 
@@ -68,7 +70,8 @@ check_bash_syntax() {
 # Função para verificar sintaxe Python
 check_python_syntax() {
     local file="$1"
-    local relative_path="${file#$PROJECT_ROOT/}"
+    local relative_path
+    relative_path="${file#"$PROJECT_ROOT"/}"
 
     printf "  %-50s" "$relative_path"
 
@@ -86,7 +89,8 @@ check_python_syntax() {
 # Função para verificar sintaxe JavaScript/TypeScript
 check_js_syntax() {
     local file="$1"
-    local relative_path="${file#$PROJECT_ROOT/}"
+    local relative_path
+    relative_path="${file#"$PROJECT_ROOT"/}"
 
     printf "  %-50s" "$relative_path"
 
@@ -110,7 +114,8 @@ check_js_syntax() {
 # Função para verificar sintaxe YAML
 check_yaml_syntax() {
     local file="$1"
-    local relative_path="${file#$PROJECT_ROOT/}"
+    local relative_path
+    relative_path="${file#"$PROJECT_ROOT"/}"
 
     printf "  %-50s" "$relative_path"
 

@@ -107,9 +107,12 @@ get_hardware_info() {
     print_section "RECURSOS DE HARDWARE"
     
     # CPU
-    local cpu_cores=$(nproc)
-    local cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
-    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed 's/.*, *\([0-9.]*\)%* id.*/\1/' | awk '{print 100 - $1}' 2>/dev/null || echo "N/A")
+    local cpu_cores
+    cpu_cores=$(nproc)
+    local cpu_model
+    cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
+    local cpu_usage
+    cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed 's/.*, *\([0-9.]*\)%* id.*/\1/' | awk '{print 100 - $1}' 2>/dev/null || echo "N/A")
     
     echo -e "CPU: ${BOLD}${cpu_model}${NC}"
     echo -e "Cores: ${BOLD}${cpu_cores}${NC}"
@@ -117,27 +120,36 @@ get_hardware_info() {
     
     # Memória
     if command_exists free; then
-        local mem_info=$(free -h | grep "Mem:")
-        local mem_total=$(echo "$mem_info" | awk '{print $2}')
-        local mem_used=$(echo "$mem_info" | awk '{print $3}')
-        local mem_percent=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+        local mem_info
+        mem_info=$(free -h | grep "Mem:")
+        local mem_total
+        mem_total=$(echo "$mem_info" | awk '{print $2}')
+        local mem_used
+        mem_used=$(echo "$mem_info" | awk '{print $3}')
+        local mem_percent
+        mem_percent=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
         
         echo -e "Memória Total: ${BOLD}${mem_total}${NC}"
         echo -e "Memória Usada: ${BOLD}${mem_used} (${mem_percent}%)${NC}"
     fi
     
     # Disco
-    local disk_info=$(df -h . | tail -1)
-    local disk_total=$(echo "$disk_info" | awk '{print $2}')
-    local disk_used=$(echo "$disk_info" | awk '{print $3}')
-    local disk_percent=$(echo "$disk_info" | awk '{print $5}')
+    local disk_info
+    disk_info=$(df -h . | tail -1)
+    local disk_total
+    disk_total=$(echo "$disk_info" | awk '{print $2}')
+    local disk_used
+    disk_used=$(echo "$disk_info" | awk '{print $3}')
+    local disk_percent
+    disk_percent=$(echo "$disk_info" | awk '{print $5}')
     
     echo -e "Disco Total: ${BOLD}${disk_total}${NC}"
     echo -e "Disco Usado: ${BOLD}${disk_used} (${disk_percent})${NC}"
     
     # GPU (se disponível)
     if command_exists nvidia-smi; then
-        local gpu_info=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits | head -1)
+        local gpu_info
+        gpu_info=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits | head -1)
         echo -e "GPU: ${BOLD}${gpu_info}${NC}"
     fi
 }
@@ -150,11 +162,13 @@ get_network_info() {
     print_section "CONFIGURAÇÃO DE REDE"
     
     # IP Local
-    local local_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "N/A")
+    local local_ip
+    local_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "N/A")
     echo -e "IP Local: ${BOLD}${local_ip}${NC}"
     
     # IP Público
-    local public_ip=$(curl -s ifconfig.me 2>/dev/null || echo "N/A")
+    local public_ip
+    public_ip=$(curl -s ifconfig.me 2>/dev/null || echo "N/A")
     echo -e "IP Público: ${BOLD}${public_ip}${NC}"
     
     # Interfaces de rede
@@ -181,8 +195,9 @@ get_services_status() {
     # Ollama
     if command_exists ollama; then
         if pgrep -f "ollama" >/dev/null 2>&1; then
-            local model_count=$(ollama list 2>/dev/null | wc -l)
-            echo -e "Ollama: $(status_indicator "RUNNING") ($(($model_count - 1)) modelos)"
+            local model_count
+            model_count=$(ollama list 2>/dev/null | wc -l)
+            echo -e "Ollama: $(status_indicator "RUNNING") ($((model_count - 1)) modelos)"
         else
             echo -e "Ollama: $(status_indicator "DOWN")"
         fi
@@ -193,7 +208,8 @@ get_services_status() {
     # Docker
     if command_exists docker; then
         if docker info >/dev/null 2>&1; then
-            local container_count=$(docker ps -q | wc -l)
+            local container_count
+            container_count=$(docker ps -q | wc -l)
             echo -e "Docker: $(status_indicator "RUNNING") ($container_count containers)"
         else
             echo -e "Docker: $(status_indicator "DOWN")"
@@ -204,7 +220,8 @@ get_services_status() {
     
     # Python
     if command_exists python3; then
-        local python_version=$(python3 --version | cut -d' ' -f2)
+        local python_version
+        python_version=$(python3 --version | cut -d' ' -f2)
         echo -e "Python: $(status_indicator "OK") (v${python_version})"
     else
         echo -e "Python: $(status_indicator "NOT_INSTALLED")"
@@ -245,9 +262,11 @@ get_ports_addresses() {
     
     echo -e "\nPortas em Uso:"
     if command_exists netstat; then
-        netstat -tlnp 2>/dev/null | grep -E ":(3000|8000|8786|8787|9090|3001|11434)" | while read line; do
-            local port=$(echo "$line" | awk '{print $4}' | cut -d: -f2)
-            local status=$(echo "$line" | awk '{print $6}')
+        netstat -tlnp 2>/dev/null | grep -E ":(3000|8000|8786|8787|9090|3001|11434)" | while read -r line; do
+            local port
+            port=$(echo "$line" | awk '{print $4}' | cut -d: -f2)
+            local status
+            status=$(echo "$line" | awk '{print $6}')
             echo -e "  • Porta ${port}: ${status}"
         done
     fi
@@ -283,10 +302,14 @@ get_workers_status() {
     
     local healthy=0
     for worker in "${workers[@]}"; do
-        local worker_info=$(yq e ".workers[\"$worker\"]" "$worker_config")
-        local host=$(echo "$worker_info" | yq e '.host' -)
-        local user=$(echo "$worker_info" | yq e '.user' -)
-        local port=$(echo "$worker_info" | yq e '.port' -)
+        local worker_info
+        worker_info=$(yq e ".workers[\"$worker\"]" "$worker_config")
+        local host
+        host=$(echo "$worker_info" | yq e '.host' -)
+        local user
+        user=$(echo "$worker_info" | yq e '.user' -)
+        local port
+        port=$(echo "$worker_info" | yq e '.port' -)
         
         echo -n "  • ${worker} (${user}@${host}:${port}): "
         
@@ -318,14 +341,16 @@ get_models_status() {
         return 1
     fi
     
-    local models=$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | sort)
+    local models
+    models=$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | sort)
     
     if [ -z "$models" ]; then
         echo -e "Modelos instalados: $(status_indicator "NONE")"
         return 0
     fi
     
-    local model_count=$(echo "$models" | wc -l)
+    local model_count
+    model_count=$(echo "$models" | wc -l)
     echo -e "Modelos instalados: ${BOLD}${model_count}${NC}"
     
     echo "$models" | while read -r model; do
@@ -391,13 +416,15 @@ get_executive_summary() {
     fi
     
     # Verificar recursos
-    local mem_usage=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}' 2>/dev/null || echo "0")
+    local mem_usage
+    mem_usage=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}' 2>/dev/null || echo "0")
     if [ "$mem_usage" -gt 90 ]; then
         overall_status="WARNING"
         issues+=("Uso de memória alto: ${mem_usage}%")
     fi
     
-    local disk_usage=$(df . | tail -1 | awk '{print $5}' | sed 's/%//')
+    local disk_usage
+    disk_usage=$(df . | tail -1 | awk '{print $5}' | sed 's/%//')
     if [ "$disk_usage" -gt 90 ]; then
         overall_status="WARNING"
         issues+=("Uso de disco alto: ${disk_usage}%")
