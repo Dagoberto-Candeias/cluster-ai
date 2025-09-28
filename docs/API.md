@@ -7,6 +7,11 @@ Este documento descreve as rotas da API unificada baseada em FastAPI. O aplicati
   - Health check básico do serviço (sem autenticação).
 - GET `/api/health`
   - Alias compatível para health check básico (sem autenticação).
+  
+  Exemplo:
+  ```bash
+  curl -sS http://localhost:8000/api/health | jq .
+  ```
 - GET `/cluster/status` (autenticado)
   - Status abrangente do cluster (CPU, memória, disco, serviços, workers, performance agregada).
 - GET `/api/cluster/status` (autenticado)
@@ -25,6 +30,13 @@ Este documento descreve as rotas da API unificada baseada em FastAPI. O aplicati
   - Lista de alertas recentes (modelo `AlertInfo`).
 - GET `/api/alerts` (autenticado)
   - Alias unificado para alertas.
+
+  Exemplo (com token):
+  ```bash
+  TOKEN="<SEU_TOKEN_JWT>"
+  curl -sS -H "Authorization: Bearer $TOKEN" \
+       http://localhost:8000/api/alerts | jq .
+  ```
 
 ## Workers
 - GET `/workers` (autenticado)
