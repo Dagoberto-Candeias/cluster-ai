@@ -32,6 +32,10 @@
 
 # 🚀 Cluster AI - Sistema Universal de IA Distribuída
 
+[![GitLab Pipeline Status](https://gitlab.com/dagoberto-candeias/cluster-ai/badges/main/pipeline.svg)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/commits/main)
+[![Lint: pre-commit](https://img.shields.io/badge/Lint-pre--commit-blue)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/pipelines?scope=all&ref=main)
+[![Health: scheduled](https://img.shields.io/badge/Health-scheduled-green)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/pipelines/schedules)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
@@ -43,6 +47,7 @@
 - **🛡️ Automação**: Inicialização plug-and-play, auto-recuperação e atualizações automáticas.
 
 **Status do Projeto**: Versão 2.0.0 (100% concluído). Projeto totalmente consolidado e funcional, pronto para produção.
+Nota: os badges "Lint" e "Health" usam indicadores de pipeline geral com rótulos descritivos por limitação do GitLab para badges por job.
 
 ### ✨ Características Principais
 
