@@ -1,0 +1,31 @@
+site_name: Cluster AI Docs
+site_url: https://dagoberto-candeias.github.io/cluster-ai/
+docs_dir: docs
+site_dir: site
+nav:
+  - Início: index.md
+  - Guias:
+      - Guia de Setup: guides/DEVELOPER_SETUP.md
+      - Workers (SSH): guides/WORKERS_SSH.md
+      - Monitoring: guides/monitoring.md
+      - Otimização: guides/OPTIMIZATION.md
+  - API: API.md
+  - README: ../README.md
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - toc:
+      permalink: true
+repo_url: https://github.com/Dagoberto-Candeias/cluster-ai
+repo_name: Dagoberto-Candeias/cluster-ai
+plugins:
+  - search
