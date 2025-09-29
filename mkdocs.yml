@@ -7,9 +7,14 @@ nav:
   - Guias:
       - Guia de Setup: guides/DEVELOPER_SETUP.md
       - Workers (SSH): guides/WORKERS_SSH.md
+      - Gerenciamento de Workers: guides/worker-management.md
       - Monitoring: guides/monitoring.md
       - Otimização: guides/OPTIMIZATION.md
+      - Troubleshooting: guides/troubleshooting.md
+      - Cluster Setup: guides/cluster_setup_guide.md
   - API: API.md
+  - Health Check: guides/como_usar_script.md
+  - Releases: releases.md
   - README: ../README.md
 theme:
   name: material
