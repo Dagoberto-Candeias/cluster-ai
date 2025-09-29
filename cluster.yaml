@@ -5,12 +5,6 @@ workers:
     port: 22
     user: dcm
     status: active
-  pc-dago:
-    host: 10.0.0.8
-    ip: 10.0.0.8
-    port: 22
-    user: dcm
-    status: active
   android-worker:
     host: 10.0.0.11
     ip: 10.0.0.11
@@ -20,18 +14,6 @@ workers:
   worker-10-0-0-11:
     host: 10.0.0.11
     ip: 10.0.0.11
-    port: 8022
-    user: dcm
-    status: active
-  10.0.0.12:
-    host: 10.0.0.12
-    ip: 10.0.0.12
-    port: 8022
-    user: dcm
-    status: active
-  worker-10-0-0-12:
-    host: 10.0.0.12
-    ip: 10.0.0.12
     port: 8022
     user: dcm
     status: active
