@@ -304,16 +304,32 @@ manual:health_check_full:
 
 build:docs:
   stage: build
-  image: node:18-alpine
+  image: python:3.11-slim
   before_script:
-    - npm install -g mkdocs mkdocs-material
+    - apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+    - pip install --no-cache-dir mkdocs mkdocs-material
   script:
-    - echo "📚 Building documentation..."
+    - echo "📚 Building documentation (MkDocs)..."
     - mkdocs build --clean --strict
   artifacts:
     paths:
       - site/
     expire_in: 1 week
+  only:
+    - main
+
+pages:
+  stage: deploy
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+    - pip install --no-cache-dir mkdocs mkdocs-material
+  script:
+    - echo "🚀 Publishing MkDocs site to GitLab Pages..."
+    - mkdocs build --clean --strict -d public
+  artifacts:
+    paths:
+      - public
   only:
     - main
 
