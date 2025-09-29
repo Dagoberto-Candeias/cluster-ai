@@ -16,6 +16,8 @@ set -euo pipefail
 # Carregar biblioteca comum
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=scripts/utils/common_functions.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common_functions.sh"
 
 # Configurações
@@ -25,10 +27,28 @@ WORKER_CONFIG_FILE="${PROJECT_ROOT}/cluster.yaml"
 
 # Carregar variáveis de ambiente opcionais do projeto (.env)
 if [ -f "${PROJECT_ROOT}/.env" ]; then
-    # shellcheck disable=SC1090
+    # Filtra apenas linhas no formato VAR=VAL com nomes válidos (sem pontos)
+    # Evita erros como "xpack.security.enabled=false" ao dar source no arquivo completo
+    tmp_env_file=$(mktemp)
+    # shellcheck disable=SC2016
+    grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "${PROJECT_ROOT}/.env" > "$tmp_env_file" || true
     set -a
-    . "${PROJECT_ROOT}/.env"
+    # shellcheck disable=SC1090
+    . "$tmp_env_file"
     set +a
+    rm -f "$tmp_env_file"
+fi
+
+# Carregar variáveis locais opcionais (.env.local) para overrides sem tocar no .env
+if [ -f "${PROJECT_ROOT}/.env.local" ]; then
+    tmp_env_local=$(mktemp)
+    # shellcheck disable=SC2016
+    grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "${PROJECT_ROOT}/.env.local" > "$tmp_env_local" || true
+    set -a
+    # shellcheck disable=SC1090
+    . "$tmp_env_local"
+    set +a
+    rm -f "$tmp_env_local"
 fi
 
 # Parâmetros ajustáveis (com defaults seguros)
@@ -38,6 +58,9 @@ MEM_WARN_THRESHOLD=${MEM_WARN_THRESHOLD:-85}       # %
 MEM_CRIT_THRESHOLD=${MEM_CRIT_THRESHOLD:-95}       # %
 CPU_CRIT_THRESHOLD=${CPU_CRIT_THRESHOLD:-90}       # % (workers)
 WORKER_DISK_CRIT_THRESHOLD=${WORKER_DISK_CRIT_THRESHOLD:-95}  # %
+
+# Flags de execução
+SKIP_WORKERS=${SKIP_WORKERS:-false}
 
 # Serviços Docker a verificar (separados por espaço)
 DOCKER_SERVICES=${DOCKER_SERVICES:-"frontend backend redis prometheus grafana"}
@@ -426,7 +449,11 @@ system_health_check() {
     check_docker_services || { overall_status="ERROR"; issues+=("Docker Services"); }
 
     echo -e "\n${BOLD}${BLUE}WORKERS${NC}"
-    health_check_all_workers || { overall_status="ERROR"; issues+=("Workers"); }
+    if [[ "$SKIP_WORKERS" == "true" ]]; then
+        warn "Workers check skipped (--skip-workers)"
+    else
+        health_check_all_workers || { overall_status="ERROR"; issues+=("Workers"); }
+    fi
 
     echo -e "\n${BOLD}${BLUE}MODELS${NC}"
     health_check_models || { overall_status="WARN"; issues+=("Models"); }
@@ -518,7 +545,11 @@ json_health_check() {
     check_python >/dev/null 2>&1; s_python=$?
     check_docker_services >/dev/null 2>&1; s_compose=$?
 
-    health_check_all_workers >/dev/null 2>&1; s_workers=$?
+    if [[ "$SKIP_WORKERS" == "true" ]]; then
+        s_workers=0
+    else
+        health_check_all_workers >/dev/null 2>&1; s_workers=$?
+    fi
     health_check_models >/dev/null 2>&1; s_models=$?
 
     check_disk_space >/dev/null 2>&1; s_disk=$?
@@ -567,7 +598,37 @@ main() {
     # Verificar pré-requisitos
     check_prereqs
 
-    local action="${1:-status}"
+    # Parse de opções (permite override de serviços via CLI)
+    local action="status"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --services)
+                if [[ -n "${2:-}" ]]; then
+                    DOCKER_SERVICES="$2"
+                    shift 2
+                    continue
+                else
+                    echo "Erro: --services requer um argumento (lista separada por espaço)" >&2
+                    exit 1
+                fi
+                ;;
+            --skip-workers)
+                SKIP_WORKERS=true
+                shift
+                continue
+                ;;
+            status|diag|diagnostic|json|--json|services|workers|models|system)
+                action="$1"
+                shift
+                continue
+                ;;
+            *)
+                # Ignora argumentos desconhecidos para manter compatibilidade
+                shift
+                continue
+                ;;
+        esac
+    done
 
     case "$action" in
         "status")
@@ -603,6 +664,10 @@ main() {
             echo "  workers    - Check all configured workers"
             echo "  models     - Check Ollama models integrity"
             echo "  system     - Check system resources"
+            echo ""
+            echo "Options:"
+            echo "  --services  \"<list>\"   Override Docker services substrings for detection"
+            echo "  --skip-workers          Skip workers checks (treat as WARN, no impact on overall)"
             echo "  help       - Show this help"
             echo ""
             echo "Log file: $HEALTH_LOG"

@@ -1,13 +1,12 @@
 # Cluster AI - Docker Management Makefile
-
 .PHONY: help build up down restart logs clean dev prod backup restore health status \
-	venv venv-dev fix-perms status-summary status-quick lint-shell
+    venv venv-dev fix-perms status-summary status-quick lint-shell health-json health-ssh
 
 # Default target
 help: ## Show this help message
 	@echo "Cluster AI - Docker Management Commands"
 	@echo ""
-{{ ... }}
+# ...
 	@echo "  make restore          Restore from backup"
 	@echo "  make venv             Create/Update local Python venv (.venv)"
 	@echo "  make venv-dev         Create/Update venv and install dev deps"
@@ -20,13 +19,53 @@ help: ## Show this help message
 	@echo "  make up               Start development environment"
 	@echo "  make down             Stop all environments"
 	@echo "  make restart          Restart all environments"
-{{ ... }}
+# ...
 # Status summaries
 status-summary: ## Show system/services/workers summary
 	@bash scripts/utils/system_status_dashboard.sh || true
 
 status-quick: ## Quick health check
 	@bash scripts/utils/health_check.sh status || true
+
+# JSON health check (skipping workers), optional SERVICES="a b c" to override DOCKER_SERVICES
+health-json: ## Run JSON health check (skip workers); optional SERVICES="<list>" overrides docker services
+	@echo "Running health check (JSON, skip workers)..."
+	@SOPT=""; \
+	if [ -n "$(SERVICES)" ]; then SOPT="--services \"$(SERVICES)\""; fi; \
+	bash scripts/utils/health_check.sh $$SOPT --skip-workers --json | tee health-check.json || true
+	@echo "health-check.json generated."
+
+# SSH diagnostics for workers (requires yq and ssh); generates workers-ssh-report.txt
+health-ssh: ## Diagnose SSH connectivity to workers defined in cluster.yaml and write report
+	@echo "Running SSH diagnostics for workers..."
+	@command -v yq >/dev/null || { echo "Please install yq (v4)."; exit 1; }
+	@echo "== Workers configurados =="; yq e '.workers | keys | .[]' cluster.yaml || true
+	@echo "\n== Teste SSH por worker ==" | tee workers-ssh-report.txt
+	@TMPPY=$$(mktemp); \
+	printf '%s\n' \
+	'import sys, json, subprocess' \
+	'workers = json.load(sys.stdin)' \
+	'ok = fail = skip = 0' \
+	'for name, cfg in workers.items():' \
+	'    host = cfg.get("host"); user = cfg.get("user","root"); port = str(cfg.get("port",22))' \
+	'    if not host:' \
+	'        print(f"[{name}] SKIP: host ausente em cluster.yaml"); skip += 1; continue' \
+	'    cmd = ["ssh","-o","BatchMode=yes","-o","ConnectTimeout=5","-p",port,f"{user}@{host}","echo OK"]' \
+	'    try:' \
+	'        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=8).decode().strip()' \
+	'        if out.strip() == "OK":' \
+	'            print(f"[{name}] {user}@{host}:{port} -> OK"); ok += 1' \
+	'        else:' \
+	'            print(f"[{name}] {user}@{host}:{port} -> UNEXPECTED: {out}"); fail += 1' \
+	'    except subprocess.CalledProcessError as e:' \
+	'        print(f"[{name}] {user}@{host}:{port} -> FAIL ({e.output.decode().strip()})"); fail += 1' \
+	'    except Exception as e:' \
+	'        print(f"[{name}] {user}@{host}:{port} -> FAIL ({e})"); fail += 1' \
+	'print(f"SUMMARY: OK={ok} FAIL={fail} SKIP={skip}")' \
+	> $$TMPPY; \
+	yq -o=j -I=0 e '.workers' cluster.yaml | python3 $$TMPPY | tee -a workers-ssh-report.txt; \
+	rm -f $$TMPPY; \
+	echo "workers-ssh-report.txt generated."
 
 # Lint shell scripts with ShellCheck
 lint-shell: ## Run ShellCheck on shell scripts

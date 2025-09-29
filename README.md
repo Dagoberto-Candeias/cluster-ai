@@ -126,6 +126,16 @@ Exemplo de saída:
 {"services":{"ollama":true,"docker":true,"python":true,"compose":true},"workers":{"healthy":true},"models":{"healthy":true},"system":{"disk":true,"memory":true,"network":true},"overall":"OK"}
 ```
 
+Uso via Makefile (gera health-check.json):
+
+```bash
+# Padrão: pula workers
+make health-json
+
+# Override de serviços (substrings dos nomes dos containers)
+make health-json SERVICES="azure-cluster-worker azure-cluster-control-plane gcp-cluster-worker aws-cluster-worker"
+```
+
 Variáveis de ambiente (configuráveis em `.env`):
 
 - `DISK_WARN_THRESHOLD` (default 80)
@@ -422,13 +432,13 @@ Documentação completa: [docs/guides/troubleshooting.md](docs/guides/troublesho
 
 ### Badges de Status (CI)
 
-Para exibir o status do pipeline do GitLab no README, atualize o badge abaixo com o seu namespace/projeto e branch:
+Exemplo prático usando este repositório (namespace real):
 
 ```markdown
-[![GitLab Pipeline Status](https://gitlab.com/YOUR_NAMESPACE/cluster-ai/badges/main/pipeline.svg)](https://gitlab.com/YOUR_NAMESPACE/cluster-ai/-/commits/main)
+[![GitLab Pipeline Status](https://gitlab.com/dagoberto-candeias/cluster-ai/badges/main/pipeline.svg)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/commits/main)
 ```
 
-Substitua `YOUR_NAMESPACE` pelo grupo/usuário do seu projeto no GitLab e `main` pela branch desejada (ex.: `develop`).
+Se você estiver usando um fork, ajuste o namespace/projeto e a branch conforme necessário (ex.: `develop`).
 
 Adicione testes para falhas: Cenários de recuperação, permissões e validação de comandos.
 

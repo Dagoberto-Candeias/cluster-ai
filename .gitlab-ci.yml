@@ -352,11 +352,13 @@ cleanup:cache:
 scheduled:health_check_json:
   stage: test
   image: alpine:latest
+  variables:
+    SERVICES: "azure-cluster-worker azure-cluster-control-plane azure-cluster-worker2 gcp-cluster-worker gcp-cluster-worker2 gcp-cluster-control-plane aws-cluster-worker2 aws-cluster-worker aws-cluster-control-plane"
   before_script:
     - apk add --no-cache bash coreutils grep sed gawk iputils curl openssh-client
   script:
     - echo "🩺 Running scheduled JSON health check..."
-    - bash scripts/utils/health_check.sh --json | tee health-check.json || true
+    - make health-json SERVICES="$SERVICES"
   artifacts:
     paths:
       - health-check.json
