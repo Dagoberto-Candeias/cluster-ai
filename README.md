@@ -1,21 +1,41 @@
+## 🧭 Uso Diário
+
+- **Health rápido (sem workers):**
+  ```bash
+  make health-json
+  ```
+- **Health completo (inclui workers):**
+  ```bash
+  make health-json-full SERVICES="azure-cluster-worker azure-cluster-control-plane gcp-cluster-worker aws-cluster-worker"
+  ```
+- **Diagnóstico SSH de workers:**
+  ```bash
+  make health-ssh
+  ```
+- **Configurar serviços por ambiente:**
+  - Crie `/.env.local` e defina `DOCKER_SERVICES` (o script carrega com filtro seguro):
+    ```dotenv
+    DOCKER_SERVICES="azure-cluster-worker azure-cluster-control-plane gcp-cluster-worker gcp-cluster-control-plane gcp-cluster-worker2 aws-cluster-worker2 aws-cluster-worker aws-cluster-control-plane"
+    ```
+
+## 🧹 Pre-commit (Qualidade de Código)
+
+- Arquivo: `.pre-commit-config.yaml` com hooks para `black`, `isort`, `flake8`, `shellcheck`, `yamllint`, `prettier`.
+- Ativar localmente:
+  ```bash
+  pip install pre-commit
+  pre-commit install
+  # Rodar em todo o repositório (opcional):
+  pre-commit run --all-files
+  ```
+- Em caso de CI, você pode opcionalmente adicionar um job de lint que execute `pre-commit run --all-files`.
+
 # 🚀 Cluster AI - Sistema Universal de IA Distribuída
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
 [![Linux](https://img.shields.io/badge/Linux-Supported-green.svg)](https://www.linux.org/)
-[![Android](https://img.shields.io/badge/Android-Termux-green.svg)](https://termux.dev/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![GitLab Pipeline Status](https://gitlab.com/dagoberto-candeias/cluster-ai/badges/main/pipeline.svg)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/commits/main)
-
-> Plataforma integrada de IA distribuída com processamento paralelo (Dask), modelos locais (Ollama), interface web (OpenWebUI) e suporte multi-plataforma (Linux/Android). Fácil de usar, escalável e segura.
-
-## 📖 Visão Geral
-
-O **Cluster AI** é um sistema completo para computação distribuída de IA, combinando:
-
-- **🚀 Processamento Distribuído**: Dask para tarefas paralelas em larga escala.
-- **🧠 Modelos de IA**: Ollama com suporte a múltiplos modelos (Llama3, Mistral, etc.).
 - **🌐 Interface Web**: OpenWebUI para interação conversacional e dashboards.
 - **📱 Workers Multi-Plataforma**: Suporte nativo a Linux e Android (via Termux/SSH).
 - **🔒 Segurança**: TLS/SSL, auditoria de logs e validação de integridade.
@@ -145,6 +165,14 @@ Variáveis de ambiente (configuráveis em `.env`):
 - `CPU_CRIT_THRESHOLD` (default 90)
 - `WORKER_DISK_CRIT_THRESHOLD` (default 95)
 - `DOCKER_SERVICES` (default "frontend backend redis prometheus grafana")
+
+### Configuração de Workers (SSH)
+
+- Guia completo: `docs/guides/WORKERS_SSH.md`
+- Exemplo de configuração: `cluster.yaml.example` (copie para `cluster.yaml` e ajuste `host/user/port`).
+- Diagnóstico:
+  - `make health-ssh` (gera `workers-ssh-report.txt`)
+  - `make health-json-full SERVICES="..."` (inclui workers)
 
 Observações:
 
