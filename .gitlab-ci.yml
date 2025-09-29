@@ -87,12 +87,18 @@ lint:markdown:
 lint:pre-commit:
   stage: lint
   image: python:3.11-slim
+  variables:
+    PRE_COMMIT_HOME: "$CI_PROJECT_DIR/.cache/pre-commit"
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends git nodejs npm shellcheck && rm -rf /var/lib/apt/lists/*
     - pip install --no-cache-dir pre-commit
   script:
     - echo "🧹 Running pre-commit on repository..."
     - pre-commit run --all-files || true
+  cache:
+    key: pre-commit-cache
+    paths:
+      - .cache/pre-commit
   allow_failure: true
   only:
     - merge_requests
