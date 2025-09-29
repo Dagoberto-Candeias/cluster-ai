@@ -35,7 +35,8 @@
 [![GitLab Pipeline Status](https://gitlab.com/dagoberto-candeias/cluster-ai/badges/main/pipeline.svg)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/commits/main)
 [![Lint: pre-commit](https://img.shields.io/badge/Lint-pre--commit-blue)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/pipelines?scope=all&ref=main)
 [![Health: scheduled](https://img.shields.io/badge/Health-scheduled-green)](https://gitlab.com/dagoberto-candeias/cluster-ai/-/pipelines/schedules)
-[![Docs](https://img.shields.io/badge/Docs-GitLab%20Pages-brightgreen)](https://dagoberto-candeias.gitlab.io/cluster-ai/)
+[![Docs (GitHub Pages)](https://img.shields.io/badge/Docs-GitHub%20Pages-brightgreen)](https://dagoberto-candeias.github.io/cluster-ai/)
+[![Docs Workflow](https://github.com/Dagoberto-Candeias/cluster-ai/actions/workflows/docs.yml/badge.svg)](https://github.com/Dagoberto-Candeias/cluster-ai/actions/workflows/docs.yml)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
@@ -52,8 +53,8 @@ Nota: os badges "Lint" e "Health" usam indicadores de pipeline geral com rótulo
 
 ### 📚 Documentação Online
 
-- URL (GitLab Pages): https://dagoberto-candeias.gitlab.io/cluster-ai/
-- Caso a URL do Pages seja diferente (ex.: namespace/projeto), ajuste este link conforme exibido em Settings → Pages no GitLab.
+- URL (GitHub Pages): https://dagoberto-candeias.github.io/cluster-ai/
+- A publicação é automática pelo GitHub Actions (`.github/workflows/docs.yml`) na branch `main` (deploy em `gh-pages`).
 
 ### ✨ Características Principais
 
