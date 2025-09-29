@@ -84,6 +84,20 @@ lint:markdown:
     - merge_requests
     - main
 
+lint:pre-commit:
+  stage: lint
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git nodejs npm shellcheck && rm -rf /var/lib/apt/lists/*
+    - pip install --no-cache-dir pre-commit
+  script:
+    - echo "🧹 Running pre-commit on repository..."
+    - pre-commit run --all-files || true
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
 # ==================== TEST ====================
 
 test:unit:
@@ -263,6 +277,24 @@ build:docker:
   only:
     - main
     - tags
+
+manual:health_check_full:
+  stage: test
+  image: alpine:latest
+  variables:
+    SERVICES: "azure-cluster-worker azure-cluster-control-plane azure-cluster-worker2 gcp-cluster-worker gcp-cluster-worker2 gcp-cluster-control-plane aws-cluster-worker2 aws-cluster-worker aws-cluster-control-plane"
+  before_script:
+    - apk add --no-cache bash coreutils grep sed gawk iputils curl openssh-client
+  script:
+    - echo "🧪 Running manual FULL JSON health check (includes workers)..."
+    - make health-json-full SERVICES="$SERVICES"
+  artifacts:
+    paths:
+      - health-check.json
+    expire_in: 1 week
+  when: manual
+  only:
+    - main
 
 build:docs:
   stage: build
