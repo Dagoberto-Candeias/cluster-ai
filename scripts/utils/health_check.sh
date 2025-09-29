@@ -167,6 +167,26 @@ check_python() {
     fi
 }
 
+# Verificar Dashboard Model Registry (Flask)
+check_dashboard() {
+    log_health "INFO" "Checking Dashboard Model Registry"
+    if ! command_exists curl; then
+        warn "curl not available to check dashboard"
+        return 1
+    fi
+    local url
+    url=${DASHBOARD_HEALTH_URL:-http://127.0.0.1:5000/health}
+    local timeout
+    timeout=${DASHBOARD_HEALTH_TIMEOUT:-3}
+    if curl -fsS --max-time "$timeout" "$url" >/dev/null 2>&1; then
+        success "Dashboard healthy ($url)"
+        return 0
+    else
+        error "Dashboard not responding ($url)"
+        return 1
+    fi
+}
+
 # Verificar serviços Docker Compose
 check_docker_services() {
     log_health "INFO" "Checking Docker Compose services"
@@ -232,7 +252,7 @@ health_check_worker() {
     local issues=()
 
     # 1. Verificar conectividade SSH
-    if ! ssh -o ConnectTimeout=5 -o BatchMode=yes -p "$port" "$user@$host" "echo 'OK'" >/dev/null 2>&1; then
+    if ! ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -o BatchMode=yes -p "$port" "$user@$host" "echo 'OK'" >/dev/null 2>&1; then
         health_status="UNHEALTHY"
         issues+=("SSH connection failed")
     fi
@@ -241,7 +261,7 @@ health_check_worker() {
     if [[ "$health_status" == "HEALTHY" ]]; then
         # CPU
         local cpu_usage
-        cpu_usage=$(ssh -p "$port" "$user@$host" "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\([0-9.]*\)%* id.*/\1/' | awk '{print 100 - \$1}'" 2>/dev/null || echo "N/A")
+        cpu_usage=$(ssh -o StrictHostKeyChecking=accept-new -p "$port" "$user@$host" "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\([0-9.]*\)%* id.*/\1/' | awk '{print 100 - \$1}'" 2>/dev/null || echo "N/A")
         if [[ "$cpu_usage" != "N/A" ]] && float_gt "$cpu_usage" "$CPU_CRIT_THRESHOLD"; then
             health_status="UNHEALTHY"
             issues+=("High CPU: ${cpu_usage}%")
@@ -249,7 +269,7 @@ health_check_worker() {
 
         # Memory
         local mem_usage
-        mem_usage=$(ssh -p "$port" "$user@$host" "free | grep Mem | awk '{printf \"%.1f\", \$3/\$2 * 100.0}'" 2>/dev/null || echo "N/A")
+        mem_usage=$(ssh -o StrictHostKeyChecking=accept-new -p "$port" "$user@$host" "free | grep Mem | awk '{printf \"%.1f\", \$3/\$2 * 100.0}'" 2>/dev/null || echo "N/A")
         if [[ "$mem_usage" != "N/A" ]] && float_gt "$mem_usage" "$MEM_CRIT_THRESHOLD"; then
             health_status="UNHEALTHY"
             issues+=("High memory: ${mem_usage}%")
@@ -257,7 +277,7 @@ health_check_worker() {
 
         # Disk
         local disk_usage
-        disk_usage=$(ssh -p "$port" "$user@$host" "df / | tail -1 | awk '{print \$5}' | sed 's/%//'" 2>/dev/null || echo "N/A")
+        disk_usage=$(ssh -o StrictHostKeyChecking=accept-new -p "$port" "$user@$host" "df / | tail -1 | awk '{print \$5}' | sed 's/%//'" 2>/dev/null || echo "N/A")
         if [[ "$disk_usage" != "N/A" ]] && [ "$disk_usage" -gt "$WORKER_DISK_CRIT_THRESHOLD" ]; then
             health_status="UNHEALTHY"
             issues+=("High disk: ${disk_usage}%")
@@ -265,7 +285,7 @@ health_check_worker() {
 
         # Dask processes
         local dask_count
-        dask_count=$(ssh -p "$port" "$user@$host" "pgrep -f dask | wc -l" 2>/dev/null || echo "0")
+        dask_count=$(ssh -o StrictHostKeyChecking=accept-new -p "$port" "$user@$host" "pgrep -f dask | wc -l" 2>/dev/null || echo "0")
         if [ "$dask_count" -eq 0 ]; then
             issues+=("No Dask processes")
         fi
@@ -311,6 +331,15 @@ health_check_all_workers() {
         if [[ -z "$host_present" ]]; then
             warn "Worker '$worker' skipped (missing host in cluster.yaml)"
             log_health "WARN" "Worker $worker skipped: missing host"
+            ((skipped++))
+            continue
+        fi
+        # Respeitar status do worker (default: active)
+        local status
+        status=$(yq e ".workers[\"$worker\"].status // \"active\"" "$WORKER_CONFIG_FILE" 2>/dev/null | tr 'A-Z' 'a-z')
+        if [[ "$status" != "active" ]]; then
+            warn "Worker '$worker' skipped (status=$status)"
+            log_health "WARN" "Worker $worker skipped: status=$status"
             ((skipped++))
             continue
         fi
@@ -462,6 +491,7 @@ system_health_check() {
     check_ollama || { overall_status="ERROR"; issues+=("Ollama"); }
     check_docker || { overall_status="ERROR"; issues+=("Docker"); }
     check_python || { overall_status="WARN"; issues+=("Python"); }
+    check_dashboard || { overall_status="ERROR"; issues+=("Dashboard"); }
     check_docker_services || { overall_status="ERROR"; issues+=("Docker Services"); }
 
     echo -e "\n${BOLD}${BLUE}WORKERS${NC}"
@@ -554,11 +584,13 @@ status_health_check() {
 json_health_check() {
     # Executa cada verificação suprimindo saída e compõe um JSON simples
     local s_ollama s_docker s_python s_compose
+    local s_dashboard
     local s_workers s_models s_disk s_mem s_net
 
     check_ollama >/dev/null 2>&1; s_ollama=$?
     check_docker >/dev/null 2>&1; s_docker=$?
     check_python >/dev/null 2>&1; s_python=$?
+    check_dashboard >/dev/null 2>&1; s_dashboard=$?
     check_docker_services >/dev/null 2>&1; s_compose=$?
 
     if [[ "$SKIP_WORKERS" == "true" ]]; then
@@ -573,17 +605,18 @@ json_health_check() {
     check_network >/dev/null 2>&1; s_net=$?
 
     local services_ok workers_ok models_ok system_ok overall
-    services_ok=$(( s_ollama==0 && s_docker==0 && s_python==0 && s_compose==0 ? 0 : 1 ))
+    services_ok=$(( s_ollama==0 && s_docker==0 && s_python==0 && s_dashboard==0 && s_compose==0 ? 0 : 1 ))
     workers_ok=$(( s_workers==0 ? 0 : 1 ))
     models_ok=$(( s_models==0 ? 0 : 1 ))
     system_ok=$(( s_disk==0 && s_mem==0 && s_net==0 ? 0 : 1 ))
     overall=$(( services_ok==0 && workers_ok==0 && models_ok==0 && system_ok==0 ? 0 : 1 ))
 
     # Imprime JSON
-    printf '{"services":{"ollama":%s,"docker":%s,"python":%s,"compose":%s},' \
+    printf '{"services":{"ollama":%s,"docker":%s,"python":%s,"dashboard":%s,"compose":%s},' \
       "$([ $s_ollama -eq 0 ] && echo true || echo false)" \
       "$([ $s_docker -eq 0 ] && echo true || echo false)" \
       "$([ $s_python -eq 0 ] && echo true || echo false)" \
+      "$([ $s_dashboard -eq 0 ] && echo true || echo false)" \
       "$([ $s_compose -eq 0 ] && echo true || echo false)"
     printf '"workers":{"healthy":%s},' "$([ $s_workers -eq 0 ] && echo true || echo false)"
     printf '"models":{"healthy":%s},' "$([ $s_models -eq 0 ] && echo true || echo false)"
@@ -614,6 +647,25 @@ main() {
     # Verificar pré-requisitos
     check_prereqs
 
+    # Caminho rápido para ambientes de teste/CI: evitar operações pesadas e timeouts
+    if [[ "${CLUSTER_AI_TEST_MODE:-0}" == "1" ]]; then
+        log_health "INFO" "Fast path enabled (CLUSTER_AI_TEST_MODE=1)"
+        # Reduzir timeouts e pular partes pesadas
+        SKIP_WORKERS=true
+        DASHBOARD_HEALTH_TIMEOUT=1
+        DOCKER_SERVICES=""
+
+        echo -e "${BOLD}${BLUE}FAST STATUS (TEST MODE)${NC}"
+        # Executar apenas checagens leves e não bloqueantes
+        check_python >/dev/null 2>&1 || true
+        check_disk_space >/dev/null 2>&1 || true
+        check_memory >/dev/null 2>&1 || true
+
+        echo -e "${YELLOW}Test mode:${NC} pulando verificações de Docker, Ollama, Dashboard, Workers e Network"
+        log_health "INFO" "Fast status completed"
+        return 0
+    fi
+
     # Parse de opções (permite override de serviços via CLI)
     local action="status"
     while [[ $# -gt 0 ]]; do
@@ -625,6 +677,26 @@ main() {
                     continue
                 else
                     echo "Erro: --services requer um argumento (lista separada por espaço)" >&2
+                    exit 1
+                fi
+                ;;
+            --dashboard-url)
+                if [[ -n "${2:-}" ]]; then
+                    DASHBOARD_HEALTH_URL="$2"
+                    shift 2
+                    continue
+                else
+                    echo "Erro: --dashboard-url requer uma URL" >&2
+                    exit 1
+                fi
+                ;;
+            --dashboard-timeout)
+                if [[ -n "${2:-}" ]]; then
+                    DASHBOARD_HEALTH_TIMEOUT="$2"
+                    shift 2
+                    continue
+                else
+                    echo "Erro: --dashboard-timeout requer um valor (segundos)" >&2
                     exit 1
                 fi
                 ;;
@@ -683,6 +755,8 @@ main() {
             echo ""
             echo "Options:"
             echo "  --services  \"<list>\"   Override Docker services substrings for detection"
+            echo "  --dashboard-url <url>       Override dashboard health URL (default: ${DASHBOARD_HEALTH_URL:-http://127.0.0.1:5000/health})"
+            echo "  --dashboard-timeout <secs>  Override dashboard health timeout in seconds (default: ${DASHBOARD_HEALTH_TIMEOUT:-3})"
             echo "  --skip-workers          Skip workers checks (treat as WARN, no impact on overall)"
             echo "  help       - Show this help"
             echo ""

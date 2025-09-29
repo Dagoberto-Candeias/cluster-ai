@@ -11,6 +11,7 @@
 # =============================================================================
 
 set -euo pipefail
+umask 027
 
 # Verificar se o terminal suporta cores
 if [[ -t 1 ]] && [[ -n "${TERM:-}" ]] && [[ "${TERM}" != "dumb" ]]; then
@@ -42,8 +43,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOG_DIR="${PROJECT_ROOT}/logs"
 SERVICES_LOG="${LOG_DIR}/services_startup.log"
 
-# Criar diretório de logs se não existir
+# Criar diretório de logs se não existir e aplicar permissões seguras
 mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR" 2>/dev/null || true
+if [[ -d "$LOG_DIR" ]]; then
+  find "$LOG_DIR" -type d -exec chmod 750 {} \; 2>/dev/null || true
+  find "$LOG_DIR" -type f -exec chmod 640 {} \; 2>/dev/null || true
+fi
 
 # Função para log
 log_service() {
@@ -97,8 +103,9 @@ echo -e "\n${BOLD}${CYAN}🚀 INICIANDO SERVIÇOS AUTOMÁTICOS - CLUSTER AI${NC}
 
 # 1. Dashboard Model Registry
 SERVICE_NAME="Dashboard Model Registry"
-START_CMD="cd ai-ml/model-registry/dashboard && python app.py > /dev/null 2>&1 &"
-CHECK_CMD="pgrep -f 'python.*app.py.*model-registry'"
+# Redireciona logs para logs/dashboard.log
+START_CMD="mkdir -p logs && cd ai-ml/model-registry/dashboard && /home/dcm/Projetos/cluster-ai/cluster-ai-env/bin/waitress-serve --host=0.0.0.0 --port=5000 app:app >> /home/dcm/Projetos/cluster-ai/logs/dashboard.log 2>&1 &"
+CHECK_CMD="curl -fsS --max-time 2 http://127.0.0.1:5000/health >/dev/null"
 
 if ! is_service_running "$SERVICE_NAME" "$CHECK_CMD"; then
     start_service "$SERVICE_NAME" "$START_CMD" "$CHECK_CMD"

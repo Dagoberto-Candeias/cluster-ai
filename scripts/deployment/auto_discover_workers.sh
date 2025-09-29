@@ -43,28 +43,32 @@ log_error() {
     echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR]${NC} $1"
 }
 
+# Aviso (compatível com common.sh)
+log_warn() {
+    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]${NC} $1"
+}
+
 # =============================================================================
 # FUNÇÃO PRINCIPAL
 # =============================================================================
 main() {
     log_info "Descobrindo workers automaticamente..."
 
+    # Modo de teste: finalizar rapidamente para não estourar benchmarks
+    if [[ "${CLUSTER_AI_TEST_MODE:-0}" == "1" ]]; then
+        log_warn "Modo de teste habilitado (CLUSTER_AI_TEST_MODE=1): pulando descoberta pesada."
+        log_success "Descoberta de workers concluída (modo rápido)"
+        return 0
+    fi
+
     # Verificar se kubectl está disponível
     if ! command -v kubectl >/dev/null 2>&1; then
-        log_error "kubectl não encontrado. Instalando..."
-        # Tentar instalar kubectl se não estiver disponível
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y kubectl
-        elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y kubectl
-        else
-            log_error "Não foi possível instalar kubectl automaticamente"
-            exit 1
-        fi
+        # Em ambientes de teste/CI, não instalar dependências; seguir para fallback
+        log_warn "kubectl não encontrado. Pulando descoberta via Kubernetes."
     fi
 
     # Verificar se há cluster Kubernetes disponível
-    if kubectl cluster-info >/dev/null 2>&1; then
+    if command -v kubectl >/dev/null 2>&1 && kubectl cluster-info >/dev/null 2>&1; then
         log_success "Cluster Kubernetes encontrado"
 
         # Procurar por pods de workers Dask

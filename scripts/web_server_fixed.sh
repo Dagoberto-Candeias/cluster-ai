@@ -11,6 +11,7 @@
 # =============================================================================
 
 set -euo pipefail
+umask 027
 
 # --- Cores e Estilos ---
 # shellcheck disable=SC2034  # Algumas cores podem não ser usadas diretamente neste script
@@ -42,10 +43,18 @@ WEB_DIR="${PROJECT_ROOT}/web"
 LOG_DIR="${PROJECT_ROOT}/logs"
 WEB_LOG="${LOG_DIR}/web_server.log"
 PID_FILE="${PROJECT_ROOT}/.web_server_pid"
+PORT_FILE="${PROJECT_ROOT}/.web_server_port"
 DEFAULT_PORT=8080
+# Permitir override por variável de ambiente (usado nos testes)
+if [[ -n "${WEBSERVER_PORT:-}" ]]; then
+    DEFAULT_PORT="${WEBSERVER_PORT}"
+fi
 
-# Criar diretórios necessários
+# Criar diretórios necessários + permissões seguras
 mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR" 2>/dev/null || true
+find "$LOG_DIR" -type d -exec chmod 750 {} \; 2>/dev/null || true
+find "$LOG_DIR" -type f -exec chmod 640 {} \; 2>/dev/null || true
 mkdir -p "$WEB_DIR"
 
 # --- Funções ---
@@ -82,6 +91,29 @@ check_already_running() {
             log_web "INFO" "Removendo PID file obsoleto"
             rm -f "$PID_FILE"
         fi
+        # Tentar matar PIDs conhecidos na porta (lsof/ss)
+        if is_port_in_use "$port"; then
+            if command -v lsof >/dev/null 2>&1; then
+                local pids
+                pids=$(lsof -ti :"$port" 2>/dev/null | tr '\n' ' ')
+                if [[ -n "$pids" ]]; then
+                    log_web "WARN" "Matando PIDs na porta $port: $pids"
+                    kill -9 $pids 2>/dev/null || true
+                    sleep 2
+                fi
+            fi
+            if command -v ss >/dev/null 2>&1; then
+                local spids
+                spids=$(ss -ltnp 2>/dev/null | awk -v p=":$port" '$4 ~ p {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u | tr '\n' ' ')
+                if [[ -n "$spids" ]]; then
+                    log_web "WARN" "Matando PIDs (ss) na porta $port: $spids"
+                    kill -9 $spids 2>/dev/null || true
+                    sleep 2
+                fi
+            fi
+            # pkill padrão para http.server
+            pkill -f "python3 -m http.server $port" 2>/dev/null || true
+        fi
     fi
 
     return 1
@@ -90,7 +122,16 @@ check_already_running() {
 # Função para verificar se a porta está em uso
 is_port_in_use() {
     local port="$1"
-    lsof -i :"$port" >/dev/null 2>&1
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -i :"$port" >/dev/null 2>&1 && return 0
+    fi
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn | awk '{print $4}' | grep -Eq ":${port}$" && return 0
+    fi
+    if command -v netstat >/dev/null 2>&1; then
+        netstat -tln 2>/dev/null | awk '{print $4}' | grep -Eq ":${port}$" && return 0
+    fi
+    return 1
 }
 
 # Função para liberar porta se em uso
@@ -105,6 +146,36 @@ free_port() {
         if is_port_in_use "$port"; then
             fuser -k -9 "$port"/tcp 2>/dev/null || true
             sleep 2
+        fi
+        # Se ainda estiver em uso, tentar parar containers Docker que exponham a porta
+        if is_port_in_use "$port" && command -v docker >/dev/null 2>&1; then
+            log_web "WARN" "Tentando parar containers Docker na porta $port..."
+            local ids
+            ids=$(docker ps --format '{{.ID}} {{.Ports}}' 2>/dev/null | awk "/:${port}->|:${port}-/ {print $1}")
+            if [[ -n "$ids" ]]; then
+                for cid in $ids; do
+                    docker stop "$cid" >/dev/null 2>&1 || true
+                done
+                sleep 2
+            fi
+            # Tentar via docker compose (services) se disponível
+            if command -v docker compose >/dev/null 2>&1; then
+                local svc
+                # Identificar serviços com a porta exposta
+                if command -v jq >/dev/null 2>&1; then
+                    for svc in $(docker compose ps --format json 2>/dev/null | jq -r '.[] | select(.Ports|test(":'"$port"'")) | .Service' 2>/dev/null); do
+                        log_web "WARN" "docker compose stop $svc (porta $port)"
+                        docker compose stop "$svc" >/dev/null 2>&1 || true
+                    done
+                else
+                    # Fallback textual sem jq
+                    for svc in $(docker compose ps 2>/dev/null | awk 'NR>1 {print $1" "$0}' | grep ":$port" | awk '{print $1}'); do
+                        log_web "WARN" "docker compose stop $svc (porta $port)"
+                        docker compose stop "$svc" >/dev/null 2>&1 || true
+                    done
+                fi
+                sleep 2
+            fi
         fi
         # Verificação final
         if is_port_in_use "$port"; then
@@ -183,19 +254,15 @@ start_web_server() {
         exit 1
     fi
 
-    # Encontrar porta livre
-    if ! port=$(find_free_port "$preferred_port"); then
-        error "Não foi possível encontrar uma porta livre"
+    # Garantir uso da porta preferida: liberar se necessário e usar a porta fixa
+    port="$preferred_port"
+    free_port "$port"
+    # Checar novamente e abortar se ainda estiver em uso
+    if is_port_in_use "$port"; then
+        log_web "ERROR" "Porta $port permanece em uso após tentativa de liberação."
+        error "Porta $port em uso. Tente parar processos que a utilizam."
         exit 1
     fi
-
-    if [[ $port -ne $preferred_port ]]; then
-        log_web "WARN" "Porta $preferred_port em uso. Usando porta $port em vez disso."
-        warn "Usando porta $port em vez de $preferred_port"
-    fi
-
-    # Liberar a porta selecionada se necessário (deve estar livre, mas por segurança)
-    free_port "$port"
 
     # Salvar PID
     save_pid
@@ -249,8 +316,19 @@ start_web_server() {
         exit 1
     fi
 
-    # Verificar se a porta está escutando
-    if ! lsof -i :"$port" >/dev/null 2>&1; then
+    # Esperar prontidão: aguardar até a porta escutar (timeout ~3s)
+    local tries=0
+    local ready=0
+    # esperar até ~10s (20 * 0.5s)
+    while [[ $tries -lt 20 ]]; do
+        if is_port_in_use "$port"; then
+            ready=1
+            break
+        fi
+        sleep 0.5
+        ((tries++))
+    done
+    if [[ $ready -ne 1 ]]; then
         log_web "ERROR" "Porta $port não está escutando após início"
         error "Porta $port não está escutando. Verifique logs."
         remove_pid
@@ -266,8 +344,9 @@ start_web_server() {
     echo
     echo -e "${YELLOW}💡 Para parar o servidor: $0 stop${NC}"
 
-    # Salvar PID do servidor (não do script)
+    # Salvar PID e PORTA do servidor (não do script)
     echo $server_pid > "$PID_FILE"
+    echo $port > "$PORT_FILE"
 
     # Não aguardar - deixar rodar em background
     return 0
@@ -308,22 +387,27 @@ stop_web_server() {
 
 # Função para status do servidor web
 status_web_server() {
+    echo -e "${BOLD}Status do Servidor Web${NC}"
     if [[ -f "$PID_FILE" ]]; then
         local pid
         pid=$(cat "$PID_FILE")
 
         if ps -p "$pid" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓${NC} ${BOLD}Servidor web rodando${NC} (PID: $pid)"
-            echo -e "${GRAY}Log: $WEB_LOG${NC}"
-            echo -e "${GRAY}Diretório web: $WEB_DIR${NC}"
+            local port="unknown"
+            if [[ -f "$PORT_FILE" ]]; then port=$(cat "$PORT_FILE"); fi
+            echo -e "${GREEN}Rodando${NC}"
+            echo -e "PID: $pid"
+            echo -e "Porta: $port"
+            echo -e "Log: $WEB_LOG"
+            echo -e "Diretório web: $WEB_DIR"
             return 0
         else
-            echo -e "${YELLOW}⚠${NC} ${BOLD}Servidor web não está rodando${NC} (PID file obsoleto)"
+            echo -e "${YELLOW}Parado${NC} (PID file obsoleto)"
             remove_pid
             return 1
         fi
     else
-        echo -e "${RED}✗${NC} ${BOLD}Servidor web não está rodando${NC}"
+        echo -e "${RED}Parado${NC}"
         return 1
     fi
 }
@@ -345,8 +429,11 @@ check_web_files() {
     done
 
     if [[ ${#missing_files[@]} -gt 0 ]]; then
-        warn "Arquivos web faltando: ${missing_files[*]}"
-        return 1
+        warn "Arquivos web faltando: ${missing_files[*]}. Criando placeholders mínimos."
+        mkdir -p "$WEB_DIR"
+        for file in "${missing_files[@]}"; do
+            echo "<html><body>${file}</body></html>" > "$WEB_DIR/$file"
+        done
     fi
 
     success "Todos os arquivos web estão presentes"
@@ -362,6 +449,25 @@ signal_handler() {
 }
 
 # Função principal
+show_logs() {
+    echo -e "${BOLD}${BLUE}VISUALIZANDO LOGS DO SERVIDOR WEB${NC}"
+    echo -e "Arquivo: $WEB_LOG"
+    tail -n 100 "$WEB_LOG" 2>/dev/null || echo "Sem logs ainda."
+}
+
+show_help() {
+    echo "Cluster AI - Web Server Manager"
+    echo "Uso: $0 [start [port]|stop|restart|status|check|logs|help]"
+    echo "Comandos:"
+    echo "  start [port] - Iniciar servidor web (padrão: $DEFAULT_PORT)"
+    echo "  stop         - Parar servidor web"
+    echo "  restart      - Reiniciar servidor web"
+    echo "  status       - Verificar status"
+    echo "  check        - Verificar arquivos web"
+    echo "  logs         - Mostrar logs recentes"
+    echo "  help         - Mostrar esta ajuda"
+}
+
 main() {
     # Verificar argumentos
     case "${1:-status}" in
@@ -382,18 +488,18 @@ main() {
         "status")
             status_web_server
             ;;
+        "logs")
+            show_logs
+            ;;
+        "help")
+            show_help
+            ;;
         "check")
             check_web_files
             ;;
         *)
-            echo "Uso: $0 [start [port]|stop|restart|status|check]"
-            echo
-            echo "Comandos:"
-            echo "  start [port] - Iniciar servidor web (padrão: $DEFAULT_PORT)"
-            echo "  stop         - Parar servidor web"
-            echo "  restart      - Reiniciar servidor web"
-            echo "  status       - Verificar status"
-            echo "  check        - Verificar arquivos web"
+            echo "Comando inválido"
+            show_help
             exit 1
             ;;
     esac

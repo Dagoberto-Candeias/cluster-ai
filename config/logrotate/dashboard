@@ -1,0 +1,13 @@
+# Logrotate config for Cluster AI Dashboard (Waitress)
+# Place a copy/link of this file in /etc/logrotate.d/ (requires sudo) to enable rotation
+# Or run logrotate manually pointing to this file for user-level rotation.
+
+/home/dcm/Projetos/cluster-ai/logs/dashboard.log {
+    size 10M
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

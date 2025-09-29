@@ -1,0 +1,28 @@
+route:
+  receiver: default
+  group_by: ['alertname', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+
+receivers:
+  - name: default
+    # Exemplo de Slack (descomente e configure):
+    # slack_configs:
+    #   - api_url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+    #     channel: "#cluster-alerts"
+    #     send_resolved: true
+
+    # Exemplo de Email (descomente e configure):
+    # email_configs:
+    #   - to: "devops@example.com"
+    #     from: "alertmanager@example.com"
+    #     smarthost: "smtp.example.com:587"
+    #     auth_username: "alertmanager@example.com"
+    #     auth_identity: "alertmanager@example.com"
+    #     auth_password: "${SMTP_PASSWORD}"
+
+inhibit_rules:
+  - source_matchers: ['severity = critical']
+    target_matchers: ['severity = warning']
+    equal: ['alertname', 'service']

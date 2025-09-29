@@ -25,6 +25,27 @@ Bem-vindo à documentação do Cluster AI. Aqui você encontra guias de instala�
   make health-ssh
   ```
 
+- Dashboard Model Registry (Flask):
+  - URL: http://localhost:5000
+  - Health check:
+    ```bash
+    curl -i ${DASHBOARD_HEALTH_URL:-http://127.0.0.1:5000/health}
+    ```
+  - Variáveis opcionais:
+    ```dotenv
+    DASHBOARD_HEALTH_URL=http://127.0.0.1:5000/health
+    DASHBOARD_HEALTH_TIMEOUT=3
+    ```
+
+- Web Server (scripts/web_server_fixed.sh):
+  - Porta padrão: 8080
+  - Para evitar conflitos locais/CI, use variável de ambiente:
+    ```bash
+    export WEBSERVER_PORT=8081
+    bash scripts/web_server_fixed.sh start
+    ```
+  - Os testes de performance usam `WEBSERVER_PORT` (padrão 8080)
+
 ## Variáveis de ambiente locais
 
 Crie `/.env.local` para definir serviços do Docker a monitorar (o script carrega com filtro seguro):

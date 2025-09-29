@@ -7,6 +7,9 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
+import uuid
+import contextvars
 import os
 import secrets
 import subprocess
@@ -42,11 +45,17 @@ from monitoring_data_provider import (
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from metrics import router as metrics_router
+import structlog
 from models import *
 
 limiter = Limiter(key_func=get_remote_address)
+
+# Test mode flag to avoid long-running tasks and blocking calls during pytest/CI
+TEST_MODE = os.getenv("CLUSTER_AI_TEST_MODE", "0") == "1" or "PYTEST_CURRENT_TEST" in os.environ
 
 
 # WebSocket connection manager with CSRF protection
@@ -193,19 +202,22 @@ async def lifespan(app: FastAPI):
     # Initialize default user
     init_default_user()
 
-    # Start background task for real-time updates
-    realtime_task = asyncio.create_task(broadcast_realtime_updates())
-    logger.info("📡 Started real-time updates broadcaster")
+    # Start background task for real-time updates (skip in test mode)
+    realtime_task = None
+    if not TEST_MODE:
+        realtime_task = asyncio.create_task(broadcast_realtime_updates())
+        logger.info("📡 Started real-time updates broadcaster")
 
     yield
 
     # Shutdown
     logger.info("🛑 Shutting down Cluster AI Dashboard API")
-    realtime_task.cancel()
-    try:
-        await realtime_task
-    except asyncio.CancelledError:
-        pass
+    if realtime_task is not None:
+        realtime_task.cancel()
+        try:
+            await realtime_task
+        except asyncio.CancelledError:
+            pass
 
 
 # FastAPI app
@@ -222,6 +234,66 @@ app.include_router(metrics_router, prefix="/api")
 
 # Rate limiting exception handler
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+# Prometheus metrics (/metrics)
+Instrumentator().instrument(app).expose(
+    app, include_in_schema=False, should_gzip=True, endpoint="/metrics"
+)
+
+# =============================
+# Structured Logging (structlog)
+# =============================
+logging.basicConfig(level=logging.INFO)
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.dict_tracebacks,
+        structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    cache_logger_on_first_use=True,
+)
+logger = structlog.get_logger("backend")
+
+_trace_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="")
+
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    trace_id = str(uuid.uuid4())
+    _trace_id_ctx.set(trace_id)
+    try:
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start) * 1000.0
+        # Propagar trace_id no header de resposta para correlação
+        try:
+            response.headers["X-Trace-ID"] = trace_id
+        except Exception:
+            pass
+        logger.info(
+            "http_access",
+            trace_id=trace_id,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=round(elapsed_ms, 2),
+            client_ip=request.client.host if request.client else None,
+        )
+        return response
+    except Exception as e:
+        elapsed_ms = (time.perf_counter() - start) * 1000.0
+        logger.error(
+            "http_error",
+            trace_id=trace_id,
+            method=request.method,
+            path=request.url.path,
+            duration_ms=round(elapsed_ms, 2),
+            error=str(e),
+        )
+        raise
 
 # CORS middleware
 app.add_middleware(
@@ -268,6 +340,13 @@ async def login(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 # Alias under '/api' for compatibility
@@ -597,17 +676,18 @@ async def get_monitoring_status(current_user: User = Depends(get_current_active_
 @app.get("/api/system_metrics")
 async def legacy_system_metrics(current_user: User = Depends(get_current_active_user)):
     try:
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = psutil.cpu_percent(interval=0 if TEST_MODE else 1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
 
         # Dask scheduler port check
         dask_status = "unknown"
-        try:
-            result = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True)
-            dask_status = "active" if ":8786" in result.stdout else "inactive"
-        except Exception:
-            dask_status = "unknown"
+        if not TEST_MODE:
+            try:
+                result = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True)
+                dask_status = "active" if ":8786" in result.stdout else "inactive"
+            except Exception:
+                dask_status = "unknown"
 
         # Basic GPU info
         gpu_info = {"available": False, "name": None}
@@ -785,7 +865,7 @@ async def update_settings(
 async def get_cluster_status(current_user: User = Depends(get_current_active_user)):
     """Get comprehensive cluster status"""
     try:
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = psutil.cpu_percent(interval=0 if TEST_MODE else 1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
 

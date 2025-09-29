@@ -217,9 +217,19 @@ def format_datetime(dt_str):
 app.jinja_env.filters['format_size'] = format_size
 app.jinja_env.filters['format_datetime'] = format_datetime
 
+@app.route('/health', methods=['GET'])
+def health():
+    """Endpoint de health check simples."""
+    try:
+        # Verificação básica: acesso ao registry e listagem
+        _ = registry.list_models()
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print("🚀 Iniciando Dashboard do Model Registry...")
     print(f"📱 Acesse: http://localhost:{port}")
     print("❌ Para parar: Ctrl+C")
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=False, use_reloader=False, host='0.0.0.0', port=port)

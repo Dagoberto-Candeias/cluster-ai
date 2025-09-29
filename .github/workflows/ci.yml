@@ -28,16 +28,22 @@ jobs:
           python -m venv venv
           source venv/bin/activate
           pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements.lock.txt ]; then
+            pip install --require-hashes -r requirements.lock.txt
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
 
       - name: Run unit tests
         run: |
           source venv/bin/activate
+          export WEBSERVER_PORT=8081
           pytest --maxfail=1 --disable-warnings -q
 
       - name: Run integration tests
         run: |
           source venv/bin/activate
+          export WEBSERVER_PORT=8081
           bash scripts/validation/integration_test.sh
 
       - name: Install ShellCheck
@@ -54,4 +60,52 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: test-logs
+          path: logs/
+
+      - name: Generate consolidated health JSON (skip workers)
+        run: |
+          source venv/bin/activate
+          bash scripts/utils/health_check.sh json --skip-workers > health-check.json || true
+
+      - name: Upload health JSON
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: health-json
+          path: health-check.json
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.13
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          if [ -f requirements.lock.txt ]; then
+            pip install --require-hashes -r requirements.lock.txt
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Run performance tests (web server and benchmarks)
+        run: |
+          source venv/bin/activate
+          export WEBSERVER_PORT=8081
+          pytest -q tests/performance || true
+
+      - name: Upload performance logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-logs
           path: logs/

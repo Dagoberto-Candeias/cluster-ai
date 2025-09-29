@@ -19,6 +19,16 @@ Este documento descreve as rotas da API unificada baseada em FastAPI. O aplicati
 - GET `/monitoring/status` (autenticado)
   - Resumo de monitoramento (resumo de alertas, status de serviços e health geral).
 
+## Métricas (Prometheus)
+- GET `/metrics`
+  - Exposição de métricas Prometheus do backend (requisições, latências, etc.).
+  - Compressão habilitada (gzip) e rota fora do schema OpenAPI.
+
+  Exemplo:
+  ```bash
+  curl -s http://localhost:8000/metrics | head -n 20
+  ```
+
 ## Métricas do Sistema
 - GET `/metrics/system` (autenticado)
   - Histórico de métricas do sistema com cache (modelo `SystemMetrics`).
@@ -31,10 +41,10 @@ Este documento descreve as rotas da API unificada baseada em FastAPI. O aplicati
 - GET `/api/alerts` (autenticado)
   - Alias unificado para alertas.
 
-  Exemplo (com token):
+  Exemplo (com token via variável de ambiente):
   ```bash
-  TOKEN="<SEU_TOKEN_JWT>"
-  curl -sS -H "Authorization: Bearer $TOKEN" \
+  # Defina JWT_TOKEN no seu ambiente de forma segura (sem hardcode neste arquivo)
+  curl -sS -H "Authorization: Bearer ${JWT_TOKEN:?defina JWT_TOKEN}" \
        http://localhost:8000/api/alerts | jq .
   ```
 

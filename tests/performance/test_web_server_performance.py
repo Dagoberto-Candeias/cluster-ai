@@ -19,6 +19,10 @@ WEB_SERVER_SCRIPT = PROJECT_ROOT / "scripts" / "web_server_fixed.sh"
 WEB_DIR = PROJECT_ROOT / "web"
 PID_FILE = PROJECT_ROOT / ".web_server_pid"
 
+# Porta configurável via variável de ambiente (padrão: 8080)
+PORT = int(os.getenv("WEBSERVER_PORT", "8080"))
+BASE_URL = f"http://localhost:{PORT}"
+
 
 class TestWebServerPerformance:
     """Performance test suite for web server"""
@@ -48,11 +52,14 @@ class TestWebServerPerformance:
         if PID_FILE.exists():
             self.stop_web_server()
 
+        env = dict(os.environ)
+        env["WEBSERVER_PORT"] = str(PORT)
         result = subprocess.run(
             [str(WEB_SERVER_SCRIPT), "start"],
             capture_output=True,
             text=True,
             timeout=30,
+            env=env,
         )
         assert result.returncode == 0, f"Failed to start web server: {result.stderr}"
 
@@ -83,7 +90,7 @@ class TestWebServerPerformance:
         assert startup_time < 5.0, f"Startup too slow: {startup_time:.2f}s"
 
         # Verify server is responding
-        response = requests.get("http://localhost:8080/", timeout=5)
+        response = requests.get(f"{BASE_URL}/", timeout=5)
         assert response.status_code == 200
 
     def test_web_server_response_time(self):
@@ -94,7 +101,7 @@ class TestWebServerPerformance:
         response_times = []
         for _ in range(10):
             start_time = time.time()
-            response = requests.get("http://localhost:8080/", timeout=5)
+            response = requests.get(f"{BASE_URL}/", timeout=5)
             response_time = time.time() - start_time
 
             assert response.status_code == 200
@@ -122,7 +129,7 @@ class TestWebServerPerformance:
         def make_request(thread_id):
             try:
                 start_time = time.time()
-                response = requests.get("http://localhost:8080/", timeout=10)
+                response = requests.get(f"{BASE_URL}/", timeout=10)
                 response_time = time.time() - start_time
 
                 if response.status_code == 200:
@@ -163,7 +170,7 @@ class TestWebServerPerformance:
         self.start_web_server()
 
         start_time = time.time()
-        response = requests.get("http://localhost:8080/large_test.bin", timeout=30)
+        response = requests.get(f"{BASE_URL}/large_test.bin", timeout=30)
         download_time = time.time() - start_time
 
         assert response.status_code == 200
@@ -188,7 +195,7 @@ class TestWebServerPerformance:
         threads = []
         for i in range(50):
             t = threading.Thread(
-                target=lambda: requests.get("http://localhost:8080/", timeout=5)
+                target=lambda: requests.get(f"{BASE_URL}/", timeout=5)
             )
             threads.append(t)
             t.start()
@@ -213,7 +220,7 @@ class TestWebServerPerformance:
 
         # Generate load
         for _ in range(100):
-            requests.get("http://localhost:8080/", timeout=5)
+            requests.get(f"{BASE_URL}/", timeout=5)
 
         final_cpu = process.cpu_percent(interval=1)
 
@@ -237,7 +244,7 @@ class TestWebServerPerformance:
         assert restart_time < 10.0, f"Restart too slow: {restart_time:.2f}s"
 
         # Verify server is still responding
-        response = requests.get("http://localhost:8080/", timeout=5)
+        response = requests.get(f"{BASE_URL}/", timeout=5)
         assert response.status_code == 200
 
     def test_port_conflict_handling(self):
@@ -269,7 +276,7 @@ class TestWebServerPerformance:
         """Test performance of error handling"""
         # Test accessing non-existent file
         start_time = time.time()
-        response = requests.get("http://localhost:8080/nonexistent.html", timeout=5)
+        response = requests.get(f"{BASE_URL}/nonexistent.html", timeout=5)
         error_response_time = time.time() - start_time
 
         assert response.status_code == 404

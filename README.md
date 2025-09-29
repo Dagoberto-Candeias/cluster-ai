@@ -12,6 +12,26 @@
   ```bash
   make health-ssh
   ```
+- **Dashboard Model Registry (Flask):**
+  - URL: http://localhost:5000
+  - Health check:
+    ```bash
+    curl -i ${DASHBOARD_HEALTH_URL:-http://127.0.0.1:5000/health}
+    ```
+  - Variáveis opcionais (podem ser definidas em `.env`):
+    ```dotenv
+    DASHBOARD_HEALTH_URL=http://127.0.0.1:5000/health
+    DASHBOARD_HEALTH_TIMEOUT=3
+    ```
+
+- **Web Server (scripts/web_server_fixed.sh):**
+  - Porta padrão: 8080
+  - Variável opcional para evitar conflitos de porta (local/CI):
+    ```bash
+    export WEBSERVER_PORT=8081
+    bash scripts/web_server_fixed.sh start
+    ```
+  - Os testes de performance do web server usam `WEBSERVER_PORT` (padrão 8080). No CI já está configurado para 8081.
 - **Configurar serviços por ambiente:**
   - Crie `/.env.local` e defina `DOCKER_SERVICES` (o script carrega com filtro seguro):
     ```dotenv
@@ -506,9 +526,16 @@ Adicione testes para falhas: Cenários de recuperação, permissões e validaç�
 - [x] Correções de sintaxe e otimizações.
 
 ### Roadmap
-- **v2.1.0**: Integração GPT/Claude; testes multi-distro.
-- **v2.2.0**: Cache distribuído; segurança avançada.
-- **v3.0.0**: Suporte iOS/Desktop/Cloud; MLOps.
+- **v2.1.0**:
+  - Integração GPT/Claude; testes multi-distro
+  - Job dedicado para testes de performance no CI (separado do job principal)
+  - Observabilidade do backend: logs estruturados e métricas de requisições (p95/p99)
+  - Revisão de documentação para uso de placeholders em exemplos de tokens/secrets
+- **v2.2.0**:
+  - Cache distribuído; segurança avançada
+  - Testes E2E de carga e caos (fault injection)
+- **v3.0.0**:
+  - Suporte iOS/Desktop/Cloud; MLOps
 
 ## 📞 Suporte e Comunidade
 

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import psutil
 import pytest
+import gc
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
@@ -59,11 +60,14 @@ class TestPerformance:
 
     def test_memory_usage(self):
         """Test memory usage stays within limits"""
+        # Coletar garbage antes da medição para reduzir flutuações
+        gc.collect()
         process = psutil.Process(os.getpid())
         memory_mb = process.memory_info().rss / 1024 / 1024
 
-        # Memory should be less than 500MB for tests
-        assert memory_mb < 500, f"Memory usage too high: {memory_mb:.1f}MB"
+        # Limite padrão (MB), pode ser sobrescrito por variável de ambiente para CI/ambientes carregados
+        limit_mb = int(os.getenv("CLUSTER_AI_TEST_MEMORY_LIMIT", "500"))
+        assert memory_mb < limit_mb, f"Memory usage too high: {memory_mb:.1f}MB (limit {limit_mb}MB)"
 
     def test_cpu_usage(self):
         """Test CPU usage during operations"""

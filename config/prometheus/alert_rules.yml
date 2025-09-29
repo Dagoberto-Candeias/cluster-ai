@@ -1,0 +1,46 @@
+groups:
+  - name: cluster-ai-backend.alerts
+    interval: 30s
+    rules:
+      - alert: BackendHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total[5m])), 1) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          service: cluster-ai-backend
+        annotations:
+          summary: "Taxa de erros 5xx elevada (>1% por 10m)"
+          description: |
+            A taxa de respostas 5xx está acima de 1% nos últimos 10 minutos.
+            Verifique logs estruturados (http_error) e dependências.
+
+      - alert: BackendHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: cluster-ai-backend
+        annotations:
+          summary: "Latência p95 elevada (>1s por 10m)"
+          description: |
+            A latência p95 das requisições excedeu 1 segundo por mais de 10 minutos.
+            Investigue endpoints mais lentos e recursos do host.
+
+      - alert: BackendNoScrape
+        expr: |
+          absent(sum(rate(http_requests_total[5m])))
+        for: 5m
+        labels:
+          severity: critical
+          service: cluster-ai-backend
+        annotations:
+          summary: "Prometheus não coleta métricas do backend"
+          description: |
+            O Prometheus não encontra métricas do backend há mais de 5 minutos.
+            Verifique o scrape_config e a disponibilidade de /metrics.

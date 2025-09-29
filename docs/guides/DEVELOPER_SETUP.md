@@ -39,6 +39,16 @@ Saídas geradas:
 - `health-check.json`
 - `workers-ssh-report.txt`
 
+## 4.1) Web Server para testes (porta configurável)
+- Script: `scripts/web_server_fixed.sh`
+- Porta padrão: 8080
+- Para evitar conflitos locais (ex.: serviços já escutando em 8080), use a variável de ambiente `WEBSERVER_PORT`:
+```bash
+export WEBSERVER_PORT=8081
+bash scripts/web_server_fixed.sh start
+```
+- Os testes de performance do web server também respeitam `WEBSERVER_PORT`.
+
 ## 5) Workers (SSH)
 - Guia completo: `docs/guides/WORKERS_SSH.md`
 - Exemplo: `cluster.yaml.example` → copie para `cluster.yaml` e ajuste `host/user/port`.

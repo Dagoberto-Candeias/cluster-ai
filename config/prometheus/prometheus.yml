@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  # Backend FastAPI (ajuste o target conforme o deployment)
+  - job_name: 'cluster-ai-backend'
+    static_configs:
+      # Se backend estiver fora do Docker, use host.docker.internal:8000
+      # - targets: ['host.docker.internal:8000']
+      # Com backend em Docker Compose (service name 'backend'):
+      - targets: ['backend:8000']
