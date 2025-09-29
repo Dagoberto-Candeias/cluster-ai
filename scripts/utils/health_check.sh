@@ -223,7 +223,8 @@ health_check_worker() {
     fi
 
     local host user port
-    host=$(echo "$worker_info" | yq e '.host' -)
+    # Suporte a legado: usar .host ou fallback para .ip
+    host=$(echo "$worker_info" | yq e '.host // .ip' -)
     user=$(echo "$worker_info" | yq e '.user' -)
     port=$(echo "$worker_info" | yq e '.port' -)
 
@@ -301,8 +302,18 @@ health_check_all_workers() {
 
     local healthy=0
     local unhealthy=0
+    local skipped=0
 
     for worker in "${workers[@]}"; do
+        # Verificar se há host definido antes de tentar
+        local host_present
+        host_present=$(yq e ".workers[\"$worker\"].host // .workers[\"$worker\"].ip // \"\"" "$WORKER_CONFIG_FILE" 2>/dev/null || echo "")
+        if [[ -z "$host_present" ]]; then
+            warn "Worker '$worker' skipped (missing host in cluster.yaml)"
+            log_health "WARN" "Worker $worker skipped: missing host"
+            ((skipped++))
+            continue
+        fi
         if health_check_worker "$worker" >/dev/null 2>&1; then
             ((healthy++))
         else
@@ -311,11 +322,16 @@ health_check_all_workers() {
     done
 
     if [ $unhealthy -eq 0 ]; then
-        success "All workers healthy ($healthy total)"
-        log_health "INFO" "All workers healthy: $healthy"
+        if [ $healthy -gt 0 ]; then
+            success "All workers healthy ($healthy total)"
+            log_health "INFO" "All workers healthy: $healthy"
+        else
+            warn "All workers skipped (no host configured). Configure cluster.yaml to enable checks."
+            log_health "WARN" "All workers skipped: $skipped"
+        fi
         return 0
     else
-        error "$unhealthy workers unhealthy (healthy: $healthy)"
+        error "$unhealthy workers unhealthy (healthy: $healthy, skipped: $skipped)"
         log_health "ERROR" "$unhealthy workers unhealthy"
         return 1
     fi

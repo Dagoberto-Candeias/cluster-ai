@@ -1,6 +1,6 @@
 # Cluster AI - Docker Management Makefile
 .PHONY: help build up down restart logs clean dev prod backup restore health status \
-    venv venv-dev fix-perms status-summary status-quick lint-shell health-json health-ssh
+    venv venv-dev fix-perms status-summary status-quick lint-shell health-json health-ssh health-json-full
 
 # Default target
 help: ## Show this help message
@@ -35,6 +35,14 @@ health-json: ## Run JSON health check (skip workers); optional SERVICES="<list>"
 	bash scripts/utils/health_check.sh $$SOPT --skip-workers --json | tee health-check.json || true
 	@echo "health-check.json generated."
 
+# JSON health check (full, includes workers), optional SERVICES="a b c" to override DOCKER_SERVICES
+health-json-full: ## Run JSON health check (includes workers); optional SERVICES="<list>" overrides docker services
+	@echo "Running health check (JSON, full workers)..."
+	@SOPT=""; \
+	if [ -n "$(SERVICES)" ]; then SOPT="--services \"$(SERVICES)\""; fi; \
+	bash scripts/utils/health_check.sh $$SOPT --json | tee health-check.json || true
+	@echo "health-check.json generated."
+
 # SSH diagnostics for workers (requires yq and ssh); generates workers-ssh-report.txt
 health-ssh: ## Diagnose SSH connectivity to workers defined in cluster.yaml and write report
 	@echo "Running SSH diagnostics for workers..."
@@ -47,9 +55,9 @@ health-ssh: ## Diagnose SSH connectivity to workers defined in cluster.yaml and 
 	'workers = json.load(sys.stdin)' \
 	'ok = fail = skip = 0' \
 	'for name, cfg in workers.items():' \
-	'    host = cfg.get("host"); user = cfg.get("user","root"); port = str(cfg.get("port",22))' \
+	'    host = cfg.get("host") or cfg.get("ip"); user = cfg.get("user","root"); port = str(cfg.get("port",22))' \
 	'    if not host:' \
-	'        print(f"[{name}] SKIP: host ausente em cluster.yaml"); skip += 1; continue' \
+	'        print(f"[{name}] SKIP: host/ip ausente em cluster.yaml"); skip += 1; continue' \
 	'    cmd = ["ssh","-o","BatchMode=yes","-o","ConnectTimeout=5","-p",port,f"{user}@{host}","echo OK"]' \
 	'    try:' \
 	'        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=8).decode().strip()' \
