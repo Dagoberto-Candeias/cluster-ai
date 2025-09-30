@@ -38,9 +38,16 @@ type log_warn >/dev/null 2>&1 || log_warn() { echo -e "${YELLOW:-}[$(date +'%Y-%
 type log_error >/dev/null 2>&1 || log_error() { echo -e "${RED:-}[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR]${NC:-} $*"; }
 
 # Configurações
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../.. && pwd)"
+CONFIG_FILE="$PROJECT_ROOT/cluster.conf"
 LOG_DIR="${PROJECT_ROOT}/logs"
-AUTO_INIT_LOG="${LOG_DIR}/auto_init.log"
+AUTO_INIT_LOG="${LOG_DIR}/auto_init_project.log"
+
+# Carregar configurações do projeto, se existirem
+if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+fi
 
 # Criar diretório de logs se não existir e aplicar permissões seguras
 mkdir -p "$LOG_DIR"
@@ -149,8 +156,8 @@ echo -e "${BOLD}${BLUE}SERVIÇOS PRINCIPAIS${NC}"
 
 # Verificar Ollama
 if pgrep -f "ollama" >/dev/null 2>&1; then
-    MODEL_COUNT=$(ollama list 2>/dev/null | wc -l 2>/dev/null || echo "0")
-    print_status "OK" "Ollama" "23 modelos instalados"
+    MODEL_COUNT=$(ollama list 2>/dev/null | tail -n +2 | wc -l | xargs)
+    print_status "OK" "Ollama" "${MODEL_COUNT:-0} modelos instalados"
 else
     print_status "ERROR" "Ollama" "Serviço não está rodando"
 fi
@@ -174,7 +181,7 @@ fi
 # CONFIGURAÇÃO
 echo -e "\n${BOLD}${BLUE}CONFIGURAÇÃO${NC}"
 
-if [[ -f "$PROJECT_ROOT/config/cluster.conf" ]]; then
+if [[ -f "$CONFIG_FILE" ]]; then
     print_status "OK" "Configuração" "Arquivo cluster.conf encontrado"
 else
     print_status "WARN" "Configuração" "Arquivo cluster.conf não encontrado"
@@ -261,54 +268,12 @@ fi
 # INICIANDO SERVIÇOS AUTOMATICAMENTE
 echo -e "\n${BOLD}${BLUE}INICIANDO SERVIÇOS AUTOMATICAMENTE${NC}"
 
-# Iniciar Ollama se não estiver rodando (pular em modo de teste)
-if [[ "${CLUSTER_AI_TEST_MODE:-0}" != "1" ]]; then
-    if ! pgrep -f "ollama" >/dev/null 2>&1; then
-        start_service_auto "Ollama" "pgrep -f 'ollama'" "ollama serve > /dev/null 2>&1 &"
-    else
-        echo -e "  ${GREEN}✓ Ollama já está rodando${NC}"
-    fi
+# Centralizar a inicialização de serviços chamando o script dedicado
+if [[ -f "${PROJECT_ROOT}/scripts/auto_start_services.sh" ]]; then
+    bash "$PROJECT_ROOT/scripts/auto_start_services.sh"
 else
-    echo -e "  ${YELLOW}Modo de teste: pulando inicialização do Ollama${NC}"
-fi
-
-# Iniciar Dashboard Model Registry (pular em modo de teste)
-if [[ "${CLUSTER_AI_TEST_MODE:-0}" != "1" ]]; then
-    if ! curl -fsS --max-time 2 http://127.0.0.1:5000/health >/dev/null 2>&1; then
-        start_service_auto "Dashboard Model Registry" \
-            "curl -fsS --max-time 2 http://127.0.0.1:5000/health >/dev/null" \
-            "mkdir -p logs && cd ai-ml/model-registry/dashboard && /home/dcm/Projetos/cluster-ai/cluster-ai-env/bin/waitress-serve --host=0.0.0.0 --port=5000 app:app >> /home/dcm/Projetos/cluster-ai/logs/dashboard.log 2>&1 &"
-    else
-        echo -e "  ${GREEN}✓ Dashboard Model Registry já está rodando${NC}"
-    fi
-else
-    echo -e "  ${YELLOW}Modo de teste: pulando dashboard${NC}"
-fi
-
-# Iniciar serviços Docker se disponíveis (pular em modo de teste)
-if [[ "${CLUSTER_AI_TEST_MODE:-0}" != "1" ]] && command_exists docker && docker info >/dev/null 2>&1; then
-    # Frontend
-    if ! docker ps | grep -q frontend; then
-        start_service_auto "Web Dashboard Frontend" "docker ps | grep -q frontend" "docker compose up -d frontend"
-    else
-        echo -e "  ${GREEN}✓ Web Dashboard Frontend já está rodando${NC}"
-    fi
-
-    # Backend
-    if ! docker ps | grep -q backend; then
-        start_service_auto "Backend API" "docker ps | grep -q backend" "docker compose up -d backend"
-    else
-        echo -e "  ${GREEN}✓ Backend API já está rodando${NC}"
-    fi
-
-    # Redis
-    if ! docker ps | grep -q redis; then
-        start_service_auto "Redis" "docker ps | grep -q redis" "docker compose up -d redis"
-    else
-        echo -e "  ${GREEN}✓ Redis já está rodando${NC}"
-    fi
-else
-    echo -e "  ${YELLOW}Modo de teste: pulando inicialização de serviços Docker${NC}"
+    log_error "Script auto_start_services.sh não encontrado."
+    echo -e "  ${RED}✗ Script de inicialização de serviços não encontrado.${NC}"
 fi
 
 # INFORMAÇÕES ADICIONAIS
@@ -332,7 +297,7 @@ echo -e "${BOLD}Portas e Serviços Ativos:${NC}"
 if [[ "${CLUSTER_AI_TEST_MODE:-0}" == "1" ]]; then
   echo -e "  ${YELLOW}Modo de teste: pulando varredura de portas${NC}"
 else
-  netstat -tlnp 2>/dev/null | grep LISTEN | awk '{print "  " $4 " - " $7}' | sed 's/.*://;s\/\/.*//' | sort -u | while read port pid; do
+  if command_exists netstat; then netstat -tlnp 2>/dev/null | grep LISTEN | awk '{print "  " $4 " - " $7}' | sed 's/.*://;s/\/[^ ]*//' | sort -u | while read -r port pid; do
       service_name=$(ps -p $pid -o comm= 2>/dev/null || echo "desconhecido")
       case $port in
           22) echo -e "  ${GREEN}SSH${NC}                    Porta $port" ;;
@@ -349,7 +314,7 @@ else
           5601) echo -e "  ${GREEN}Kibana${NC}                 Porta $port" ;;
           *) echo -e "  ${CYAN}Serviço customizado${NC}     Porta $port ($service_name)" ;;
       esac
-    done
+    done; fi
 fi
 
 # Endereços IP
@@ -369,7 +334,7 @@ if command_exists nvidia-smi; then
     fi
 fi
 
-cpu_info=$(lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
+cpu_info=$(command_exists lscpu && lscpu 2>/dev/null | grep "Model name" | cut -d':' -f2 | xargs)
 if [[ -n "$cpu_info" ]]; then
     echo -e "  ${GREEN}CPU${NC}                    $cpu_info"
 fi
@@ -381,11 +346,11 @@ fi
 
 # Ambientes Virtuais
 echo -e "\n${BOLD}Ambientes Virtuais Python:${NC}"
-if [[ -d "cluster-ai-env" ]]; then
-    python_version=$(source cluster-ai-env/bin/activate && python --version 2>&1 | cut -d' ' -f2)
-    echo -e "  ${GREEN}cluster-ai-env${NC}         Ambiente principal (Python $python_version)"
+if [[ -d "venv" ]]; then
+    python_version=$(source venv/bin/activate && python --version 2>&1 | cut -d' ' -f2 && deactivate)
+    echo -e "  ${GREEN}venv${NC}                   Ambiente principal (Python $python_version)"
 else
-    echo -e "  ${RED}cluster-ai-env${NC}         Ambiente virtual não encontrado"
+    echo -e "  ${RED}venv${NC}                   Ambiente virtual não encontrado"
 fi
 
 echo -e "\n${GRAY}Nota: Ambiente virtual único para evitar duplicação de pacotes e economizar espaço."
