@@ -142,6 +142,9 @@ class TestScriptDependencies:
                 for file in files:
                     if file.endswith(".sh"):
                         filepath = os.path.join(root, file)
+                        # Skip Android-specific scripts that use Termux shebang
+                        if "android" in filepath.lower():
+                            continue
                         with open(
                             filepath, "r", encoding="utf-8", errors="ignore"
                         ) as f:

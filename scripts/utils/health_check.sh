@@ -580,6 +580,32 @@ status_health_check() {
     fi
 }
 
+# Visualizar logs recentes
+logs_health_check() {
+    section "RECENT LOGS"
+
+    echo -e "${BOLD}${BLUE}HEALTH CHECK LOGS${NC}"
+    if [ -f "$HEALTH_LOG" ]; then
+        tail -20 "$HEALTH_LOG"
+    else
+        echo "No health check logs found"
+    fi
+
+    echo -e "\n${BOLD}${BLUE}SYSTEM LOGS${NC}"
+    if [ -f "${PROJECT_ROOT}/logs/cluster_ai.log" ]; then
+        tail -10 "${PROJECT_ROOT}/logs/cluster_ai.log"
+    else
+        echo "No cluster AI logs found"
+    fi
+
+    if [ -f "${PROJECT_ROOT}/logs/dask_scheduler.log" ]; then
+        echo -e "\n${BOLD}${BLUE}DASK SCHEDULER LOGS${NC}"
+        tail -10 "${PROJECT_ROOT}/logs/dask_scheduler.log"
+    fi
+
+    log_health "INFO" "Logs check completed"
+}
+
 # Saída JSON agregada (silenciosa)
 json_health_check() {
     # Executa cada verificação suprimindo saída e compõe um JSON simples
@@ -740,6 +766,8 @@ main() {
             check_disk_space
             check_memory
             check_network ;;
+        "logs")
+            logs_health_check ;;
         "help"|*)
             echo "Cluster AI - Health Check Tool"
             echo ""
@@ -752,6 +780,7 @@ main() {
             echo "  workers    - Check all configured workers"
             echo "  models     - Check Ollama models integrity"
             echo "  system     - Check system resources"
+            echo "  logs       - View recent system logs"
             echo ""
             echo "Options:"
             echo "  --services  \"<list>\"   Override Docker services substrings for detection"

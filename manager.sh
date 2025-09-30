@@ -76,7 +76,7 @@ handle_system_status() {
         1) "${PROJECT_ROOT}/scripts/utils/system_status_dashboard.sh" ;;
         2) "${PROJECT_ROOT}/scripts/utils/health_check.sh" status ;;
         3) "${PROJECT_ROOT}/scripts/utils/health_check.sh" diag ;;
-        4) "${PROJECT_ROOT}/scripts/management/health_checker.sh" diag ;;
+        4) "${PROJECT_ROOT}/scripts/utils/health_check.sh" diag ;;
         0) return ;;
         *) error "Opção inválida!" ;;
     esac
@@ -216,16 +216,16 @@ handle_monitoring() {
     read -p "Opção: " choice
     
     case $choice in
-        1) "${PROJECT_ROOT}/scripts/management/health_checker.sh" logs ;;
-        2) 
+        1) "${PROJECT_ROOT}/scripts/utils/health_check.sh" logs ;;
+        2)
             info "Abrindo dashboards de monitoramento..."
             echo -e "Grafana: ${CYAN}http://localhost:3001${NC}"
             echo -e "Prometheus: ${CYAN}http://localhost:9090${NC}"
             echo -e "Dask Dashboard: ${CYAN}http://localhost:8787${NC}"
             ;;
-        3) "${PROJECT_ROOT}/scripts/management/health_checker.sh" benchmark ;;
+        3) "${PROJECT_ROOT}/scripts/utils/health_check.sh" diag ;;
         4) "${PROJECT_ROOT}/scripts/monitoring/central_monitor.sh" alerts ;;
-        5) 
+        5)
             if confirm "Limpar logs com mais de 30 dias?"; then
                 cleanup_old_logs 30
             fi
@@ -308,7 +308,7 @@ handle_diagnostics() {
     case $choice in
         1) "${PROJECT_ROOT}/scripts/tests/run_all_tests.sh" ;;
         2) "${PROJECT_ROOT}/scripts/management/worker_manager.sh" validate-ssh ;;
-        3) "${PROJECT_ROOT}/scripts/management/health_checker.sh" benchmark ;;
+        3) "${PROJECT_ROOT}/scripts/utils/health_check.sh" diag ;;
         4) "${PROJECT_ROOT}/scripts/validation/config_validator.sh" ;;
         5) "${PROJECT_ROOT}/scripts/security/security_audit.sh" ;;
         0) return ;;

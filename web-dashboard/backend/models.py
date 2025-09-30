@@ -5,7 +5,7 @@ Shared Pydantic models for Cluster AI Dashboard API
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class Token(BaseModel):
@@ -34,13 +34,38 @@ class LoginRequest(BaseModel):
 
 
 class WorkerInfo(BaseModel):
-    id: str
+    id: str = Field(..., min_length=2, max_length=50)
     name: str
     status: str
     ip_address: str
-    cpu_usage: float
-    memory_usage: float
+    cpu_usage: float = Field(..., ge=0.0, le=100.0)
+    memory_usage: float = Field(..., ge=0.0, le=100.0)
     last_seen: datetime
+
+    @field_validator('id')
+    @classmethod
+    def validate_id(cls, v):
+        if not v.replace('-', '').replace('_', '').isalnum():
+            raise ValueError('ID deve conter apenas letras, números, hífens e underscores')
+        return v
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        valid_statuses = ['active', 'inactive', 'offline', 'error']
+        if v not in valid_statuses:
+            raise ValueError(f'Status deve ser um dos seguintes: {valid_statuses}')
+        return v
+
+    @field_validator('ip_address')
+    @classmethod
+    def validate_ip_address(cls, v):
+        import ipaddress
+        try:
+            ipaddress.ip_address(v)
+        except ValueError:
+            raise ValueError('Endereço IP inválido')
+        return v
 
 
 class SystemMetrics(BaseModel):

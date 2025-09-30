@@ -37,8 +37,9 @@ type log_info >/dev/null 2>&1 || log_info() { echo -e "${BLUE:-}[$(date +'%Y-%m-
 type log_warn >/dev/null 2>&1 || log_warn() { echo -e "${YELLOW:-}[$(date +'%Y-%m-%d %H:%M:%S')] [WARN]${NC:-} $*"; }
 type log_error >/dev/null 2>&1 || log_error() { echo -e "${RED:-}[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR]${NC:-} $*"; }
 
-# Configurações
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../.. && pwd)"
+# Configurações - cálculo mais robusto do PROJECT_ROOT
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/cluster.conf"
 LOG_DIR="${PROJECT_ROOT}/logs"
 AUTO_INIT_LOG="${LOG_DIR}/auto_init_project.log"
@@ -268,9 +269,33 @@ fi
 # INICIANDO SERVIÇOS AUTOMATICAMENTE
 echo -e "\n${BOLD}${BLUE}INICIANDO SERVIÇOS AUTOMATICAMENTE${NC}"
 
+# Inicializar flags de status dos serviços
+DASHBOARD_RUNNING=false
+FRONTEND_RUNNING=false
+BACKEND_RUNNING=false
+
 # Centralizar a inicialização de serviços chamando o script dedicado
-if [[ -f "${PROJECT_ROOT}/scripts/auto_start_services.sh" ]]; then
-    bash "$PROJECT_ROOT/scripts/auto_start_services.sh"
+AUTO_START_SCRIPT="${PROJECT_ROOT}/scripts/auto_start_services.sh"
+if [[ -f "$AUTO_START_SCRIPT" ]]; then
+    if [[ -x "$AUTO_START_SCRIPT" ]]; then
+        # Capturar output do script para analisar status
+        SERVICES_OUTPUT=$(bash "$AUTO_START_SCRIPT" 2>&1)
+        echo "$SERVICES_OUTPUT"
+
+        # Verificar se os serviços estão rodando baseado no output
+        if echo "$SERVICES_OUTPUT" | grep -q "Dashboard Model Registry.*✓"; then
+            DASHBOARD_RUNNING=true
+        fi
+        if echo "$SERVICES_OUTPUT" | grep -q "Web Dashboard Frontend.*✓"; then
+            FRONTEND_RUNNING=true
+        fi
+        if echo "$SERVICES_OUTPUT" | grep -q "Backend API.*✓"; then
+            BACKEND_RUNNING=true
+        fi
+    else
+        log_error "Script auto_start_services.sh encontrado, mas não tem permissão de execução."
+        echo -e "  ${RED}✗ Script de inicialização de serviços encontrado, mas sem permissão de execução.${NC}"
+    fi
 else
     log_error "Script auto_start_services.sh não encontrado."
     echo -e "  ${RED}✗ Script de inicialização de serviços não encontrado.${NC}"
@@ -365,10 +390,24 @@ echo -e "  ${GREEN}📋 Kibana (Logs)${NC}                http://localhost:5601"
 echo -e "  ${GREEN}💻 VSCode Server (AWS)${NC}          http://localhost:8081"
 echo -e "  ${GREEN}📱 Android Worker Interface${NC}     http://localhost:8082"
 echo -e "  ${CYAN}🔍 Jupyter Lab${NC}                 http://localhost:8888"
-echo -e "\n${YELLOW}⚠️  SERVIÇOS NÃO RODANDO:${NC}"
-echo -e "  ${YELLOW}📊 Dashboard Model Registry${NC}     (Execute: python ai-ml/model-registry/dashboard/app.py)"
-echo -e "  ${YELLOW}🖥️  Web Dashboard Frontend${NC}       (Execute: docker-compose up frontend)"
-echo -e "  ${YELLOW}🔌 Backend API${NC}                  (Execute: docker-compose up backend)"
+# Mostrar apenas serviços que não estão rodando
+NOT_RUNNING_SERVICES=()
+if [[ "$DASHBOARD_RUNNING" != "true" ]]; then
+    NOT_RUNNING_SERVICES+=("📊 Dashboard Model Registry     (Execute: python ai-ml/model-registry/dashboard/app.py)")
+fi
+if [[ "$FRONTEND_RUNNING" != "true" ]]; then
+    NOT_RUNNING_SERVICES+=("🖥️  Web Dashboard Frontend       (Execute: docker-compose up frontend)")
+fi
+if [[ "$BACKEND_RUNNING" != "true" ]]; then
+    NOT_RUNNING_SERVICES+=("🔌 Backend API                  (Execute: docker-compose up backend)")
+fi
+
+if [[ ${#NOT_RUNNING_SERVICES[@]} -gt 0 ]]; then
+    echo -e "\n${YELLOW}⚠️  SERVIÇOS NÃO RODANDO:${NC}"
+    for service in "${NOT_RUNNING_SERVICES[@]}"; do
+        echo -e "  ${YELLOW}$service${NC}"
+    done
+fi
 
 # STATUS GERAL
 echo -e "\n${BOLD}${BLUE}STATUS GERAL${NC}"

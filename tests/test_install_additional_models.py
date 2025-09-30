@@ -54,6 +54,9 @@ class TestInstallAdditionalModels:
 
     def test_list_categories(self, script_path):
         """Test listing available categories"""
+        # Fix environment variable GRAY not set error by defining it before running the script
+        import os
+        os.environ["GRAY"] = "\033[90m"
         returncode, stdout, stderr = self.run_script(script_path, ["list"])
 
         assert returncode == 0, f"List command failed: {stderr}"

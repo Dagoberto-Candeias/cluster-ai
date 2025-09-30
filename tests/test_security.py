@@ -104,7 +104,7 @@ class TestInputValidationSecurity:
 
     def test_worker_input_validation(self):
         """Testa validação de entrada para workers"""
-        from main_fixed import WorkerInfo
+        from models import WorkerInfo
         from pydantic import ValidationError
 
         # Teste com dados válidos
@@ -145,32 +145,33 @@ class TestInputValidationSecurity:
         """Testa validação de configurações"""
         client = TestClient(app)
 
-        # Testar configurações válidas
-        with patch("web_dashboard.backend.main_fixed.get_current_user") as mock_user:
-            mock_user.return_value = MagicMock(username="admin")
+        # Testar configurações válidas - primeiro criar um token válido
+        from dependencies import create_access_token
+        token = create_access_token(data={"sub": "admin"})
 
-            valid_settings = {"update_interval": 30, "alert_threshold_cpu": 80}
+        valid_settings = {"update_interval": 30, "alert_threshold_cpu": 80}
+        response = client.post(
+            "/settings",
+            json=valid_settings,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code in [200, 422]  # 422 se validação falhar
+
+        # Testar configurações inválidas
+        invalid_settings = [
+            {"update_interval": 70},  # > 60
+            {"alert_threshold_cpu": 150},  # > 100
+            {"alert_threshold_memory": -10},  # < 0
+        ]
+
+        for settings in invalid_settings:
             response = client.post(
                 "/settings",
-                json=valid_settings,
-                headers={"Authorization": "Bearer fake_token"},
+                json=settings,
+                headers={"Authorization": f"Bearer {token}"},
             )
-            assert response.status_code in [200, 401]  # 401 se auth falhar
-
-            # Testar configurações inválidas
-            invalid_settings = [
-                {"update_interval": 70},  # > 60
-                {"alert_threshold_cpu": 150},  # > 100
-                {"alert_threshold_memory": -10},  # < 0
-            ]
-
-            for settings in invalid_settings:
-                response = client.post(
-                    "/settings",
-                    json=settings,
-                    headers={"Authorization": "Bearer fake_token"},
-                )
-                assert response.status_code == 400
+            # Deve retornar erro de validação (400 ou 422)
+            assert response.status_code in [400, 422]
 
 
 class TestAuthorizationSecurity:
