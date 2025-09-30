@@ -58,16 +58,29 @@ class TestPerformance:
             else:
                 pytest.skip(f"Script {script} does not exist")
 
+    @pytest.mark.memory
     def test_memory_usage(self):
         """Test memory usage stays within limits"""
-        # Coletar garbage antes da medição para reduzir flutuações
-        gc.collect()
+        # Coletar garbage múltiplas vezes antes da medição para reduzir flutuações
+        for _ in range(3):
+            gc.collect()
+
+        # Pequena pausa para estabilizar medições
+        time.sleep(0.1)
+
         process = psutil.Process(os.getpid())
         memory_mb = process.memory_info().rss / 1024 / 1024
 
         # Limite padrão (MB), pode ser sobrescrito por variável de ambiente para CI/ambientes carregados
         limit_mb = int(os.getenv("CLUSTER_AI_TEST_MEMORY_LIMIT", "500"))
+
+        # Log da medição para debugging
+        print(f"Current memory usage: {memory_mb:.1f}MB (limit: {limit_mb}MB)")
+
         assert memory_mb < limit_mb, f"Memory usage too high: {memory_mb:.1f}MB (limit {limit_mb}MB)"
+
+        # Limpeza adicional após teste
+        gc.collect()
 
     def test_cpu_usage(self):
         """Test CPU usage during operations"""

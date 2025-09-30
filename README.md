@@ -86,7 +86,7 @@ Nota: os badges "Lint" e "Health" usam indicadores de pipeline geral com rótulo
 - **🛡️ Seguro**: Validações, auditoria e rollback automático
 - **🔄 Auto-Recuperação**: Sistema de recuperação automática de falhas
 
-### 🆕 Melhorias Recentes (Janeiro 2025)
+### 🆕 Melhorias Recentes (Setembro 2025)
 
 #### 🔴 Segurança e Estabilidade
 - ✅ **Scripts Completos**: `model_manager.sh`, `install_additional_models.sh`, `cleanup_manager_secure.sh`, `rollback.sh`
@@ -100,9 +100,20 @@ Nota: os badges "Lint" e "Health" usam indicadores de pipeline geral com rótulo
 - ✅ **Gestão Inteligente**: Listar, limpar, otimizar e estatísticas de modelos
 - ✅ **Workers Plug-and-Play**: Auto-descoberta e configuração automática
 
-#### 🟢 Otimização
+#### 🟢 Otimização e Performance
 - ✅ **VSCode Otimizado**: Telemetria desabilitada, exclusões de arquivos pesados
 - ✅ **Performance**: Configurações de spill-to-disk e balanceamento automático
+- ✅ **Testes de Memória Corrigidos**: Problema de vazamento de memória resolvido (773MB → limite de 500MB)
+- ✅ **Fixtures de Limpeza**: Memory cleanup entre testes para evitar interferência
+- ✅ **Configuração Pytest**: Desabilitação de coverage para testes de performance
+- ✅ **Avisos Pytest**: Marca `asyncio` registrada para eliminar warnings
+- ✅ **Imports Condicionais**: Correção de problemas de import time em testes
+
+#### 🔵 Monitoramento e Alertas
+- ✅ **Stack de Monitoramento**: Prometheus, Alertmanager e Grafana configurados
+- ✅ **Health Checks**: Verificação automática de saúde dos serviços
+- ✅ **Métricas em Tempo Real**: Dashboards para monitoramento de performance
+- ✅ **Alertas Automáticos**: Sistema de notificações para falhas críticas
 
 ## 🏗️ Arquitetura
 
@@ -555,4 +566,4 @@ MIT License - veja [LICENSE](LICENSE).
 
 **⭐ Dê uma estrela no GitHub se útil!**
 
-*Última Atualização: 2025-01-28 | Versão: 2.0.0*
+*Última Atualização: 2025-09-29 | Versão: 2.0.0*

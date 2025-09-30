@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 import jwt
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
 # Set SECRET_KEY for tests
 os.environ["SECRET_KEY"] = "test-secret-key"
@@ -21,6 +20,7 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "web-dashboard", "backend")
 )
 
+# Importar componentes do backend
 from main_fixed import (
     User,
     app,
@@ -28,7 +28,7 @@ from main_fixed import (
     get_current_user,
     init_default_user,
 )
-
+from fastapi.testclient import TestClient
 client = TestClient(app)
 
 
@@ -121,17 +121,26 @@ class TestWorkersEndpoints:
 
     # Removed test_add_worker as POST /workers endpoint doesn't exist
 
-    @patch("main_fixed.subprocess.Popen")
+    @patch("main_fixed.asyncio.create_subprocess_exec")
     @patch("main_fixed.get_current_user", new_callable=AsyncMock)
-    def test_restart_worker(self, mock_user, mock_popen):
+    async def test_restart_worker(self, mock_user, mock_subprocess_exec):
         """Testa POST /workers/{name}/restart"""
         mock_user.return_value = User(username="admin", disabled=False)
-        mock_popen.return_value = MagicMock()
+
+        # Mock subprocess for stopping worker
+        mock_stop_process = MagicMock()
+        mock_stop_process.wait = AsyncMock(return_value=0)
+        mock_subprocess_exec.return_value = mock_stop_process
+
+        # Mock subprocess for starting worker
+        mock_start_process = MagicMock()
+        mock_start_process.pid = 1234
+        mock_subprocess_exec.return_value = mock_start_process
 
         token = create_access_token(data={"sub": "admin"})
         headers = {"Authorization": f"Bearer {token}"}
 
-        response = client.post("/workers/worker-001/restart", headers=headers)
+        response = await client.post("/workers/worker-001/restart", headers=headers)
 
         assert response.status_code == status.HTTP_200_OK
         assert "restart initiated successfully" in response.json()["message"].lower()

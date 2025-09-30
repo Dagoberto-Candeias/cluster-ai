@@ -5,6 +5,7 @@ Este arquivo contém fixtures e configurações compartilhadas
 por todos os testes da suíte.
 """
 
+import gc
 import os
 import shutil
 import sys
@@ -12,6 +13,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import psutil
 import pytest
 
 # Adicionar diretório raiz do projeto ao path
@@ -47,6 +49,22 @@ def setup_test_environment():
     # Limpeza após todos os testes
     if TEST_CONFIG["cleanup_after_tests"]:
         shutil.rmtree(TEST_CONFIG["temp_dir"], ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def memory_cleanup():
+    """Fixture para limpeza de memória entre testes"""
+    # Executar coleta de lixo antes do teste
+    gc.collect()
+
+    yield
+
+    # Executar coleta de lixo após o teste para liberar memória
+    gc.collect()
+
+    # Pequena pausa para permitir que o sistema libere recursos
+    import time
+    time.sleep(0.01)
 
 
 @pytest.fixture
