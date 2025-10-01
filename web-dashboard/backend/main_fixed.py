@@ -55,7 +55,9 @@ from models import *
 limiter = Limiter(key_func=get_remote_address)
 
 # Test mode flag to avoid long-running tasks and blocking calls during pytest/CI
-TEST_MODE = os.getenv("CLUSTER_AI_TEST_MODE", "0") == "1" or "PYTEST_CURRENT_TEST" in os.environ
+TEST_MODE = (
+    os.getenv("CLUSTER_AI_TEST_MODE", "0") == "1" or "PYTEST_CURRENT_TEST" in os.environ
+)
 
 
 # WebSocket connection manager with CSRF protection
@@ -258,7 +260,10 @@ structlog.configure(
 )
 logger = structlog.get_logger("backend")
 
-_trace_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="")
+_trace_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "trace_id", default=""
+)
+
 
 @app.middleware("http")
 async def access_log_middleware(request: Request, call_next):
@@ -294,6 +299,7 @@ async def access_log_middleware(request: Request, call_next):
             error=str(e),
         )
         raise
+
 
 # CORS middleware
 app.add_middleware(

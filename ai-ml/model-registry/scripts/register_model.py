@@ -14,16 +14,19 @@ import yaml
 
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "model_registry.yaml"
 
+
 def load_config():
     with open(CONFIG_PATH, "r") as f:
         return yaml.safe_load(f)
 
+
 def compute_sha256(file_path):
     sha256_hash = hashlib.sha256()
-    with open(file_path,"rb") as f:
-        for byte_block in iter(lambda: f.read(4096),b""):
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
+
 
 def register_model(args):
     config = load_config()
@@ -62,7 +65,7 @@ def register_model(args):
         "file_size": model_file.stat().st_size,
         "sha256": model_hash,
         "created_at": datetime.utcnow().isoformat() + "Z",
-        "custom_metadata": {}
+        "custom_metadata": {},
     }
 
     # Adicionar metadados customizados
@@ -82,17 +85,26 @@ def register_model(args):
     print(f"Arquivo salvo em: {dest_file}")
     print(f"Metadados salvos em: {metadata_file}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Registrar modelo no Model Registry")
-    parser.add_argument("--model-path", required=True, help="Caminho para o arquivo do modelo")
+    parser.add_argument(
+        "--model-path", required=True, help="Caminho para o arquivo do modelo"
+    )
     parser.add_argument("--name", required=True, help="Nome do modelo")
-    parser.add_argument("--framework", required=True, choices=["pytorch", "tensorflow", "onnx"], help="Framework do modelo")
+    parser.add_argument(
+        "--framework",
+        required=True,
+        choices=["pytorch", "tensorflow", "onnx"],
+        help="Framework do modelo",
+    )
     parser.add_argument("--version", required=True, help="Versão do modelo")
     parser.add_argument("--description", default="", help="Descrição do modelo")
     parser.add_argument("--metadata", default="", help="Metadados customizados em JSON")
 
     args = parser.parse_args()
     register_model(args)
+
 
 if __name__ == "__main__":
     main()

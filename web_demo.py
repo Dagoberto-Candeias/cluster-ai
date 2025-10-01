@@ -30,6 +30,7 @@ import signal
 import secrets
 from pathlib import Path
 
+
 def check_requirements():
     """Check if required tools are available"""
     print("🔍 Checking requirements...")
@@ -61,6 +62,7 @@ def check_requirements():
     print("✅ Requirements check passed")
     return True
 
+
 def setup_environment():
     """Setup environment variables"""
     print("🔧 Setting up environment...")
@@ -73,6 +75,7 @@ def setup_environment():
 
     # Set other env vars if needed
     os.environ.setdefault("DATABASE_URL", "sqlite:///./users.db")
+
 
 def start_backend():
     """Start the FastAPI backend server"""
@@ -87,13 +90,14 @@ def start_backend():
             cwd=backend_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
         print("✅ Backend server started on http://localhost:8000")
         return process
     except Exception as e:
         print(f"❌ Failed to start backend: {e}")
         return None
+
 
 def start_frontend():
     """Start the React frontend development server"""
@@ -108,13 +112,14 @@ def start_frontend():
             cwd=frontend_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
         print("✅ Frontend server started on http://localhost:3000")
         return process
     except Exception as e:
         print(f"❌ Failed to start frontend: {e}")
         return None
+
 
 def wait_for_servers(backend_process, frontend_process, timeout=30):
     """Wait for servers to be ready"""
@@ -129,6 +134,7 @@ def wait_for_servers(backend_process, frontend_process, timeout=30):
             # Check if backend is responding
             try:
                 import requests
+
                 response = requests.get("http://localhost:8000/health", timeout=1)
                 if response.status_code == 200:
                     backend_ready = True
@@ -140,6 +146,7 @@ def wait_for_servers(backend_process, frontend_process, timeout=30):
             # Check if frontend is responding
             try:
                 import requests
+
                 response = requests.get("http://localhost:3000", timeout=1)
                 if response.status_code == 200:
                     frontend_ready = True
@@ -157,6 +164,7 @@ def wait_for_servers(backend_process, frontend_process, timeout=30):
     if not frontend_ready:
         print("⚠️  Frontend may not be ready yet")
 
+
 def open_browser():
     """Open the web demo in the default browser"""
     print("🌐 Opening web demo in browser...")
@@ -166,6 +174,7 @@ def open_browser():
     except Exception as e:
         print(f"⚠️  Could not open browser: {e}")
         print("Please manually open http://localhost:3000")
+
 
 def cleanup_processes(processes):
     """Clean up running processes"""
@@ -179,6 +188,7 @@ def cleanup_processes(processes):
                 process.kill()
                 process.wait()
     print("✅ Cleanup complete")
+
 
 def main():
     """Main demo launcher function"""
@@ -245,6 +255,7 @@ def main():
         cleanup_processes(processes)
 
     print("👋 Demo stopped. Thank you for trying Cluster AI!")
+
 
 if __name__ == "__main__":
     main()

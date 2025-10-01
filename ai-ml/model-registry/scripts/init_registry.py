@@ -16,11 +16,13 @@ import yaml
 import json
 from datetime import datetime
 
+
 def load_config():
     """Carregar configuração do Model Registry."""
     config_path = Path(__file__).parent.parent / "config" / "model_registry.yaml"
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
+
 
 def create_directories(config):
     """Criar estrutura de diretórios necessária."""
@@ -35,7 +37,7 @@ def create_directories(config):
         base_path / "versions",
         base_path / "cache",
         base_path / "logs",
-        base_path / "backups"
+        base_path / "backups",
     ]
 
     print("📁 Criando estrutura de diretórios...")
@@ -43,6 +45,7 @@ def create_directories(config):
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
         print(f"   ✅ {directory}")
+
 
 def validate_configuration(config):
     """Validar configuração do Model Registry."""
@@ -78,6 +81,7 @@ def validate_configuration(config):
     print("   ✅ Configuração válida")
     return True
 
+
 def create_registry_info(config):
     """Criar arquivo de informações do registry."""
     base_path = Path(config["storage"]["base_path"])
@@ -94,14 +98,15 @@ def create_registry_info(config):
             "metadata_management",
             "dask_integration",
             "cache_system",
-            "backup_system"
-        ]
+            "backup_system",
+        ],
     }
 
     with open(info_file, "w") as f:
         json.dump(info, f, indent=4)
 
     print(f"📄 Arquivo de informações criado: {info_file}")
+
 
 def test_basic_functionality():
     """Executar testes básicos de funcionalidade."""
@@ -130,6 +135,7 @@ def test_basic_functionality():
         print(f"   ❌ Erro nos testes: {e}")
         return False
 
+
 def create_example_config():
     """Criar arquivo de configuração de exemplo."""
     config_path = Path(__file__).parent.parent / "config"
@@ -139,34 +145,32 @@ def create_example_config():
         "general": {
             "name": "Cluster AI Model Registry",
             "version": "1.0.0",
-            "description": "Sistema de gerenciamento de modelos de IA"
+            "description": "Sistema de gerenciamento de modelos de IA",
         },
         "storage": {
             "base_path": "/opt/cluster-ai/models",
             "cache_size": "10GB",
             "backup_enabled": True,
-            "compression_enabled": True
+            "compression_enabled": True,
         },
         "frameworks": {
             "pytorch": {
                 "supported_versions": ["1.9+", "2.0+"],
-                "extensions": [".pth", ".pt"]
+                "extensions": [".pth", ".pt"],
             },
             "tensorflow": {
                 "supported_versions": ["2.8+", "2.9+"],
-                "extensions": [".h5", ".pb"]
+                "extensions": [".h5", ".pb"],
             },
-            "onnx": {
-                "supported_versions": ["1.10+", "1.11+"],
-                "extensions": [".onnx"]
-            }
-        }
+            "onnx": {"supported_versions": ["1.10+", "1.11+"], "extensions": [".onnx"]},
+        },
     }
 
     with open(example_config, "w") as f:
         yaml.dump(example, f, default_flow_style=False)
 
     print(f"📝 Arquivo de exemplo criado: {example_config}")
+
 
 def main():
     print("🚀 Inicializando Model Registry - Cluster AI")
@@ -205,7 +209,9 @@ def main():
         print("\n🎉 Model Registry inicializado com sucesso!")
         print("\n📋 PRÓXIMOS PASSOS:")
         print("   1. Registre seu primeiro modelo:")
-        print("      python scripts/register_model.py --model-path /path/to/model.pth --name my_model --framework pytorch --version 1.0.0")
+        print(
+            "      python scripts/register_model.py --model-path /path/to/model.pth --name my_model --framework pytorch --version 1.0.0"
+        )
         print("   2. Liste modelos registrados:")
         print("      python scripts/list_models.py")
         print("   3. Execute o exemplo:")
@@ -214,6 +220,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Erro durante inicialização: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

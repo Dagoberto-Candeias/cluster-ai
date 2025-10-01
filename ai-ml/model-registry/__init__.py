@@ -20,5 +20,5 @@ __all__ = [
     "create_registry",
     "__version__",
     "__author__",
-    "__description__"
+    "__description__",
 ]

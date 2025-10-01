@@ -128,6 +128,19 @@ services:
     networks:
       - cluster-ai-network
 
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "8080:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - cluster-ai-network
+
   # Rollback service for emergency recovery
   rollback:
     image: alpine:latest
@@ -147,6 +160,7 @@ volumes:
   grafana_data:
   elasticsearch_data:
   logstash_data:
+  openwebui_data:
   certbot_certs:
 
 networks:

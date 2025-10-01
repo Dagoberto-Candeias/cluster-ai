@@ -19,6 +19,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class ModelRegistry:
     """
     Classe principal para gerenciamento de modelos de IA.
@@ -61,7 +62,7 @@ class ModelRegistry:
             self.base_path / "models" / "onnx",
             self.base_path / "metadata",
             self.base_path / "versions",
-            self.base_path / "cache"
+            self.base_path / "cache",
         ]
 
         for directory in directories:
@@ -82,7 +83,7 @@ class ModelRegistry:
         framework: str,
         version: str,
         description: str = "",
-        custom_metadata: Optional[Dict[str, Any]] = None
+        custom_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Registrar um novo modelo no registry.
@@ -128,7 +129,7 @@ class ModelRegistry:
             "file_size": model_file.stat().st_size,
             "sha256": model_hash,
             "created_at": datetime.utcnow().isoformat() + "Z",
-            "custom_metadata": custom_metadata or {}
+            "custom_metadata": custom_metadata or {},
         }
 
         # Salvar metadados
@@ -139,9 +140,7 @@ class ModelRegistry:
         return metadata
 
     def list_models(
-        self,
-        framework: Optional[str] = None,
-        name_filter: Optional[str] = None
+        self, framework: Optional[str] = None, name_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Listar modelos registrados.
@@ -174,11 +173,15 @@ class ModelRegistry:
             models = [m for m in models if m.get("framework") == framework]
 
         if name_filter:
-            models = [m for m in models if name_filter.lower() in m.get("name", "").lower()]
+            models = [
+                m for m in models if name_filter.lower() in m.get("name", "").lower()
+            ]
 
         return models
 
-    def get_model_info(self, name: str, version: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_model_info(
+        self, name: str, version: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Obter informações de um modelo específico.
 
@@ -203,7 +206,9 @@ class ModelRegistry:
         # Retornar versão mais recente
         return models[0]
 
-    def load_model(self, name: str, version: Optional[str] = None, framework: Optional[str] = None):
+    def load_model(
+        self, name: str, version: Optional[str] = None, framework: Optional[str] = None
+    ):
         """
         Carregar um modelo no cluster Dask.
 
@@ -239,6 +244,7 @@ class ModelRegistry:
         """Carregar modelo PyTorch."""
         try:
             import torch
+
             # Para modelos de exemplo, permitir carregamento completo
             # Em produção, considere usar weights_only=True para segurança
             return torch.load(model_path, weights_only=False)
@@ -249,6 +255,7 @@ class ModelRegistry:
         """Carregar modelo TensorFlow."""
         try:
             import tensorflow as tf
+
             return tf.saved_model.load(str(model_path))
         except ImportError:
             raise ImportError("TensorFlow não está instalado")
@@ -257,6 +264,7 @@ class ModelRegistry:
         """Carregar modelo ONNX."""
         try:
             import onnxruntime as ort
+
             return ort.InferenceSession(str(model_path))
         except ImportError:
             raise ImportError("ONNX Runtime não está instalado")
@@ -287,7 +295,9 @@ class ModelRegistry:
                 model_path.unlink()
 
             # Remover metadados
-            metadata_file = self.base_path / "metadata" / f"{name}_{model['version']}.json"
+            metadata_file = (
+                self.base_path / "metadata" / f"{name}_{model['version']}.json"
+            )
             if metadata_file.exists():
                 metadata_file.unlink()
 
@@ -313,13 +323,17 @@ class ModelRegistry:
             "total_models": len(models),
             "total_size_bytes": total_size,
             "frameworks": frameworks,
-            "last_updated": max((m.get("created_at", "") for m in models), default=None)
+            "last_updated": max(
+                (m.get("created_at", "") for m in models), default=None
+            ),
         }
+
 
 # Função de conveniência para uso direto
 def create_registry(config_path: Optional[str] = None) -> ModelRegistry:
     """Criar uma instância do Model Registry."""
     return ModelRegistry(config_path)
+
 
 # Exemplo de uso
 if __name__ == "__main__":

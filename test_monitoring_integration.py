@@ -5,9 +5,16 @@ Test script to verify the monitoring integration works correctly
 
 import sys
 import os
-sys.path.append('web-dashboard/backend')
 
-from monitoring_data_provider import get_cluster_metrics, get_system_metrics, get_alerts, get_workers_info
+sys.path.append("web-dashboard/backend")
+
+from monitoring_data_provider import (
+    get_cluster_metrics,
+    get_system_metrics,
+    get_alerts,
+    get_workers_info,
+)
+
 
 def test_monitoring_functions():
     """Test all monitoring data provider functions"""
@@ -54,12 +61,15 @@ def test_monitoring_functions():
         print(f"✅ Workers: {len(workers)} workers")
         if workers:
             worker = workers[0]
-            print(f"   - Sample worker: {worker.get('name', 'N/A')} ({worker.get('status', 'N/A')})")
+            print(
+                f"   - Sample worker: {worker.get('name', 'N/A')} ({worker.get('status', 'N/A')})"
+            )
     except Exception as e:
         print(f"❌ Workers info failed: {e}")
 
     print("\n" + "=" * 50)
     print("🎉 Monitoring integration test completed!")
+
 
 if __name__ == "__main__":
     test_monitoring_functions()

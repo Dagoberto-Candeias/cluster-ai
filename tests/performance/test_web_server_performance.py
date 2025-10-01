@@ -194,9 +194,7 @@ class TestWebServerPerformance:
         # Generate load
         threads = []
         for i in range(50):
-            t = threading.Thread(
-                target=lambda: requests.get(f"{BASE_URL}/", timeout=5)
-            )
+            t = threading.Thread(target=lambda: requests.get(f"{BASE_URL}/", timeout=5))
             threads.append(t)
             t.start()
 

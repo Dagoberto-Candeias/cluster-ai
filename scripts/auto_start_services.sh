@@ -2,17 +2,8 @@
 # =============================================================================
 # Script de Inicialização Automática de Serviços - Cluster AI
 # =============================================================================
-# Inicia automaticamente os serviços essenciais:
-# - Dashboard Model Registry
-# - Web Dashboard Frontend
-# - Backend API
-#
-# Autor: Cluster AI Team
-# Data: 2025-09-19
-# Versão: 1.0.0
-# =============================================================================
 
-# set -euo pipefail
+set -euo pipefail
 umask 027
 
 # Cores
@@ -32,6 +23,9 @@ SERVICES_LOG="${LOG_DIR}/services_startup.log"
 
 MAX_RETRIES=3
 RETRY_DELAY=5 # segundos
+
+# Fallbacks
+type command_exists >/dev/null 2>&1 || command_exists() { command -v "$1" >/dev/null 2>&1; }
 
 mkdir -p "$LOG_DIR"
 chmod 750 "$LOG_DIR" 2>/dev/null || true
@@ -57,20 +51,16 @@ start_service() {
     local check_command="$3"
     local attempt=1
 
-    printf "  %-30s" "$service_name"
+    printf "  %-25s" "$service_name"
     while [[ $attempt -le $MAX_RETRIES ]]; do
-        log_service "$service_name: Attempting to start (attempt $attempt)"
-        if eval "$start_command" >/dev/null 2>&1; then
-            sleep 5  # Wait for service to start
-            if is_service_running "$check_command"; then
-                echo -e "${GREEN}✓ Iniciado${NC}"
-                log_service "$service_name: STARTED successfully on attempt $attempt"
-                return 0
-            else
-                log_service "$service_name: Started but failed verification on attempt $attempt"
-            fi
+        eval "$start_command" >/dev/null 2>&1
+        sleep 3
+        if is_service_running "$check_command"; then
+            echo -e "${GREEN}✓ Iniciado${NC}"
+            log_service "$service_name: STARTED on attempt $attempt"
+            return 0
         else
-            log_service "$service_name: Failed to execute start command on attempt $attempt"
+            log_service "$service_name: FAILED_TO_VERIFY on attempt $attempt"
         fi
         if [[ $attempt -lt $MAX_RETRIES ]]; then
             echo -e "${YELLOW}Falhou. Tentando novamente em ${RETRY_DELAY}s... (${attempt}/${MAX_RETRIES})${NC}"
@@ -85,61 +75,128 @@ start_service() {
 
 echo -e "\n${BOLD}${CYAN}🚀 INICIANDO SERVIÇOS AUTOMÁTICOS - CLUSTER AI${NC}\n"
 
-log_service "=== STARTING AUTOMATIC SERVICE INITIALIZATION ==="
-
 # 1. Dashboard Model Registry
 SERVICE_NAME="Dashboard Model Registry"
-DASHBOARD_DIR="${PROJECT_ROOT}/ai-ml/model-registry/dashboard"
-DASHBOARD_PID_FILE="${DASHBOARD_DIR}/dashboard.pid"
+DASHBOARD_PID_FILE="${PROJECT_ROOT}/.dashboard_model_registry.pid"
 DASHBOARD_PORT=5000
 
-# Kill any existing instances
-if lsof -i :${DASHBOARD_PORT} >/dev/null 2>&1; then
-    echo "Port ${DASHBOARD_PORT} is in use, assuming Dashboard Model Registry is running"
-else
-    pkill -f "python.*app.py" || true
-    sleep 2
-fi
+# Finaliza instâncias anteriores na mesma porta
+pkill -f "python app.py" || true
 
-# Start the service
-START_CMD="cd '${DASHBOARD_DIR}' && nohup python3 app.py > dashboard.log 2>&1 & echo \$! > '${DASHBOARD_PID_FILE}'"
-CHECK_CMD="curl -fsS --max-time 5 http://127.0.0.1:${DASHBOARD_PORT}/health >/dev/null 2>&1"
+# Inicia o serviço e salva o PID
+START_CMD="cd '${PROJECT_ROOT}/ai-ml/model-registry/dashboard' && nohup python app.py > dashboard.log 2>&1 & echo \$! > '${DASHBOARD_PID_FILE}'"
+CHECK_CMD="curl -fsS --max-time 2 http://127.0.0.1:${DASHBOARD_PORT}/health >/dev/null"
 
 if ! is_service_running "$CHECK_CMD"; then
     start_service "$SERVICE_NAME" "$START_CMD" "$CHECK_CMD"
 else
-    printf "  %-30s" "$SERVICE_NAME"
+    printf "  %-25s" "$SERVICE_NAME"
     echo -e "${GREEN}✓ Já rodando${NC}"
-    log_service "$SERVICE_NAME: Already running"
 fi
 
 # 2. Web Dashboard Frontend
 SERVICE_NAME="Web Dashboard Frontend"
 START_CMD="cd '${PROJECT_ROOT}' && docker compose up -d frontend"
-CHECK_CMD="docker compose ps frontend | grep -q Up"
+CHECK_CMD="docker ps | grep -q frontend"
 
 if ! is_service_running "$CHECK_CMD"; then
     start_service "$SERVICE_NAME" "$START_CMD" "$CHECK_CMD"
 else
-    printf "  %-30s" "$SERVICE_NAME"
+    printf "  %-25s" "$SERVICE_NAME"
     echo -e "${GREEN}✓ Já rodando${NC}"
-    log_service "$SERVICE_NAME: Already running"
 fi
 
 # 3. Backend API
 SERVICE_NAME="Backend API"
 START_CMD="cd '${PROJECT_ROOT}' && docker compose up -d backend"
-CHECK_CMD="docker compose ps backend | grep -q Up"
+CHECK_CMD="docker ps | grep -q backend"
 
 if ! is_service_running "$CHECK_CMD"; then
     start_service "$SERVICE_NAME" "$START_CMD" "$CHECK_CMD"
 else
-    printf "  %-30s" "$SERVICE_NAME"
+    printf "  %-25s" "$SERVICE_NAME"
     echo -e "${GREEN}✓ Já rodando${NC}"
-    log_service "$SERVICE_NAME: Already running"
+fi
+
+# 4. Prometheus
+SERVICE_NAME="Prometheus"
+START_CMD="cd '${PROJECT_ROOT}' && docker compose up -d prometheus"
+CHECK_CMD="docker ps | grep -q prometheus"
+
+# Apenas tenta iniciar se o Docker estiver disponível
+if command_exists docker && docker info >/dev/null 2>&1; then
+    if ! is_service_running "$CHECK_CMD"; then
+        start_service "$SERVICE_NAME" "$START_CMD" "$CHECK_CMD"
+    else
+        printf "  %-25s" "$SERVICE_NAME"
+        echo -e "${GREEN}✓ Já rodando${NC}"
+    fi
+fi
+
+# 5. OpenWebUI
+SERVICE_NAME="OpenWebUI"
+START_CMD="cd '${PROJECT_ROOT}' && docker compose up -d open-webui"
+CHECK_CMD="docker ps | grep -q open-webui"
+
+if command_exists docker && docker info >/dev/null 2>&1; then
+    if ! is_service_running "$CHECK_CMD"; then
+        start_service "$SERVICE_NAME" "$START_CMD" "$CHECK_CMD"
+    else
+        printf "  %-25s" "$SERVICE_NAME"
+        echo -e "${GREEN}✓ Já rodando${NC}"
+    fi
+fi
+
+# Start Ollama if installed and not running
+if command_exists ollama; then
+    if ! pgrep -f "ollama" >/dev/null 2>&1; then
+        printf "  %-25s" "Starting Ollama"
+        nohup ollama serve > "${LOG_DIR}/ollama.log" 2>&1 &
+        sleep 5
+        if pgrep -f "ollama" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Iniciado${NC}"
+            log_service "Ollama: STARTED"
+        else
+            echo -e "${RED}✗ Falha${NC}"
+            log_service "Ollama: FAILED_TO_START"
+        fi
+    fi
+else
+    printf "  %-25s" "Ollama"
+    echo -e "${YELLOW}⚠️ Não instalado${NC}"
+fi
+
+# Verificar status de outros serviços
+echo -e "\n${BOLD}${BLUE}STATUS DE OUTROS SERVIÇOS${NC}"
+
+# Redis
+if docker ps | grep -q redis; then
+    printf "  %-25s" "Redis"
+    echo -e "${GREEN}✓ Rodando${NC}"
+else
+    printf "  %-25s" "Redis"
+    echo -e "${YELLOW}⚠️ Não rodando${NC}"
+fi
+
+# PostgreSQL
+if docker ps | grep -q postgres; then
+    printf "  %-25s" "PostgreSQL"
+    echo -e "${GREEN}✓ Rodando${NC}"
+else
+    printf "  %-25s" "PostgreSQL"
+    echo -e "${YELLOW}⚠️ Não rodando${NC}"
+fi
+
+# Ollama
+if pgrep -f "ollama" >/dev/null 2>&1; then
+    printf "  %-25s" "Ollama"
+    echo -e "${GREEN}✓ Rodando${NC}"
+else
+    printf "  %-25s" "Ollama"
+    echo -e "${YELLOW}⚠️ Não rodando${NC}"
 fi
 
 echo -e "\n${BOLD}${GREEN}✅ INICIALIZAÇÃO AUTOMÁTICA CONCLUÍDA${NC}"
 echo -e "${GRAY}Log detalhado: $SERVICES_LOG${NC}"
 
-log_service "=== AUTOMATIC SERVICE INITIALIZATION COMPLETED ==="
+log_service "=== SERVIÇOS INICIADOS COM SUCESSO ==="

@@ -415,6 +415,27 @@ health_check_models() {
     fi
 }
 
+# Health check para mineração
+check_mining() {
+    log_health "INFO" "Health check for mining"
+
+    if ! [ -f "${PROJECT_ROOT}/scripts/mining/mining_manager.sh" ]; then
+        warn "Mining manager not found"
+        return 1
+    fi
+
+    # Executar monitoramento de mineração
+    if "${PROJECT_ROOT}/scripts/mining/mining_manager.sh" monitor >/dev/null 2>&1; then
+        success "Mining health check OK"
+        log_health "INFO" "Mining health check passed"
+        return 0
+    else
+        error "Mining health check failed"
+        log_health "ERROR" "Mining health check failed"
+        return 1
+    fi
+}
+
 # =============================================================================
 # VERIFICAÇÕES DE SISTEMA
 # =============================================================================
@@ -503,6 +524,9 @@ system_health_check() {
 
     echo -e "\n${BOLD}${BLUE}MODELS${NC}"
     health_check_models || { overall_status="WARN"; issues+=("Models"); }
+
+    echo -e "\n${BOLD}${BLUE}MINING${NC}"
+    check_mining || { overall_status="WARN"; issues+=("Mining"); }
 
     echo -e "\n${BOLD}${BLUE}SYSTEM${NC}"
     check_disk_space || { overall_status="ERROR"; issues+=("Disk"); }
@@ -761,6 +785,8 @@ main() {
             health_check_all_workers ;;
         "models")
             health_check_models ;;
+        "mining")
+            check_mining ;;
         "system")
             echo -e "${BOLD}${BLUE}SYSTEM CHECK${NC}"
             check_disk_space

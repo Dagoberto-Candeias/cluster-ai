@@ -2,7 +2,23 @@
 
 ## 🎯 Visão Geral
 
-Esta documentação cobre todos os aspectos do Cluster AI, desde instalação até uso avançado em produção.
+**Sistema Universal de IA Distribuída**
+
+Esta documentação cobre todos os aspectos do **Cluster AI**, uma plataforma completa para **gerenciamento e orquestração de modelos de inteligência artificial em cluster distribuído**.
+
+## 🚫 ESCOPO DO PROJETO
+
+**IMPORTANTE:** Este projeto **NÃO** contém nenhuma funcionalidade relacionada a:
+- Mineração de criptomoedas
+- Blockchain ou criptografia financeira
+- Qualquer tipo de atividade financeira ou monetária
+
+O projeto é dedicado exclusivamente ao processamento distribuído de inteligência artificial, utilizando tecnologias como:
+- Ollama para execução de modelos de IA
+- Dask para computação distribuída
+- OpenWebUI para interfaces de chat
+- Docker para containerização
+- Monitoramento e métricas com Prometheus/Grafana
 
 ## 📖 Manuais Completos
 
@@ -34,11 +50,50 @@ Sistema de memória auto-expansível e monitoramento.
 
 ## 🚀 Deploy e Produção
 
-### 1. [Desenvolvimento](../deployments/development/)
-Configuração para ambiente de desenvolvimento.
+### 1. Backend API
 
-### 2. [Produção com TLS](../deployments/production/)
-Deploy em produção com configuração TLS completa.
+O backend é implementado em FastAPI e roda na porta 8000. Ele fornece endpoints REST para autenticação, monitoramento, controle de workers, alertas e métricas. Para rodar localmente:
+
+```bash
+uvicorn web-dashboard.backend.main_fixed:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 2. Frontend Web Dashboard
+
+O frontend é uma aplicação React construída com Vite, rodando na porta 5173 em desenvolvimento e 3000 em produção. Para evitar problemas de CORS, o Vite está configurado para proxyar chamadas API para o backend na porta 8000.
+
+### 3. Configuração do Proxy no Vite
+
+No arquivo `vite.config.js`, configure o proxy para redirecionar chamadas `/api` e WebSocket para o backend:
+
+```js
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    host: true,
+    proxy: {
+      '/api': 'http://localhost:8000',
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
+      },
+    },
+  },
+})
+```
+
+### 4. Autenticação
+
+O sistema usa autenticação JWT via endpoint `/auth/login` no backend. O frontend deve enviar o token JWT em chamadas subsequentes para acessar recursos protegidos.
+
+### 5. Scripts de Inicialização
+
+- `scripts/auto_init_project.sh`: Inicializa todos os serviços essenciais.
+- `scripts/auto_start_services.sh`: Inicializa serviços individualmente:
+  - Dashboard Model Registry (porta 5000)
+  - Web Dashboard Frontend (porta 3000)
+  - Backend API (porta 8000)
 
 ## 💡 Exemplos
 

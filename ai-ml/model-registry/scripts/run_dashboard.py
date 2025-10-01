@@ -9,15 +9,18 @@ import sys
 import subprocess
 from pathlib import Path
 
+
 def check_dependencies():
     """Verificar se as dependências estão instaladas."""
     try:
         import flask
+
         print("✅ Flask está instalado")
     except ImportError:
         print("❌ Flask não está instalado. Instalando...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
         print("✅ Flask instalado com sucesso")
+
 
 def main():
     """Função principal para executar o dashboard."""
@@ -52,6 +55,7 @@ def main():
     except Exception as e:
         print(f"❌ Erro inesperado: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

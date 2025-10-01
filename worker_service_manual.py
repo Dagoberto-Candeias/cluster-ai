@@ -9,6 +9,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -19,10 +20,13 @@ def get_local_ip():
     except:
         return "127.0.0.1"
 
+
 async def start_worker_async(scheduler_ip, scheduler_port=8786):
     """Start worker asynchronously"""
     local_ip = get_local_ip()
-    logger.info(f"Worker starting on {local_ip}, connecting to {scheduler_ip}:{scheduler_port}")
+    logger.info(
+        f"Worker starting on {local_ip}, connecting to {scheduler_ip}:{scheduler_port}"
+    )
 
     try:
         # Create worker
@@ -31,7 +35,9 @@ async def start_worker_async(scheduler_ip, scheduler_port=8786):
         # Start the worker
         await worker.start()
 
-        logger.info(f"✅ Worker successfully started and connected to {scheduler_ip}:{scheduler_port}")
+        logger.info(
+            f"✅ Worker successfully started and connected to {scheduler_ip}:{scheduler_port}"
+        )
 
         # Keep the worker running
         while True:
@@ -41,10 +47,12 @@ async def start_worker_async(scheduler_ip, scheduler_port=8786):
         logger.error(f"Error in worker: {e}")
         raise
 
+
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
     logger.info(f"Received signal {signum}, shutting down worker...")
     sys.exit(0)
+
 
 async def main():
     if len(sys.argv) < 2:
@@ -65,6 +73,7 @@ async def main():
     except Exception as e:
         logger.error(f"Error starting worker: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

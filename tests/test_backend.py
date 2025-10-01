@@ -34,6 +34,7 @@ from fastapi.testclient import TestClient
 # Cliente síncrono para testes não-async
 client = TestClient(app)
 
+
 # Cliente para testes que precisam de cliente HTTP
 @pytest.fixture
 def http_client():
@@ -259,7 +260,10 @@ class TestWebSocket:
         mock_manager.broadcast = MagicMock()
 
         # Simular que a conexão foi estabelecida
-        mock_manager.connect.return_value = {"status": "connected", "client_id": "testclient"}
+        mock_manager.connect.return_value = {
+            "status": "connected",
+            "client_id": "testclient",
+        }
 
         # Simular chamada de broadcast
         mock_manager.broadcast.return_value = None

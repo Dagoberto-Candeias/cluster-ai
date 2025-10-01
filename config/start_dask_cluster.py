@@ -30,12 +30,12 @@ def main(project_root: Path):
     config_vars = {}
 
     if config_file.exists():
-        with open(config_file, 'r') as f:
+        with open(config_file, "r") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
-                    if '=' in line:
-                        key, value = line.split('=', 1)
+                if line and not line.startswith("#"):
+                    if "=" in line:
+                        key, value = line.split("=", 1)
                         key = key.strip()
                         value = value.strip().strip('"').strip("'")
                         config_vars[key] = value
@@ -50,6 +50,7 @@ def main(project_root: Path):
     # Determinar número de workers
     if n_workers_str == "auto":
         import multiprocessing
+
         n_workers = max(1, multiprocessing.cpu_count() // 2)
     else:
         n_workers = int(n_workers_str)

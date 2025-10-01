@@ -64,6 +64,7 @@ def memory_cleanup():
 
     # Pequena pausa para permitir que o sistema libere recursos
     import time
+
     time.sleep(0.01)
 
 

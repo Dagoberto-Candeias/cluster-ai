@@ -42,29 +42,32 @@ class WorkerInfo(BaseModel):
     memory_usage: float = Field(..., ge=0.0, le=100.0)
     last_seen: datetime
 
-    @field_validator('id')
+    @field_validator("id")
     @classmethod
     def validate_id(cls, v):
-        if not v.replace('-', '').replace('_', '').isalnum():
-            raise ValueError('ID deve conter apenas letras, números, hífens e underscores')
+        if not v.replace("-", "").replace("_", "").isalnum():
+            raise ValueError(
+                "ID deve conter apenas letras, números, hífens e underscores"
+            )
         return v
 
-    @field_validator('status')
+    @field_validator("status")
     @classmethod
     def validate_status(cls, v):
-        valid_statuses = ['active', 'inactive', 'offline', 'error']
+        valid_statuses = ["active", "inactive", "offline", "error"]
         if v not in valid_statuses:
-            raise ValueError(f'Status deve ser um dos seguintes: {valid_statuses}')
+            raise ValueError(f"Status deve ser um dos seguintes: {valid_statuses}")
         return v
 
-    @field_validator('ip_address')
+    @field_validator("ip_address")
     @classmethod
     def validate_ip_address(cls, v):
         import ipaddress
+
         try:
             ipaddress.ip_address(v)
         except ValueError:
-            raise ValueError('Endereço IP inválido')
+            raise ValueError("Endereço IP inválido")
         return v
 
 

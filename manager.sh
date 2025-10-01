@@ -320,7 +320,7 @@ handle_diagnostics() {
 
 handle_help() {
     section "DOCUMENTAÇÃO E AJUDA"
-    
+
     echo -e "${CYAN}Escolha uma opção:${NC}"
     echo -e "${GREEN}1.${NC} Manual de Instalação"
     echo -e "${GREEN}2.${NC} Guia Rápido"
@@ -328,11 +328,11 @@ handle_help() {
     echo -e "${GREEN}4.${NC} Documentação Técnica"
     echo -e "${GREEN}5.${NC} Sobre o Projeto"
     echo -e "${RED}0.${NC} Voltar"
-    
+
     read -p "Opção: " choice
-    
+
     case $choice in
-        1) 
+        1)
             if [ -f "${PROJECT_ROOT}/docs/manuals/INSTALACAO.md" ]; then
                 less "${PROJECT_ROOT}/docs/manuals/INSTALACAO.md"
             else
@@ -340,14 +340,14 @@ handle_help() {
                 less "${PROJECT_ROOT}/README.md"
             fi
             ;;
-        2) 
+        2)
             if [ -f "${PROJECT_ROOT}/docs/guides/QUICK_START.md" ]; then
                 less "${PROJECT_ROOT}/docs/guides/QUICK_START.md"
             else
                 info "Consulte o README.md para início rápido"
             fi
             ;;
-        3) 
+        3)
             if [ -f "${PROJECT_ROOT}/docs/guides/TROUBLESHOOTING.md" ]; then
                 less "${PROJECT_ROOT}/docs/guides/TROUBLESHOOTING.md"
             else
@@ -355,7 +355,7 @@ handle_help() {
             fi
             ;;
         4) less "${PROJECT_ROOT}/docs/TECHNICAL_DOCUMENTATION.md" ;;
-        5) 
+        5)
             echo -e "${BOLD}${BLUE}CLUSTER AI v${VERSION}${NC}"
             echo -e "Sistema Universal de IA Distribuída"
             echo -e "Desenvolvido pela Cluster AI Team"
@@ -365,9 +365,11 @@ handle_help() {
         0) return ;;
         *) error "Opção inválida!" ;;
     esac
-    
+
     read -p "Pressione Enter para continuar..."
 }
+
+
 
 # =============================================================================
 # LOOP PRINCIPAL
@@ -390,13 +392,13 @@ main_loop() {
             7) handle_maintenance ;;
             8) handle_diagnostics ;;
             9) handle_help ;;
-            0) 
+            0)
                 info "Encerrando Cluster AI Manager..."
                 audit_log "MANAGER_EXIT" "User exited manager interface"
                 exit 0
                 ;;
-            *) 
-                error "Opção inválida! Escolha um número de 0 a 9."
+            *)
+                error "Opção inválida! Escolha um número de 0 a 10."
                 sleep 2
                 ;;
         esac

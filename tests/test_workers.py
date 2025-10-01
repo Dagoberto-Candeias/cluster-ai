@@ -56,7 +56,15 @@ class TestWorkerManager:
             )
 
             # Simular execução do script
-            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "management", "worker_manager.sh"))
+            script_path = os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "..",
+                    "scripts",
+                    "management",
+                    "worker_manager.sh",
+                )
+            )
             result = subprocess.run(
                 ["bash", script_path, "list"],
                 capture_output=True,
@@ -75,11 +83,19 @@ class TestWorkerManager:
             mock_run.return_value = MagicMock(
                 returncode=1,
                 stdout="Comando 'yq' não encontrado. Não é possível listar os workers.\nInstale com: sudo pip install yq",
-                stderr=""
+                stderr="",
             )
 
             # Simular execução
-            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "management", "worker_manager.sh"))
+            script_path = os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "..",
+                    "scripts",
+                    "management",
+                    "worker_manager.sh",
+                )
+            )
             result = subprocess.run(
                 ["bash", script_path, "list"],
                 capture_output=True,

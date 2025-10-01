@@ -77,7 +77,9 @@ class TestPerformance:
         # Log da medição para debugging
         print(f"Current memory usage: {memory_mb:.1f}MB (limit: {limit_mb}MB)")
 
-        assert memory_mb < limit_mb, f"Memory usage too high: {memory_mb:.1f}MB (limit {limit_mb}MB)"
+        assert (
+            memory_mb < limit_mb
+        ), f"Memory usage too high: {memory_mb:.1f}MB (limit {limit_mb}MB)"
 
         # Limpeza adicional após teste
         gc.collect()

@@ -23,6 +23,7 @@ import torch.nn as nn
 
 import torch.nn as nn
 
+
 class SimpleModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -31,9 +32,11 @@ class SimpleModel(nn.Module):
     def forward(self, x):
         return self.linear(x)
 
+
 def create_sample_model():
     """Criar um modelo PyTorch simples para exemplo."""
     return SimpleModel()
+
 
 def main():
     print("🧠 Exemplo de Uso do Model Registry - Cluster AI")
@@ -48,7 +51,7 @@ def main():
     model = create_sample_model()
 
     # Salvar modelo temporariamente
-    with tempfile.NamedTemporaryFile(suffix='.pth', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".pth", delete=False) as f:
         torch.save(model, f.name)
         model_path = f.name
 
@@ -64,8 +67,8 @@ def main():
             custom_metadata={
                 "accuracy": 0.95,
                 "dataset": "synthetic",
-                "architecture": "Linear"
-            }
+                "architecture": "Linear",
+            },
         )
         print(f"✅ Modelo registrado: {metadata['name']} v{metadata['version']}")
 
@@ -75,7 +78,9 @@ def main():
         print(f"📋 Total de modelos: {len(models)}")
 
         for model_info in models:
-            print(f"   - {model_info['name']} v{model_info['version']} ({model_info['framework']})")
+            print(
+                f"   - {model_info['name']} v{model_info['version']} ({model_info['framework']})"
+            )
 
         # Obter informações específicas
         print("\n5. Obtendo informações do modelo...")
@@ -121,17 +126,22 @@ def main():
                 model = registry.load_model(model_name)
 
                 import torch
+
                 data_tensor = torch.tensor(data)
                 with torch.no_grad():
                     return model(data_tensor).numpy()
 
             # Dados de exemplo
-            sample_data = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                          [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]]
+            sample_data = [
+                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                [2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            ]
 
             # Executar predição distribuída
-            futures = [client.submit(predict_with_model, data, "exemplo_regressao")
-                      for data in sample_data]
+            futures = [
+                client.submit(predict_with_model, data, "exemplo_regressao")
+                for data in sample_data
+            ]
 
             results = client.gather(futures)
             print(f"🎯 Resultados da predição distribuída: {len(results)} predições")
@@ -139,7 +149,9 @@ def main():
             client.close()
 
         except ImportError:
-            print("⚠️  Dask não está disponível. Instale com: pip install dask distributed")
+            print(
+                "⚠️  Dask não está disponível. Instale com: pip install dask distributed"
+            )
         except Exception as e:
             print(f"⚠️  Erro no exemplo Dask: {e}")
 
@@ -157,6 +169,7 @@ def main():
         # Limpar arquivo temporário
         if os.path.exists(model_path):
             os.unlink(model_path)
+
 
 if __name__ == "__main__":
     main()

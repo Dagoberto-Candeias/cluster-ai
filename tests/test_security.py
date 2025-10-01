@@ -147,6 +147,7 @@ class TestInputValidationSecurity:
 
         # Testar configurações válidas - primeiro criar um token válido
         from dependencies import create_access_token
+
         token = create_access_token(data={"sub": "admin"})
 
         valid_settings = {"update_interval": 30, "alert_threshold_cpu": 80}
