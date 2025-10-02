@@ -7,9 +7,9 @@ cluster_swap/
 cluster_cache/
 
 # Ollama
-.olloma/models/
-.olloma/tmp/
-.olloma/cache/
+.ollama/models/
+.ollama/tmp/
+.ollama/cache/
 
 # Docker
 open-webui/

@@ -59,3 +59,6 @@ pytest-benchmark>=4.0.0
 passlib[bcrypt]>=1.7.4
 prometheus-fastapi-instrumentator>=6.0.0
 structlog>=23.2.0
+
+# Dependências para auto-atualização
+GitPython>=3.1.0

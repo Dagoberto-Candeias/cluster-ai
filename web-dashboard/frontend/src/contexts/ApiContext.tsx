@@ -10,7 +10,10 @@ const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // Backend API URL
+  baseURL:
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:8000'
+      : 'http://backend:8000',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

@@ -1,26 +1,178 @@
 #!/bin/bash
 # =============================================================================
-# Gerenciador de Workers do Cluster AI
+# Cluster AI - Worker Manager
 # =============================================================================
-# Este script centraliza as funções para monitorar e atualizar os workers
-# remotos do cluster. É chamado pelo 'manager.sh'.
+# Gerenciamento completo de workers do Cluster AI: monitoramento, health checks,
+# auto-scaling, validação SSH e operações administrativas.
+#
+# Projeto: Cluster AI - Sistema Universal de IA Distribuída
+# URL: https://github.com/your-org/cluster-ai
 #
 # Autor: Cluster AI Team
+# Data: 2025-01-27
 # Versão: 1.0.0
+# Arquivo: worker_manager.sh
+# Licença: MIT
 # =============================================================================
 
-set -euo pipefail
+# Configurações de segurança e robustez
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
+umask 027         # Secure file permissions
+IFS=$'\n\t'       # Safe IFS for word splitting
 
-# Navega para o diretório raiz do projeto para garantir que os caminhos relativos funcionem
+# Carregar biblioteca comum se disponível
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-cd "$PROJECT_ROOT"
+
+# Carregar common.sh se disponível
+if [[ -r "${PROJECT_ROOT}/scripts/lib/common.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${PROJECT_ROOT}/scripts/lib/common.sh"
+fi
 
 # Carregar funções comuns (biblioteca consolidada)
-# shellcheck source=../utils/common_functions.sh
-source "scripts/utils/common_functions.sh"
-PID_FILE="${PROJECT_ROOT}/.monitor_updates_pid"
-WORKER_CONFIG_FILE="${PROJECT_ROOT}/cluster.yaml"
+if [[ -r "${PROJECT_ROOT}/scripts/utils/common_functions.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${PROJECT_ROOT}/scripts/utils/common_functions.sh"
+fi
+
+# Fallback para funções essenciais se common.sh não estiver disponível
+if ! command -v log >/dev/null 2>&1; then
+    log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [LOG] $*"; }
+fi
+if ! command -v error >/dev/null 2>&1; then
+    error() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $*" >&2; }
+fi
+if ! command -v success >/dev/null 2>&1; then
+    success() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [SUCCESS] $*"; }
+fi
+if ! command -v warn >/dev/null 2>&1; then
+    warn() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [WARN] $*" >&2; }
+fi
+if ! command -v info >/dev/null 2>&1; then
+    info() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] $*"; }
+fi
+
+# Configurações globais
+readonly LOG_DIR="${PROJECT_ROOT}/logs"
+readonly BACKUP_DIR="${PROJECT_ROOT}/backups"
+readonly CONFIG_FILE="${PROJECT_ROOT}/cluster.yaml"
+readonly PID_FILE="${PROJECT_ROOT}/.monitor_updates_pid"
+readonly WORKER_CONFIG_FILE="${PROJECT_ROOT}/cluster.yaml"
+
+# Criar diretórios necessários
+mkdir -p "$LOG_DIR" "$BACKUP_DIR"
+
+# Logging setup
+readonly LOG_FILE="${LOG_DIR}/$(basename "${BASH_SOURCE[0]}" .sh).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# Trap para cleanup
+cleanup() {
+    local exit_code=$?
+    # Cleanup code here if needed
+    exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
+# Cores para output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly CYAN='\033[0;36m'
+readonly GRAY='\033[0;37m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m' # No Color
+
+# =============================================================================
+# FUNÇÕES AUXILIARES
+# =============================================================================
+
+# Exibir uso do script
+usage() {
+    cat << EOF
+Uso: $0 [COMANDO] [OPÇÕES]
+
+Gerenciamento completo de workers do Cluster AI.
+
+COMANDOS:
+    add                    - Adiciona um novo worker (interativo)
+    remove                 - Remove um worker existente (interativo)
+    list                   - Lista todos os workers configurados
+    monitor <worker>       - Monitora performance de um worker específico
+    health <worker>        - Executa health check em um worker
+    health-all             - Executa health check em todos os workers
+    auto-scale [cpu] [mem] - Verifica auto-scaling (padrão: 80% CPU, 85% MEM)
+    validate-ssh <h> <u> <p> - Valida conexão SSH com host
+    start-monitor          - Inicia monitor de workers em background
+    stop-monitor           - Para o monitor de workers
+    status-monitor         - Verifica status do monitor
+    update-all             - Força atualização de todos os workers
+
+OPÇÕES:
+    -h, --help             - Exibir esta ajuda
+    -v, --verbose          - Modo verboso
+    -d, --dry-run          - Executar sem fazer alterações
+    --version              - Exibir versão
+
+EXEMPLOS:
+    $0 list                           # Lista workers
+    $0 health worker-01               # Health check específico
+    $0 health-all                     # Health check todos
+    $0 monitor worker-01              # Monitora performance
+    $0 auto-scale 70 80               # Auto-scaling customizado
+
+Para mais informações, consulte: https://github.com/your-org/cluster-ai
+EOF
+}
+
+# Processar argumentos da linha de comando
+parse_args() {
+    VERBOSE=false
+    DRY_RUN=false
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                shift
+                ;;
+            -d|--dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            --version)
+                echo "$(basename "$0") v1.0.0"
+                exit 0
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+}
+
+# Verificar dependências
+check_dependencies() {
+    local deps=("ssh" "yq")
+    local missing=()
+
+    for dep in "${deps[@]}"; do
+        if ! command_exists "$dep"; then
+            missing+=("$dep")
+        fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        error "Dependências faltando: ${missing[*]}"
+        exit 1
+    fi
+}
 
 # =============================================================================
 # FUNÇÕES DE GERENCIAMENTO DE WORKERS
@@ -484,10 +636,16 @@ list_workers() {
     info "Lendo workers de '$WORKER_CONFIG_FILE'..."
     # Usa yq para ler e formatar a saída do YAML.
     if command -v yq >/dev/null; then
-        yq e '.workers | to_entries | .[] | "Worker: " + .key + " | IP: " + .value.host + " | Usuário: " + .value.user + " | Porta: " + .value.port' "$WORKER_CONFIG_FILE"
+        local workers_output
+        workers_output=$(yq e '.workers | to_entries | .[] | "Worker: " + .key + " | IP: " + .value.host + " | Usuário: " + .value.user + " | Porta: " + .value.port' "$WORKER_CONFIG_FILE" 2>/dev/null)
+        if [[ -n "$workers_output" && "$workers_output" != "null" ]]; then
+            echo "$workers_output"
+        else
+            warn "Nenhum worker configurado no arquivo."
+        fi
     else
         error "Comando 'yq' não encontrado. Não é possível listar os workers."
-        info "Instale com: sudo pip install yq"
+        info "Instale com: pip install yq"
     fi
 }
 
@@ -620,41 +778,109 @@ show_worker_help() {
 }
 
 # =============================================================================
-# PONTO DE ENTRADA DO SCRIPT
+# FUNÇÃO PRINCIPAL
 # =============================================================================
-case "${1:-help}" in
-    start-monitor) start_worker_monitor ;;
-    stop-monitor) stop_worker_monitor ;;
-    status-monitor) check_worker_monitor ;;
-    update-all) update_all_workers ;;
-    add) add_worker ;;
-    remove) remove_worker ;;
-    list) list_workers ;;
-    monitor)
-        if [ -n "${2:-}" ]; then
-            monitor_worker_performance "$2"
-        else
-            error "Uso: $0 monitor <worker_name>"
+
+main() {
+    # Processar argumentos globais
+    parse_args "$@"
+
+    # Verificações iniciais
+    check_dependencies
+
+    # Log de início
+    log "Iniciando $(basename "$0")"
+    if [[ "$DRY_RUN" == true ]]; then
+        log "MODO DRY-RUN: Nenhuma alteração será feita"
+    fi
+
+    # Processar comando
+    local command="${1:-help}"
+    shift || true
+
+    case "$command" in
+        start-monitor)
+            start_worker_monitor
+            ;;
+        stop-monitor)
+            stop_worker_monitor
+            ;;
+        status-monitor)
+            check_worker_monitor
+            ;;
+        update-all)
+            update_all_workers
+            ;;
+        add)
+            add_worker
+            ;;
+        remove)
+            remove_worker
+            ;;
+        list)
+            list_workers
+            ;;
+        monitor)
+            if [[ -n "${1:-}" ]]; then
+                monitor_worker_performance "$1"
+            else
+                error "Uso: $0 monitor <worker_name>"
+                exit 1
+            fi
+            ;;
+        health)
+            if [[ -n "${1:-}" ]]; then
+                health_check_worker "$1"
+            else
+                error "Uso: $0 health <worker_name>"
+                exit 1
+            fi
+            ;;
+        health-check)
+            if [[ -n "${1:-}" ]]; then
+                if [[ "$1" == "all" ]]; then
+                    health_check_all_workers
+                else
+                    health_check_worker "$1"
+                fi
+            else
+                error "Uso: $0 health-check <worker_name|all>"
+                exit 1
+            fi
+            ;;
+        health-all)
+            health_check_all_workers
+            ;;
+        auto-scale)
+            auto_scale_workers "${1:-80}" "${2:-85}"
+            ;;
+        validate-ssh)
+            if [[ -n "${1:-}" && -n "${2:-}" && -n "${3:-}" ]]; then
+                validate_ssh_key "$1" "$2" "$3"
+            else
+                error "Uso: $0 validate-ssh <host> <user> <port>"
+                exit 1
+            fi
+            ;;
+        *)
+            usage
             exit 1
-        fi ;;
-    health)
-        if [ -n "${2:-}" ]; then
-            health_check_worker "$2"
-        else
-            error "Uso: $0 health <worker_name>"
-            exit 1
-        fi ;;
-    health-all) health_check_all_workers ;;
-    auto-scale) auto_scale_workers "${2:-80}" "${3:-85}" ;;
-    validate-ssh)
-        if [ -n "${2:-}" ] && [ -n "${3:-}" ] && [ -n "${4:-}" ]; then
-            validate_ssh_key "$2" "$3" "$4"
-        else
-            error "Uso: $0 validate-ssh <host> <user> <port>"
-            exit 1
-        fi ;;
-    *)
-      show_worker_help
-      exit 1
-      ;;
-esac
+            ;;
+    esac
+
+    # Log de conclusão
+    success "$(basename "$0") concluído"
+}
+
+# =============================================================================
+# EXECUÇÃO
+# =============================================================================
+
+# Executar função principal se script for chamado diretamente
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
+
+# =============================================================================
+# FIM DO SCRIPT
+# =============================================================================

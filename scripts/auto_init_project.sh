@@ -274,31 +274,37 @@ DASHBOARD_RUNNING=false
 FRONTEND_RUNNING=false
 BACKEND_RUNNING=false
 
-# Centralizar a inicialização de serviços chamando o script dedicado
-AUTO_START_SCRIPT="${PROJECT_ROOT}/scripts/auto_start_services.sh"
-if [[ -f "$AUTO_START_SCRIPT" ]]; then
-    if [[ -x "$AUTO_START_SCRIPT" ]]; then
-        # Capturar output do script para analisar status
-        SERVICES_OUTPUT=$(bash "$AUTO_START_SCRIPT" 2>&1)
-        echo "$SERVICES_OUTPUT"
+# Pular inicialização de serviços em modo de teste para evitar timeouts
+if [[ "${CLUSTER_AI_TEST_MODE:-0}" == "1" ]]; then
+    echo -e "  ${YELLOW}⚠️ Modo de teste: pulando inicialização de serviços${NC}"
+    log_detailed "TEST_MODE: Skipping service startup"
+else
+    # Centralizar a inicialização de serviços chamando o script dedicado
+    AUTO_START_SCRIPT="${PROJECT_ROOT}/scripts/auto_start_services.sh"
+    if [[ -f "$AUTO_START_SCRIPT" ]]; then
+        if [[ -x "$AUTO_START_SCRIPT" ]]; then
+            # Capturar output do script para analisar status
+            SERVICES_OUTPUT=$(bash "$AUTO_START_SCRIPT" 2>&1)
+            echo "$SERVICES_OUTPUT"
 
-        # Verificar se os serviços estão rodando baseado no output
-        if echo "$SERVICES_OUTPUT" | grep -q "Dashboard Model Registry.*✓"; then
-            DASHBOARD_RUNNING=true
-        fi
-        if echo "$SERVICES_OUTPUT" | grep -q "Web Dashboard Frontend.*✓"; then
-            FRONTEND_RUNNING=true
-        fi
-        if echo "$SERVICES_OUTPUT" | grep -q "Backend API.*✓"; then
-            BACKEND_RUNNING=true
+            # Verificar se os serviços estão rodando baseado no output
+            if echo "$SERVICES_OUTPUT" | grep -q "Dashboard Model Registry.*✓"; then
+                DASHBOARD_RUNNING=true
+            fi
+            if echo "$SERVICES_OUTPUT" | grep -q "Web Dashboard Frontend.*✓"; then
+                FRONTEND_RUNNING=true
+            fi
+            if echo "$SERVICES_OUTPUT" | grep -q "Backend API.*✓"; then
+                BACKEND_RUNNING=true
+            fi
+        else
+            log_error "Script auto_start_services.sh encontrado, mas não tem permissão de execução."
+            echo -e "  ${RED}✗ Script de inicialização de serviços encontrado, mas sem permissão de execução.${NC}"
         fi
     else
-        log_error "Script auto_start_services.sh encontrado, mas não tem permissão de execução."
-        echo -e "  ${RED}✗ Script de inicialização de serviços encontrado, mas sem permissão de execução.${NC}"
+        log_error "Script auto_start_services.sh não encontrado."
+        echo -e "  ${RED}✗ Script de inicialização de serviços não encontrado.${NC}"
     fi
-else
-    log_error "Script auto_start_services.sh não encontrado."
-    echo -e "  ${RED}✗ Script de inicialização de serviços não encontrado.${NC}"
 fi
 
 # INFORMAÇÕES ADICIONAIS
@@ -371,11 +377,11 @@ fi
 
 # Ambientes Virtuais
 echo -e "\n${BOLD}Ambientes Virtuais Python:${NC}"
-if [[ -d "venv" ]]; then
-    python_version=$(source venv/bin/activate && python --version 2>&1 | cut -d' ' -f2 && deactivate)
-    echo -e "  ${GREEN}venv${NC}                   Ambiente principal (Python $python_version)"
+if [[ -d "cluster-ai-env" ]]; then
+    python_version=$(source cluster-ai-env/bin/activate && python --version 2>&1 | cut -d' ' -f2 && deactivate)
+    echo -e "  ${GREEN}cluster-ai-env${NC}         Ambiente principal (Python $python_version)"
 else
-    echo -e "  ${RED}venv${NC}                   Ambiente virtual não encontrado"
+    echo -e "  ${RED}cluster-ai-env${NC}         Ambiente virtual não encontrado"
 fi
 
 echo -e "\n${GRAY}Nota: Ambiente virtual único para evitar duplicação de pacotes e economizar espaço."

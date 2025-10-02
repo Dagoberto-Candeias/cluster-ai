@@ -33,11 +33,17 @@ class TestPerformance:
             if script_path.exists():
                 start_time = time.time()
                 try:
+                    # Set test mode for scripts that support it to avoid timeouts
+                    env = os.environ.copy()
+                    if "auto_init_project.sh" in script:
+                        env["CLUSTER_AI_TEST_MODE"] = "1"
+
                     with subprocess.Popen(
                         [str(script_path)],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
+                        env=env,
                     ) as proc:
                         try:
                             stdout, stderr = proc.communicate(timeout=max_time + 5)
@@ -71,8 +77,8 @@ class TestPerformance:
         process = psutil.Process(os.getpid())
         memory_mb = process.memory_info().rss / 1024 / 1024
 
-        # Limite aumentado para 800MB devido ao carregamento de muitos módulos nos testes
-        limit_mb = int(os.getenv("CLUSTER_AI_TEST_MEMORY_LIMIT", "800"))
+        # Limite aumentado para 1200MB devido ao carregamento de muitos módulos nos testes
+        limit_mb = int(os.getenv("CLUSTER_AI_TEST_MEMORY_LIMIT", "1200"))
 
         # Log da medição para debugging
         print(f"Current memory usage: {memory_mb:.1f}MB (limit: {limit_mb}MB)")

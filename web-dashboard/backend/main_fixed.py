@@ -59,6 +59,58 @@ TEST_MODE = (
     os.getenv("CLUSTER_AI_TEST_MODE", "0") == "1" or "PYTEST_CURRENT_TEST" in os.environ
 )
 
+# Read logging levels from environment variables
+GLOBAL_LOG_LEVEL = os.getenv("GLOBAL_LOG_LEVEL", "INFO").upper()
+COMPONENT_LOG_LEVELS_RAW = os.getenv("COMPONENT_LOG_LEVELS", "")  # Format: "component1=DEBUG,component2=WARNING"
+COMPONENT_LOG_LEVELS = {}
+
+if COMPONENT_LOG_LEVELS_RAW:
+    for item in COMPONENT_LOG_LEVELS_RAW.split(","):
+        if "=" in item:
+            comp, level = item.split("=", 1)
+            COMPONENT_LOG_LEVELS[comp.strip().lower()] = level.strip().upper()
+
+# Configure root logger level
+numeric_level = getattr(logging, GLOBAL_LOG_LEVEL, logging.INFO)
+logging.basicConfig(level=numeric_level)
+
+# Configure structlog with dynamic filtering based on global and component levels
+def level_filter(logger, method_name, event_dict):
+    level_name = event_dict.get("level", "").upper()
+    component = event_dict.get("component", "").lower()
+
+    # Determine numeric level of the event
+    event_level = getattr(logging, level_name, None)
+    if event_level is None:
+        event_level = logging.INFO
+
+    # Check component-specific level
+    comp_level_name = COMPONENT_LOG_LEVELS.get(component)
+    if comp_level_name:
+        comp_level = getattr(logging, comp_level_name, logging.INFO)
+        if event_level < comp_level:
+            return None  # Filter out event below component level
+
+    # Check global level
+    if event_level < numeric_level:
+        return None  # Filter out event below global level
+
+    return event_dict
+
+
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.dict_tracebacks,
+        level_filter,
+        structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
+    cache_logger_on_first_use=True,
+)
+logger = structlog.get_logger("backend")
+
 
 # WebSocket connection manager with CSRF protection
 class ConnectionManager:
@@ -860,7 +912,18 @@ async def update_settings(
 
     # Apply settings to running system
     if "log_level" in settings:
-        logging.getLogger().setLevel(getattr(logging, settings["log_level"]))
+        new_level_name = settings["log_level"].upper()
+        new_level = getattr(logging, new_level_name, None)
+        if new_level is not None:
+            logging.getLogger().setLevel(new_level)
+            # Update structlog wrapper class to new level
+            structlog.configure(
+                wrapper_class=structlog.make_filtering_bound_logger(new_level),
+                cache_logger_on_first_use=True,
+            )
+            logger.info(f"Log level dynamically updated to {new_level_name}")
+        else:
+            logger.warning(f"Invalid log level received: {settings['log_level']}")
 
     logger.info(f"Settings updated by user {current_user.username}")
     return {"message": "Settings updated successfully", "settings": settings_store}
